@@ -77,7 +77,6 @@ const lineUp = (services: LocationLineUpObject[]): LocationLineUpResponse => ({ 
 
 const buildOptions = {
   fromCrs: 'GRY',
-  serviceDate: '2026-07-29',
   markers: [] as RouteMarker[],
 };
 
@@ -94,19 +93,18 @@ test('a boardable departure is returned with its London time', () => {
   assert.equal(service.dep, '23:52'); // BST
   assert.equal(service.destination, 'Shoeburyness');
   assert.equal(service.toc, 'CC');
-  assert.equal(service.departsAfterMidnight, false);
 });
 
-test('a departure after midnight is flagged and still belongs to this service day', () => {
-  // 00:22 BST on the 30th is the last train of the 29th's service day. The flag is
-  // relative to the service day on screen, not the train's own origin date.
+test('a departure after midnight keeps its own time and belongs to this service day', () => {
+  // 00:22 on the 30th is the last train of the 29th's service day. It is shown as
+  // 00:22 and nothing else: the app works in service days throughout, so a next-day
+  // marker would be reintroducing calendar days where they do not apply.
   const departures = sortedDepartures(
     lineUp([stub({ id: 'late', depart: '2026-07-30T00:22:00' })])
   );
 
   const service = toDepartureService(departures[0], buildOptions);
   assert.equal(service.dep, '00:22');
-  assert.equal(service.departsAfterMidnight, true);
 });
 
 test('trains that only pass through are excluded', () => {

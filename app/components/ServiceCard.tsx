@@ -38,14 +38,12 @@ export default function ServiceCard({ service }: { service: DepartureService }) 
   return (
     <li className="service">
       <div className="service-times">
-        <span className="time">
-          {service.dep}
-          {service.departsAfterMidnight && (
-            <span className="next-day" title="After midnight, still tonight's service">
-              +1
-            </span>
-          )}
-        </span>
+        {/*
+         * Just the time. No next-day marker: the whole app works in service days,
+         * and a 00:18 sitting below a 23:47 in a list of tonight's last trains is
+         * already unambiguous on a 24-hour clock.
+         */}
+        <span className="time">{service.dep}</span>
         <span className="destination" title={service.destination}>
           {shortenPlace(service.destination)}
         </span>
@@ -93,7 +91,6 @@ export default function ServiceCard({ service }: { service: DepartureService }) 
 
       <span className="visually-hidden">
         {`${service.tocName} service departing ${service.dep}` +
-          (service.departsAfterMidnight ? ' after midnight' : '') +
           `, towards ${service.destination}` +
           (service.via ? `, ${service.via}` : '')}
       </span>

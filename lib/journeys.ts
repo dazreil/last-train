@@ -10,12 +10,7 @@
  * they are going. Nothing here plans an interchange.
  */
 
-import {
-  formatLondonTime,
-  londonDateOf,
-  toInstantMillis,
-  type IsoDate,
-} from './serviceDay.ts';
+import { formatLondonTime, toInstantMillis } from './serviceDay.ts';
 import type {
   CallType,
   DisplayAs,
@@ -39,8 +34,6 @@ export interface DepartureService {
   via: string | null;
   /** Where the train itself is going, which may be short of the far terminus. */
   destination: string;
-  /** True when the departure is after midnight, i.e. late in this service day. */
-  departsAfterMidnight: boolean;
   platform: string | null;
   /** Rail replacement road transport. Badged, never silently shown as a train. */
   isReplacementBus: boolean;
@@ -280,8 +273,6 @@ export function deriveVia(
 
 export interface BuildOptions {
   fromCrs: string;
-  /** The service day being shown, which is what "after midnight" is relative to. */
-  serviceDate: IsoDate;
   markers: RouteMarker[];
   /** Calling patterns for enriched services, keyed by uniqueIdentity. */
   callingPatterns?: Map<string, ServiceLocation[]>;
@@ -304,10 +295,6 @@ export function toDepartureService(
     tocName: meta.operator?.name ?? 'Unknown operator',
     via: pattern ? deriveVia(pattern, options.fromCrs, null, options.markers) : null,
     destination: describePair(departure.service.destination),
-    // Relative to the service day on screen, not to the train's own origin date:
-    // a service *starting* at 00:22 has an origin date of the next calendar day,
-    // which would read as "not after midnight" if compared the other way.
-    departsAfterMidnight: londonDateOf(departure.depInstant) !== options.serviceDate,
     platform: platformOf(departure.service),
     isReplacementBus: mode === 'REPLACEMENT_BUS' || mode === 'SCHEDULED_BUS' || mode === 'BUS',
     headcode: meta.trainReportingIdentity ?? null,

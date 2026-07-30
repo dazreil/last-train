@@ -364,13 +364,6 @@ input.station-input::placeholder {
   white-space: nowrap;
 }
 
-.next-day {
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: var(--accent);
-  vertical-align: super;
-  margin-left: 0.1rem;
-}
 
 .service-times .badge {
   margin-left: auto;

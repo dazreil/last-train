@@ -340,8 +340,8 @@ export default function Page() {
 
       <p className="footnote">
         Timetabled departures for the {formatServiceDate(date)} service day, which runs to{' '}
-        {String(SERVICE_DAY_START_HOUR).padStart(2, '0')}:00 the next morning — so trains after
-        midnight are included, marked +1.
+        {String(SERVICE_DAY_START_HOUR).padStart(2, '0')}:00 the next morning, so trains after
+        midnight are tonight's, not tomorrow's.
         {degraded && ' Realtime data is currently degraded; these are scheduled times only.'} Data
         from{' '}
         <a href="https://www.realtimetrains.co.uk" rel="noreferrer noopener" target="_blank">

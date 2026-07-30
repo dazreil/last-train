@@ -291,7 +291,6 @@ export async function GET(request: Request) {
     const services = selected.map(({ departure, role }) => ({
       ...toDepartureService(departure, {
         fromCrs: from.crs,
-        serviceDate: date,
         markers: routeMarkers,
         callingPatterns,
       }),
