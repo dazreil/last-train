@@ -1,0 +1,512 @@
+/*
+ * Mobile-first, dark-first, big type.
+ *
+ * The design target is one-handed use on a platform at 23:40. That means times
+ * large enough to read at a glance, tap targets big enough to hit while walking,
+ * and no layout that shifts once results land.
+ */
+
+:root {
+  --bg: #0b0d10;
+  --surface: #14181d;
+  --surface-raised: #1c2229;
+  --border: #2a323b;
+  --text: #f2f5f8;
+  --text-dim: #9aa7b4;
+  --text-faint: #6b7885;
+  --accent: #4ea3ff;
+  --danger: #ff6b6b;
+
+  /* Operator colours, roughly as branded. */
+  --toc-cc: #b7007c; /* c2c */
+  --toc-le: #d70428; /* Greater Anglia */
+  --toc-xr: #6950a1; /* Elizabeth line */
+  --toc-unknown: #5a6673;
+
+  --radius: 14px;
+  --tap: 48px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f4f6f8;
+    --surface: #ffffff;
+    --surface-raised: #ffffff;
+    --border: #d7dde3;
+    --text: #10151a;
+    --text-dim: #55636f;
+    --text-faint: #7d8a96;
+    --accent: #0b62c4;
+    --danger: #c62828;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+  /* Times are read, not admired; keep the digits from wobbling as they change. */
+  font-variant-numeric: tabular-nums;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 1rem 1rem calc(2rem + env(safe-area-inset-bottom));
+}
+
+/* ------------------------------------------------------------------ header */
+
+.masthead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.25rem 0 1rem;
+}
+
+.masthead h1 {
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  margin: 0;
+}
+
+.masthead .day {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------- form */
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.field {
+  position: relative;
+}
+
+.field-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.field-row > input.station-input {
+  flex: 1;
+  min-width: 0;
+}
+
+label.field-label {
+  position: absolute;
+  /* Above the input: both are positioned, so without this the input's own
+     background paints over the label by DOM order. */
+  z-index: 1;
+  top: 0.5rem;
+  left: 0.85rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+input.station-input {
+  width: 100%;
+  min-height: 4rem;
+  padding: 1.5rem 0.85rem 0.6rem;
+  font-size: 1.1rem;
+  font-family: inherit;
+  font-weight: 550;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  appearance: none;
+}
+
+input.station-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+input.station-input::placeholder {
+  color: var(--text-faint);
+  font-weight: 450;
+}
+
+.icon-button {
+  flex: 0 0 auto;
+  width: var(--tap);
+  min-height: var(--tap);
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 1.15rem;
+  cursor: pointer;
+}
+
+.icon-button:active {
+  background: var(--surface-raised);
+}
+
+.icon-button[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* The swap button sits between the two fields, overlapping both. */
+.swap-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: -0.75rem 0.6rem -0.75rem 0;
+  position: relative;
+  z-index: 2;
+}
+
+.swap-row .icon-button {
+  width: 2.4rem;
+  min-height: 2.4rem;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  font-size: 1rem;
+}
+
+/* ------------------------------------------------------------ suggestions */
+
+.suggestions {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
+  overflow: hidden;
+  max-height: 17rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.suggestions li button {
+  display: flex;
+  width: 100%;
+  gap: 0.6rem;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--tap);
+  padding: 0.5rem 0.85rem;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.suggestions li:last-child button {
+  border-bottom: 0;
+}
+
+.suggestions li button[aria-selected="true"] {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.suggestions .crs {
+  color: var(--text-faint);
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  flex: 0 0 auto;
+}
+
+.suggestions .distance {
+  color: var(--accent);
+  font-size: 0.8rem;
+  flex: 0 0 auto;
+}
+
+/* ----------------------------------------------------------------- chips */
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+}
+
+.chip {
+  min-height: 2.4rem;
+  padding: 0 0.8rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chip[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--accent) 20%, var(--surface));
+  border-color: var(--accent);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.chip-row.recents .chip {
+  font-variant-numeric: normal;
+}
+
+.segmented {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.segmented .chip {
+  flex: 1;
+  text-align: center;
+}
+
+/* --------------------------------------------------------------- results */
+
+.results {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  color: var(--text-faint);
+}
+
+.service-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.service {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.7rem 0.85rem 0.6rem;
+}
+
+.service.cancelled {
+  opacity: 0.55;
+}
+
+.service-times {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.time {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+/* Where the train is going. The headline answer alongside the time, so it takes
+   the remaining width and truncates rather than wrapping the badge onto a new
+   line. */
+.destination {
+  flex: 1;
+  min-width: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.next-day {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--accent);
+  vertical-align: super;
+  margin-left: 0.1rem;
+}
+
+.service-times .badge {
+  margin-left: auto;
+}
+
+.badge {
+  flex: 0 0 auto;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: var(--toc-unknown);
+  white-space: nowrap;
+}
+
+.badge[data-toc="CC"] {
+  background: var(--toc-cc);
+}
+.badge[data-toc="LE"] {
+  background: var(--toc-le);
+}
+.badge[data-toc="XR"] {
+  background: var(--toc-xr);
+}
+
+.service-meta {
+  margin-top: 0.3rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.service-meta .via {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.service-meta .sep {
+  color: var(--text-faint);
+}
+
+.service-meta .bus {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.service-meta .headcode {
+  color: var(--text-faint);
+  letter-spacing: 0.04em;
+}
+
+/* Sits under the direction buttons: "Shoeburyness, Pitsea". Tells you what "east"
+   actually means from where you are standing. */
+.towards {
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-faint);
+  text-align: center;
+}
+
+/* ------------------------------------------------------ states & messages */
+
+.notice {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.1rem 1rem;
+}
+
+.notice h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.05rem;
+}
+
+.notice p {
+  margin: 0.4rem 0 0;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.notice.error {
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--border));
+}
+
+.notice.error h2 {
+  color: var(--danger);
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.skeleton-row {
+  height: 4.4rem;
+  border-radius: var(--radius);
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-raised) 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-row {
+    animation: none;
+  }
+}
+
+.footnote {
+  margin-top: 2rem;
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  line-height: 1.6;
+}
+
+.footnote a {
+  color: var(--text-dim);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

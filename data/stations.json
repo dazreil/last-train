@@ -1,0 +1,965 @@
+{
+  "generatedAt": "2026-07-30T04:19:05.561Z",
+  "apiVersion": "2026-04-09",
+  "sampledServiceDate": "2026-07-31",
+  "routeMarkers": [
+    {
+      "crs": "TIL",
+      "label": "via Tilbury",
+      "station": "Tilbury Town"
+    },
+    {
+      "crs": "OCK",
+      "label": "via Ockendon",
+      "station": "Ockendon"
+    },
+    {
+      "crs": "RNM",
+      "label": "via Rainham",
+      "station": "Rainham (London)"
+    },
+    {
+      "crs": "BSO",
+      "label": "via Basildon",
+      "station": "Basildon"
+    }
+  ],
+  "stations": [
+    {
+      "crs": "ABW",
+      "name": "Abbey Wood",
+      "tiploc": "ABWDXR",
+      "lat": 51.491241,
+      "lon": 0.121374,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "west"
+      ]
+    },
+    {
+      "crs": "AML",
+      "name": "Acton Main Line",
+      "tiploc": "ACTONML",
+      "lat": 51.51718,
+      "lon": -0.266756,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "BKG",
+      "name": "Barking",
+      "tiploc": "BARKING",
+      "lat": 51.539495,
+      "lon": 0.080903,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "BSO",
+      "name": "Basildon",
+      "tiploc": "BASILDN",
+      "lat": 51.568106,
+      "lon": 0.456789,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "BEF",
+      "name": "Benfleet",
+      "tiploc": "BENFLET",
+      "lat": 51.543945,
+      "lon": 0.561713,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "BDS",
+      "name": "Bond Street",
+      "tiploc": "BONDST",
+      "lat": 51.513895,
+      "lon": -0.147246,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "BRE",
+      "name": "Brentwood",
+      "tiploc": "BRTWOOD",
+      "lat": 51.613605,
+      "lon": 0.299586,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "BNM",
+      "name": "Burnham",
+      "tiploc": "BNHAM",
+      "lat": 51.523506,
+      "lon": -0.646374,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "CWX",
+      "name": "Canary Wharf",
+      "tiploc": "CANWHRF",
+      "lat": 51.506203,
+      "lon": -0.018834,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "CTH",
+      "name": "Chadwell Heath",
+      "tiploc": "CHDWLHT",
+      "lat": 51.568039,
+      "lon": 0.128958,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "CFH",
+      "name": "Chafford Hundred",
+      "tiploc": "CHADHDD",
+      "lat": 51.485557,
+      "lon": 0.287447,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "CHW",
+      "name": "Chalkwell",
+      "tiploc": "CHLKWEL",
+      "lat": 51.538719,
+      "lon": 0.670593,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "CUS",
+      "name": "Custom House",
+      "tiploc": "CUSTMHS",
+      "lat": 51.509436,
+      "lon": 0.027681,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "DDK",
+      "name": "Dagenham Dock",
+      "tiploc": "DGNHMDC",
+      "lat": 51.52609,
+      "lon": 0.146103,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "EAL",
+      "name": "Ealing Broadway",
+      "tiploc": "EALINGB",
+      "lat": 51.514841,
+      "lon": -0.301752,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "ETL",
+      "name": "East Tilbury",
+      "tiploc": "ETILBRY",
+      "lat": 51.484831,
+      "lon": 0.412928,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "ZFD",
+      "name": "Farringdon",
+      "tiploc": "FRNDXR",
+      "lat": 51.520188,
+      "lon": -0.104915,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "FOG",
+      "name": "Forest Gate",
+      "tiploc": "FRSTGT",
+      "lat": 51.549432,
+      "lon": 0.024353,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "GDP",
+      "name": "Gidea Park",
+      "tiploc": "GIDEAPK",
+      "lat": 51.581904,
+      "lon": 0.205964,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "GMY",
+      "name": "Goodmayes",
+      "tiploc": "GODMAYS",
+      "lat": 51.565579,
+      "lon": 0.110807,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "GRY",
+      "name": "Grays",
+      "tiploc": "GRAYS",
+      "lat": 51.476248,
+      "lon": 0.321832,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "HAN",
+      "name": "Hanwell",
+      "tiploc": "HANWELL",
+      "lat": 51.511835,
+      "lon": -0.338583,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "HRO",
+      "name": "Harold Wood",
+      "tiploc": "HRLDWOD",
+      "lat": 51.592766,
+      "lon": 0.233129,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "HAY",
+      "name": "Hayes & Harlington",
+      "tiploc": "HAYESAH",
+      "lat": 51.503096,
+      "lon": -0.420683,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "HAF",
+      "name": "Heathrow Airport Terminal 4",
+      "tiploc": "HTRWTM4",
+      "lat": 51.458268,
+      "lon": -0.445463,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "HWV",
+      "name": "Heathrow Airport Terminal 5",
+      "tiploc": "HTRWTM5",
+      "lat": 51.470053,
+      "lon": -0.490589,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east"
+      ]
+    },
+    {
+      "crs": "HXX",
+      "name": "Heathrow Central",
+      "tiploc": "HTRWAPT",
+      "lat": 51.471852,
+      "lon": -0.454102,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "IFD",
+      "name": "Ilford",
+      "tiploc": "ILFORD",
+      "lat": 51.559118,
+      "lon": 0.06968,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "IVR",
+      "name": "Iver",
+      "tiploc": "IVER",
+      "lat": 51.508503,
+      "lon": -0.506726,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "LAI",
+      "name": "Laindon",
+      "tiploc": "LAINDON",
+      "lat": 51.567524,
+      "lon": 0.424289,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "LNY",
+      "name": "Langley",
+      "tiploc": "LANGLEY",
+      "lat": 51.508062,
+      "lon": -0.541756,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "LES",
+      "name": "Leigh-on-Sea",
+      "tiploc": "LHONSEA",
+      "lat": 51.541273,
+      "lon": 0.640411,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "LHS",
+      "name": "Limehouse",
+      "tiploc": "LIMHSE",
+      "lat": 51.512537,
+      "lon": -0.039803,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "FST",
+      "name": "London Fenchurch Street",
+      "tiploc": "FENCHRS",
+      "lat": 51.511646,
+      "lon": -0.078897,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east"
+      ]
+    },
+    {
+      "crs": "LST",
+      "name": "London Liverpool Street",
+      "tiploc": "LIVSTLL",
+      "lat": 51.517721,
+      "lon": -0.082043,
+      "operators": [
+        "LE",
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "PAD",
+      "name": "London Paddington",
+      "tiploc": "PADTLL",
+      "lat": 51.516449,
+      "lon": -0.177107,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "MAI",
+      "name": "Maidenhead",
+      "tiploc": "MDNHEAD",
+      "lat": 51.518669,
+      "lon": -0.72266,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "MNP",
+      "name": "Manor Park",
+      "tiploc": "MANRPK",
+      "lat": 51.552477,
+      "lon": 0.046342,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "MYL",
+      "name": "Maryland",
+      "tiploc": "MRYLAND",
+      "lat": 51.546081,
+      "lon": 0.005815,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "OCK",
+      "name": "Ockendon",
+      "tiploc": "OCKENDN",
+      "lat": 51.521992,
+      "lon": 0.290469,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "PSE",
+      "name": "Pitsea",
+      "tiploc": "PITSEA",
+      "lat": 51.560359,
+      "lon": 0.506293,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "PFL",
+      "name": "Purfleet",
+      "tiploc": "PURFLET",
+      "lat": 51.481013,
+      "lon": 0.236767,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "RNM",
+      "name": "Rainham (London)",
+      "tiploc": "RNHAME",
+      "lat": 51.516723,
+      "lon": 0.190634,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "RDG",
+      "name": "Reading",
+      "tiploc": "RDNGSTN",
+      "lat": 51.458786,
+      "lon": -0.971849,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east"
+      ]
+    },
+    {
+      "crs": "RMF",
+      "name": "Romford",
+      "tiploc": "ROMFORD",
+      "lat": 51.574829,
+      "lon": 0.183237,
+      "operators": [
+        "LE",
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "SVK",
+      "name": "Seven Kings",
+      "tiploc": "SVNKNGS",
+      "lat": 51.564026,
+      "lon": 0.0971,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "SNF",
+      "name": "Shenfield",
+      "tiploc": "SHENFLD",
+      "lat": 51.630877,
+      "lon": 0.329851,
+      "operators": [
+        "LE",
+        "XR"
+      ],
+      "onward": [
+        "west"
+      ]
+    },
+    {
+      "crs": "SRY",
+      "name": "Shoeburyness",
+      "tiploc": "SHBRYNS",
+      "lat": 51.530973,
+      "lon": 0.795345,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "west"
+      ]
+    },
+    {
+      "crs": "SLO",
+      "name": "Slough",
+      "tiploc": "SLOUGH",
+      "lat": 51.51188,
+      "lon": -0.59151,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "STL",
+      "name": "Southall",
+      "tiploc": "STHALL",
+      "lat": 51.505957,
+      "lon": -0.37861,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "SOC",
+      "name": "Southend Central",
+      "tiploc": "STHCENT",
+      "lat": 51.537065,
+      "lon": 0.711727,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "SOE",
+      "name": "Southend East",
+      "tiploc": "STHNDE",
+      "lat": 51.538973,
+      "lon": 0.731815,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "SFO",
+      "name": "Stanford-le-Hope",
+      "tiploc": "SLEHOPE",
+      "lat": 51.514364,
+      "lon": 0.423036,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "SRA",
+      "name": "Stratford (London)",
+      "tiploc": "STFD",
+      "lat": 51.541895,
+      "lon": -0.003397,
+      "operators": [
+        "LE",
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "TAP",
+      "name": "Taplow",
+      "tiploc": "TAPLOW",
+      "lat": 51.523562,
+      "lon": -0.68137,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "TPB",
+      "name": "Thorpe Bay",
+      "tiploc": "THOPBAY",
+      "lat": 51.53757,
+      "lon": 0.761728,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "TIL",
+      "name": "Tilbury Town",
+      "tiploc": "TLBYTWN",
+      "lat": 51.462359,
+      "lon": 0.354039,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "TCR",
+      "name": "Tottenham Court Road",
+      "tiploc": "TOTCTRD",
+      "lat": 51.515782,
+      "lon": -0.130148,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "TWY",
+      "name": "Twyford",
+      "tiploc": "TWYFORD",
+      "lat": 51.475534,
+      "lon": -0.863293,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "UPM",
+      "name": "Upminster",
+      "tiploc": "UPMNSTR",
+      "lat": 51.559018,
+      "lon": 0.25088,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "WDT",
+      "name": "West Drayton",
+      "tiploc": "WDRYTON",
+      "lat": 51.510055,
+      "lon": -0.472234,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "WEA",
+      "name": "West Ealing",
+      "tiploc": "WEALING",
+      "lat": 51.513506,
+      "lon": -0.320133,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "WEH",
+      "name": "West Ham",
+      "tiploc": "WHAMHL",
+      "lat": 51.528489,
+      "lon": 0.005431,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "WHR",
+      "name": "West Horndon",
+      "tiploc": "WHORNDN",
+      "lat": 51.567945,
+      "lon": 0.340644,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "WCF",
+      "name": "Westcliff-on-Sea",
+      "tiploc": "WCLIFF",
+      "lat": 51.537334,
+      "lon": 0.691466,
+      "operators": [
+        "CC"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "ZLW",
+      "name": "Whitechapel",
+      "tiploc": "WCHAPXR",
+      "lat": 51.51943,
+      "lon": -0.060191,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    },
+    {
+      "crs": "WWC",
+      "name": "Woolwich",
+      "tiploc": "WOLWXR",
+      "lat": 51.492107,
+      "lon": 0.070432,
+      "operators": [
+        "XR"
+      ],
+      "onward": [
+        "east",
+        "west"
+      ]
+    }
+  ]
+}
