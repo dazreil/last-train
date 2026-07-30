@@ -15,13 +15,27 @@
   --text-dim: #9aa7b4;
   --text-faint: #6b7885;
   --accent: #4ea3ff;
-  --danger: #ff6b6b;
 
-  /* Operator colours, roughly as branded. */
-  --toc-cc: #b7007c; /* c2c */
-  --toc-le: #d70428; /* Greater Anglia */
-  --toc-xr: #6950a1; /* Elizabeth line */
-  --toc-unknown: #5a6673;
+  /*
+   * Signal palette.
+   *
+   * One rule: red means "this is the last train", and nothing else. Not errors,
+   * not alerts, not an operator, not emphasis. The moment red appears anywhere
+   * else it stops meaning anything.
+   *
+   * --signal-red is #E4002B rather than the Union Flag's #C8102F. Measured against
+   * the blue it sits directly beneath, flag red gives 2.51:1 -- too close to read
+   * as a different block at a glance, in the dark, which is the entire point of it.
+   * #E4002B reaches 3.05:1 against the blue and still keeps white text at 4.85:1.
+   * Brighter reds separate better but push white below AA.
+   *
+   * Even so, colour is never the only signal: the block carries a visible
+   * LAST TRAIN label as well.
+   */
+  --signal-blue: #012169;
+  --signal-red: #e4002b;
+  --signal-paper: #ffffff;
+  --signal-rule: rgb(255 255 255 / 0.2);
 
   --radius: 14px;
   --tap: 48px;
@@ -37,7 +51,6 @@
     --text-dim: #55636f;
     --text-faint: #7d8a96;
     --accent: #0b62c4;
-    --danger: #c62828;
   }
 }
 
@@ -281,8 +294,76 @@ input.station-input::placeholder {
   font-weight: 600;
 }
 
-.chip-row.recents .chip {
-  font-variant-numeric: normal;
+/*
+ * Recents: a station *and* a direction.
+ *
+ * A bare CRS chip was ambiguous -- tapping it applied the station but silently
+ * kept whatever direction happened to be selected, so it could answer a question
+ * you had not asked. Each block now carries both, and restores both.
+ *
+ * Square, flush, no gaps: a row of blocks, not a scatter of pills.
+ */
+.recent-label {
+  margin: 0.6rem 0 0.3rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.recent-row {
+  display: flex;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recent-row li {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.recent-block {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  padding: 0.35rem 0.2rem;
+  background: none;
+  border: 1px solid var(--border);
+  /* Collapse the shared edge so the row reads as one object. */
+  border-left-width: 0;
+  border-radius: 0;
+  color: var(--text-dim);
+  font: inherit;
+  cursor: pointer;
+}
+
+.recent-row li:first-child .recent-block {
+  border-left-width: 1px;
+}
+
+.recent-block[aria-current='true'] {
+  background: var(--signal-blue);
+  border-color: var(--signal-blue);
+  color: var(--signal-paper);
+}
+
+.recent-block .crs {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.recent-block .heading {
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  opacity: 0.8;
 }
 
 .segmented {
@@ -317,24 +398,55 @@ input.station-input::placeholder {
   color: var(--text-faint);
 }
 
+/*
+ * One solid column, full bleed, no gaps.
+ *
+ * Blocks are separated by colour change alone, so the stack reads as a single
+ * object rather than a list of cards -- which is what lets the red block register
+ * as "the end of service" from across a platform.
+ */
 .service-list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0;
   list-style: none;
-  margin: 0;
+  margin: 0 -1rem;
   padding: 0;
 }
 
 .service {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0.7rem 0.85rem 0.6rem;
+  background: var(--signal-blue);
+  color: var(--signal-paper);
+  border: 0;
+  border-radius: 0;
+  padding: 0.85rem 1rem 0.8rem;
+}
+
+/* The one rule that matters. */
+.service.last-train {
+  background: var(--signal-red);
+}
+
+/* A hairline only where two blocks of the same colour meet; the blue-to-red
+   boundary needs no help. */
+.service + .service:not(.last-train) {
+  border-top: 1px solid var(--signal-rule);
 }
 
 .service.cancelled {
   opacity: 0.55;
+}
+
+/* Sits above the time inside the red block. Colour must never be the only
+   signal -- and at a glance the white band reads even before the words do. */
+.last-train-flag {
+  display: block;
+  margin-bottom: 0.15rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--signal-paper);
 }
 
 .service-times {
@@ -358,65 +470,89 @@ input.station-input::placeholder {
   min-width: 0;
   font-size: 1rem;
   font-weight: 600;
-  color: var(--text-dim);
+  color: var(--signal-paper);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-
 .service-times .badge {
   margin-left: auto;
 }
 
+/*
+ * Operator: white outline, no fill.
+ *
+ * The old badges were filled with brand colours -- c2c magenta and, worse,
+ * Greater Anglia's #d70428, which is within a whisker of the reserved red. Every
+ * Greater Anglia service therefore wore a red block, on exactly the operator that
+ * runs the last trains out of Liverpool Street. Nothing but the last train is
+ * allowed to be red.
+ */
 .badge {
   flex: 0 0 auto;
-  padding: 0.2rem 0.5rem;
-  border-radius: 6px;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--signal-paper);
+  border-radius: 0;
   font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  color: #fff;
-  background: var(--toc-unknown);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--signal-paper);
+  background: none;
   white-space: nowrap;
 }
 
-.badge[data-toc="CC"] {
-  background: var(--toc-cc);
-}
-.badge[data-toc="LE"] {
-  background: var(--toc-le);
-}
-.badge[data-toc="XR"] {
-  background: var(--toc-xr);
-}
-
+/* Inside a coloured block, so the secondary line is white held back by opacity
+   rather than by a grey that would fight the fill. */
 .service-meta {
   margin-top: 0.3rem;
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem 0.5rem;
   font-size: 0.85rem;
-  color: var(--text-dim);
+  color: rgb(255 255 255 / 0.75);
 }
 
 .service-meta .via {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.service-meta .sep {
-  color: var(--text-faint);
-}
-
-.service-meta .bus {
-  color: var(--danger);
+  color: var(--signal-paper);
   font-weight: 700;
 }
 
+.service-meta .sep {
+  color: rgb(255 255 255 / 0.45);
+}
+
+/* Was red, which would have claimed the last-train signal for a rail replacement
+   bus. Outlined instead: still emphatic, still not red. */
+.service-meta .bus {
+  color: var(--signal-paper);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid var(--signal-paper);
+  padding: 0 0.3rem;
+}
+
 .service-meta .headcode {
-  color: var(--text-faint);
+  color: rgb(255 255 255 / 0.6);
   letter-spacing: 0.04em;
+}
+
+/*
+ * The red block is far lighter than the blue, so held-back white behaves quite
+ * differently on it: 75% white reaches 8.8:1 on blue but only 3.07:1 on red, and
+ * the headcode at 60% falls to 2.30:1. Text on red is therefore full strength --
+ * 4.85:1 -- and only the decorative separators are dimmed.
+ */
+.service.last-train .service-meta,
+.service.last-train .service-meta .headcode {
+  color: var(--signal-paper);
+}
+
+.service.last-train .service-meta .sep {
+  color: rgb(255 255 255 / 0.7);
 }
 
 /* Sits under the direction buttons: "Shoeburyness, Pitsea". Tells you what "east"
@@ -448,12 +584,23 @@ input.station-input::placeholder {
   font-size: 0.9rem;
 }
 
+/*
+ * Errors are not red. Red is spoken for.
+ *
+ * An error is stated plainly in full-strength text against a heavier border; the
+ * words carry it. "No direct trains" is likewise a real answer, not a failure, and
+ * must never be dressed as one.
+ */
 .notice.error {
-  border-color: color-mix(in srgb, var(--danger) 50%, var(--border));
+  border-color: var(--text-dim);
+  border-width: 2px;
 }
 
 .notice.error h2 {
-  color: var(--danger);
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.95rem;
 }
 
 .skeleton {

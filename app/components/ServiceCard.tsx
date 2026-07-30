@@ -32,11 +32,24 @@ const shortenPlace = (name: string): string =>
  * Street, "east" mixes the Basildon main line with the Tilbury loop, and only one
  * of those goes anywhere near Grays.
  */
-export default function ServiceCard({ service }: { service: DepartureService }) {
+export default function ServiceCard({
+  service,
+  isLastTrain = false,
+}: {
+  service: DepartureService;
+  isLastTrain?: boolean;
+}) {
   const brand = BRAND[service.toc] ?? service.toc;
 
   return (
-    <li className="service">
+    <li className={isLastTrain ? 'service last-train' : 'service'}>
+      {/*
+       * Stated in words as well as in colour. Red carries it at a glance, but red
+       * against the blue above is a hue difference more than a brightness one, so
+       * it is reinforcement rather than the whole message -- and it has to work for
+       * anyone who cannot separate the two hues at all.
+       */}
+      {isLastTrain && <span className="last-train-flag">Last train</span>}
       <div className="service-times">
         {/*
          * Just the time. No next-day marker: the whole app works in service days,
@@ -90,7 +103,8 @@ export default function ServiceCard({ service }: { service: DepartureService }) 
       </div>
 
       <span className="visually-hidden">
-        {`${service.tocName} service departing ${service.dep}` +
+        {(isLastTrain ? 'Last train. ' : '') +
+          `${service.tocName} service departing ${service.dep}` +
           `, towards ${service.destination}` +
           (service.via ? `, ${service.via}` : '')}
       </span>

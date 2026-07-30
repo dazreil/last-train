@@ -227,7 +227,9 @@ export default function StationPicker({
       )}
 
       {locateError && (
-        <p style={{ margin: '0.35rem 0 0', fontSize: '0.8rem', color: 'var(--danger)' }}>
+        // Not red: red means "last train" and nothing else. A failed geolocation
+        // is stated in plain text.
+        <p style={{ margin: '0.35rem 0 0', fontSize: '0.8rem', color: 'var(--text)' }}>
           {locateError}
         </p>
       )}

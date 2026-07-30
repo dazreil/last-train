@@ -12,14 +12,33 @@ import {
 } from '@/lib/serviceDay';
 import type { DirectionValue, TrainsError, TrainsResponse } from '@/lib/contract';
 
-const RECENTS_KEY = 'lastTrain.recentStations';
+/*
+ * Bumped from `recentStations`, which stored bare CRS codes. A recent search is a
+ * station *and* a direction; the old shape could not express that, so old entries
+ * are simply left behind rather than migrated into a guess.
+ */
+const RECENTS_KEY = 'lastTrain.recents.v2';
 const LAST_STATE_KEY = 'lastTrain.lastState';
-const MAX_RECENTS = 6;
+
+/** Four blocks is what fits across a phone without the codes shrinking. */
+const MAX_RECENTS = 4;
 
 interface SavedState {
   from: string;
   direction: DirectionValue;
 }
+
+/** A recent search: where you were, and which way you were going. */
+interface Recent {
+  crs: string;
+  direction: DirectionValue;
+}
+
+const isRecent = (value: unknown): value is Recent =>
+  typeof value === 'object' &&
+  value !== null &&
+  typeof (value as Recent).crs === 'string' &&
+  ((value as Recent).direction === 'east' || (value as Recent).direction === 'west');
 
 const readJson = <T,>(key: string): T | null => {
   try {
@@ -42,7 +61,7 @@ export default function Page() {
   const [from, setFrom] = useState<Station | null>(null);
   const [direction, setDirection] = useState<DirectionValue>('west');
   const [tomorrow, setTomorrow] = useState(false);
-  const [recents, setRecents] = useState<string[]>([]);
+  const [recents, setRecents] = useState<Recent[]>([]);
 
   const [result, setResult] = useState<TrainsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +101,7 @@ export default function Page() {
       setFrom(findStation(saved.from) ?? null);
       if (saved.direction === 'east' || saved.direction === 'west') setDirection(saved.direction);
     }
-    setRecents(readJson<string[]>(RECENTS_KEY) ?? []);
+    setRecents((readJson<unknown[]>(RECENTS_KEY) ?? []).filter(isRecent));
     setRestored(true);
   }, []);
 
@@ -150,7 +169,14 @@ export default function Page() {
 
     writeJson(LAST_STATE_KEY, { from: from.crs, direction });
     setRecents((current) => {
-      const next = [from.crs, ...current.filter((crs) => crs !== from.crs)].slice(0, MAX_RECENTS);
+      // Keyed on both, so Grays-east and Grays-west are two distinct recents --
+      // which is exactly the out-and-back pair you want one tap away.
+      const next = [
+        { crs: from.crs, direction },
+        ...current.filter(
+          (entry) => !(entry.crs === from.crs && entry.direction === direction)
+        ),
+      ].slice(0, MAX_RECENTS);
       writeJson(RECENTS_KEY, next);
       return next;
     });
@@ -160,6 +186,10 @@ export default function Page() {
 
   const firstTrain = result?.services.filter((service) => service.role === 'first') ?? [];
   const lastTrains = result?.services.filter((service) => service.role === 'last') ?? [];
+
+  // The genuine last one, not merely the last section. Services arrive in departure
+  // order, so it is the final entry -- the 00:46, not the 23:47 above it.
+  const lastTrainId = lastTrains.length ? lastTrains[lastTrains.length - 1].serviceId : null;
 
   const degraded =
     result?.systemStatus?.rttCore === 'SCHEDULE_ONLY' ||
@@ -228,23 +258,38 @@ export default function Page() {
         </div>
 
         {recents.length > 1 && (
-          <div className="chip-row recents">
-            {recents.slice(1).map((crs) => {
-              const station = findStation(crs);
-              if (!station) return null;
-              return (
-                <button
-                  key={crs}
-                  type="button"
-                  className="chip"
-                  onClick={() => setFrom(station)}
-                  title={station.name}
-                >
-                  {station.crs}
-                </button>
-              );
-            })}
-          </div>
+          <>
+            <h2 className="recent-label">Recent</h2>
+            <ul className="recent-row">
+              {recents.map((entry) => {
+                const station = findStation(entry.crs);
+                if (!station) return null;
+                const active = from?.crs === entry.crs && direction === entry.direction;
+                return (
+                  <li key={`${entry.crs}-${entry.direction}`}>
+                    <button
+                      type="button"
+                      className="recent-block"
+                      aria-current={active}
+                      // Restores both halves of the search, and the lookup effect
+                      // runs off the state change. No second tap.
+                      onClick={() => {
+                        setFrom(station);
+                        setDirection(entry.direction);
+                      }}
+                      aria-label={`${station.name}, ${entry.direction}bound`}
+                      title={`${station.name} — ${entry.direction}bound`}
+                    >
+                      <span className="crs">{station.crs}</span>
+                      <span className="heading" aria-hidden="true">
+                        {entry.direction === 'east' ? '→ E' : '← W'}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
         )}
       </div>
 
@@ -320,7 +365,11 @@ export default function Page() {
               </h2>
               <ul className="service-list">
                 {lastTrains.map((service) => (
-                  <ServiceCard key={service.serviceId} service={service} />
+                  <ServiceCard
+                    key={service.serviceId}
+                    service={service}
+                    isLastTrain={service.serviceId === lastTrainId}
+                  />
                 ))}
               </ul>
             </div>
