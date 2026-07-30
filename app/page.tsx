@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import StationPicker from './components/StationPicker';
 import ServiceCard from './components/ServiceCard';
+import DirectionBlock from './components/DirectionBlock';
 import { findStation, type Station } from '@/lib/stations';
 import {
   addDays,
@@ -199,10 +200,27 @@ export default function Page() {
     <main className="app">
       <header className="masthead">
         <h1>Last Train</h1>
-        <span className="day">
+        {/*
+         * The date doubles as the today/tomorrow control. It has to live somewhere,
+         * the control stack is compressed so the first departure clears the fold,
+         * and the direction block's tap already means something else.
+         */}
+        <button
+          type="button"
+          className="day-toggle"
+          aria-pressed={tomorrow}
+          onClick={() => setTomorrow((current) => !current)}
+          aria-label={
+            `Showing ${formatServiceDate(date)}. ` +
+            `Switch to ${tomorrow ? "tonight's" : "tomorrow's"} trains.`
+          }
+        >
+          {tomorrow ? 'Tomorrow' : afterMidnight ? 'Tonight' : 'Today'}
+          <span className="caret" aria-hidden="true">
+            ▾
+          </span>
           {formatServiceDate(date)}
-          {afterMidnight && !tomorrow ? ' · tonight' : ''}
-        </span>
+        </button>
       </header>
 
       <div className="controls">
@@ -214,48 +232,16 @@ export default function Page() {
           withLocate
         />
 
-        <div className="segmented" role="group" aria-label="Direction of travel">
-          <button
-            type="button"
-            className="chip"
-            aria-pressed={direction === 'west'}
-            onClick={() => setDirection('west')}
-          >
-            West
-          </button>
-          <button
-            type="button"
-            className="chip"
-            aria-pressed={direction === 'east'}
-            onClick={() => setDirection('east')}
-          >
-            East
-          </button>
-        </div>
-
-        {/* "East" only means something if you know where east goes from here. */}
-        {result && result.towards.length > 0 && (
-          <p className="towards">towards {result.towards.join(', ')}</p>
-        )}
-
-        <div className="segmented" role="group" aria-label="Service date">
-          <button
-            type="button"
-            className="chip"
-            aria-pressed={!tomorrow}
-            onClick={() => setTomorrow(false)}
-          >
-            {afterMidnight ? 'Tonight' : 'Today'}
-          </button>
-          <button
-            type="button"
-            className="chip"
-            aria-pressed={tomorrow}
-            onClick={() => setTomorrow(true)}
-          >
-            Tomorrow
-          </button>
-        </div>
+        {/*
+         * Direction, the destination hint and the date used to be three separate
+         * rows. "East" only means something if you know where east goes from here,
+         * so the hint lives inside the block it explains.
+         */}
+        <DirectionBlock
+          direction={direction}
+          towards={result?.towards ?? []}
+          onChange={setDirection}
+        />
 
         {recents.length > 1 && (
           <>
@@ -361,7 +347,7 @@ export default function Page() {
                   {lastTrains.length > 1 ? `Last ${lastTrains.length} trains` : 'Last train'}{' '}
                   {direction}
                 </span>
-                {result.totalIsExact && <span>{result.totalServices} today</span>}
+                {result.totalIsExact && <span>{result.totalServices} services</span>}
               </h2>
               <ul className="service-list">
                 {lastTrains.map((service) => (
