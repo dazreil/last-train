@@ -115,25 +115,62 @@ const timeFormatter = new Intl.DateTimeFormat('en-GB', {
   hourCycle: 'h23',
 });
 
-/** `23:52`, in London local time, from an RFC3339 instant. */
-export function formatLondonTime(instant: string): string {
-  return timeFormatter.format(new Date(instant));
+/** Does this datetime carry a `Z` or a `±HH:MM` offset? */
+const hasTimeZone = (value: string): boolean => /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value.trim());
+
+/** How far ahead of UTC London is at a given instant, in milliseconds. */
+function londonOffsetMillis(utcMillis: number): number {
+  const p = londonParts(new Date(utcMillis));
+  return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute) - Math.floor(utcMillis / 60_000) * 60_000;
 }
 
-/** The London calendar date an instant falls on -- used to flag arrivals after midnight. */
-export function londonDateOf(instant: string): IsoDate {
-  const p = londonParts(new Date(instant));
+/**
+ * Turn a datetime from the API into an absolute instant.
+ *
+ * The API sends departure and arrival times *without* a timezone -- literally
+ * `"2026-07-30T23:12:00"` -- and those are London wall-clock times. `new Date()`
+ * resolves such a string using whatever timezone the process happens to be in, so
+ * the same data reads as 23:12 on a laptop in London and 00:12 the next day on a
+ * server running UTC, which is what Vercel does. That produced departures an hour
+ * late, each wrongly flagged as after midnight.
+ *
+ * So a naive string is interpreted explicitly as London, never as "local time".
+ * Strings that do carry an offset are parsed normally; the spec permits both, and
+ * the query echo comes back with one even though service times do not.
+ */
+export function toInstantMillis(value: string): number {
+  const trimmed = value.trim();
+  if (hasTimeZone(trimmed)) return Date.parse(trimmed);
+
+  // Read the wall clock as though it were UTC, then correct by London's offset at
+  // that moment. The second pass settles the hour on either side of a clock change,
+  // where the first guess can land on the wrong side of the transition.
+  const asIfUtc = Date.parse(`${trimmed}Z`);
+  if (Number.isNaN(asIfUtc)) return Number.NaN;
+
+  const firstPass = asIfUtc - londonOffsetMillis(asIfUtc);
+  return asIfUtc - londonOffsetMillis(firstPass);
+}
+
+/** `23:52`, in London local time. */
+export function formatLondonTime(value: string): string {
+  return timeFormatter.format(new Date(toInstantMillis(value)));
+}
+
+/** The London calendar date a time falls on -- used to flag departures after midnight. */
+export function londonDateOf(value: string): IsoDate {
+  const p = londonParts(new Date(toInstantMillis(value)));
   return `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
 }
 
 /**
- * Minutes between two RFC3339 instants.
+ * Minutes between two times.
  *
- * Both are absolute, so this is right across midnight and across a DST change
- * without special-casing either.
+ * Resolved to absolute instants first, so this is right across midnight and across
+ * a DST change without special-casing either.
  */
-export function minutesBetween(fromInstant: string, toInstant: string): number {
-  return Math.round((Date.parse(toInstant) - Date.parse(fromInstant)) / 60_000);
+export function minutesBetween(fromValue: string, toValue: string): number {
+  return Math.round((toInstantMillis(toValue) - toInstantMillis(fromValue)) / 60_000);
 }
 
 const weekdayFormatter = new Intl.DateTimeFormat('en-GB', {

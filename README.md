@@ -240,6 +240,21 @@ client import fails the build rather than shipping the token.
 All four were found by running against it, and each would have failed silently or
 confusingly:
 
+**Departure and arrival times carry no timezone at all.** Not `Z`, not an offset —
+literally `"2026-07-30T23:12:00"`, and it means London wall-clock time. (The query
+echo *does* come back with `+01:00`, which makes it easy to assume the rest do too.)
+
+`new Date("2026-07-30T23:12:00")` resolves a string like that using whatever timezone
+the process is in. On a laptop in London that is correct by luck; on a server running
+UTC — which is what Vercel does — every departure reads an hour late and gets wrongly
+flagged as after midnight. `lib/serviceDay.ts` therefore interprets naive strings as
+London explicitly and never relies on the runtime clock, and `npm test` runs under
+`TZ=UTC` so the mistake cannot come back unnoticed.
+
+Test fixtures matter here: `Z`-suffixed instants are unambiguous and pass under any
+server timezone, so fixtures written that way hide this class of bug entirely. The
+tests use the timezone-less shape the API really sends.
+
 **`/gb-nr/service` rejects the identity a line-up hands you.** Line-ups return
 `gb-nr:P67203:2026-07-31`; the namespaced endpoint wants `P67203:2026-07-31`. Passing
 it through verbatim is a flat `400`. Only `/rtt/service` takes the namespaced form.

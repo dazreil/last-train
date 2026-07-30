@@ -162,7 +162,16 @@ async function rtt(path, params = {}) {
 
 // -------------------------------------------------------------------- helpers
 
-const hhmm = (iso) => (iso ? `${londonParts(new Date(iso)).hour}:${londonParts(new Date(iso)).minute}` : ' -- ');
+// The API sends departure times with no timezone -- "2026-07-30T23:12:00" -- and
+// those are London wall-clock times. new Date() would resolve them using whatever
+// timezone this process happens to be in, so read the wall clock directly and only
+// convert when an offset is actually present.
+const hhmm = (value) => {
+  if (!value) return ' -- ';
+  if (!/(?:Z|[+-]\d{2}:?\d{2})$/i.test(value.trim())) return value.slice(11, 16);
+  const p = londonParts(new Date(value));
+  return `${p.hour}:${p.minute}`;
+};
 
 const ADVERTISED_PICKUP = new Set(['ADVERTISED_OPEN', 'ADVERTISED_PICK_UP']);
 const ADVERTISED_SETDOWN = new Set(['ADVERTISED_OPEN', 'ADVERTISED_SET_DOWN']);

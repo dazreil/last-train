@@ -10,7 +10,12 @@
  * they are going. Nothing here plans an interchange.
  */
 
-import { formatLondonTime, londonDateOf, type IsoDate } from './serviceDay.ts';
+import {
+  formatLondonTime,
+  londonDateOf,
+  toInstantMillis,
+  type IsoDate,
+} from './serviceDay.ts';
 import type {
   CallType,
   DisplayAs,
@@ -128,7 +133,9 @@ function boardableDepartures(lineUp: LocationLineUpResponse | null): Departure[]
  */
 export function sortedDepartures(lineUp: LocationLineUpResponse | null): Departure[] {
   const departures = boardableDepartures(lineUp);
-  departures.sort((a, b) => Date.parse(a.depInstant) - Date.parse(b.depInstant));
+  // Resolved to absolute instants rather than string-parsed: the API sends times
+  // with no timezone, so Date.parse would order them by the server's local clock.
+  departures.sort((a, b) => toInstantMillis(a.depInstant) - toInstantMillis(b.depInstant));
   return departures;
 }
 
@@ -290,7 +297,9 @@ export function toDepartureService(
 
   return {
     dep: formatLondonTime(departure.depInstant),
-    depInstant: departure.depInstant,
+    // Emitted as a true UTC instant, not the API's timezone-less original, so
+    // nothing downstream can re-introduce the ambiguity this module just resolved.
+    depInstant: new Date(toInstantMillis(departure.depInstant)).toISOString(),
     toc: meta.operator?.code ?? '??',
     tocName: meta.operator?.name ?? 'Unknown operator',
     via: pattern ? deriveVia(pattern, options.fromCrs, null, options.markers) : null,

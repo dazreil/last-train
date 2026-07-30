@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "spike": "node scripts/spike.mjs",
     "stations": "node scripts/generate-stations.mjs",
-    "test": "node --test lib/*.test.ts"
+    "test": "TZ=UTC node --test lib/*.test.ts"
   },
   "dependencies": {
     "next": "16.2.12",

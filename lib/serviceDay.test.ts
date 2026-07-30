@@ -10,7 +10,19 @@ import {
   londonDateOf,
   minutesBetween,
   serviceDayWindow,
+  toInstantMillis,
 } from './serviceDay.ts';
+
+/**
+ * The API sends departure times with no timezone at all -- `"2026-07-30T23:12:00"`,
+ * verified against the live service -- and those are London wall-clock times.
+ *
+ * These tests deliberately use that shape. An earlier version used `Z`-suffixed
+ * instants, which are unambiguous and therefore passed everywhere, hiding a bug that
+ * only appeared once the code ran on a server in UTC: every departure an hour late,
+ * each wrongly flagged as after midnight. `npm test` now runs under `TZ=UTC` so a
+ * regression fails on a London laptop too.
+ */
 
 // In 2026, BST runs from 29 March to 25 October.
 
@@ -67,6 +79,25 @@ test('the query window never exceeds the documented 23h59m maximum', () => {
   }
 });
 
+test('a timezone-less time from the API is read as London, not as the server clock', () => {
+  // This is the exact shape the API returns, and the exact bug: on a server running
+  // UTC these read an hour late unless London is applied explicitly.
+  assert.equal(formatLondonTime('2026-07-30T23:12:00'), '23:12');
+  assert.equal(formatLondonTime('2026-07-30T00:22:00'), '00:22');
+  assert.equal(londonDateOf('2026-07-30T23:12:00'), '2026-07-30');
+
+  // Winter, when London is UTC, so the naive reading happens to agree.
+  assert.equal(formatLondonTime('2026-01-15T23:12:00'), '23:12');
+  assert.equal(londonDateOf('2026-01-15T23:12:00'), '2026-01-15');
+});
+
+test('a time that does carry an offset is still honoured', () => {
+  // The spec permits both forms; the query echo comes back with an offset.
+  assert.equal(formatLondonTime('2026-07-29T22:52:00Z'), '23:52');
+  assert.equal(formatLondonTime('2026-07-29T23:52:00+01:00'), '23:52');
+  assert.equal(formatLondonTime('2026-01-15T23:52:00Z'), '23:52');
+});
+
 test('times are formatted in London local time', () => {
   // The spec's own example: 23:52 -> 00:48.
   assert.equal(formatLondonTime('2026-07-29T22:52:00Z'), '23:52');
@@ -77,6 +108,46 @@ test('times are formatted in London local time', () => {
 
   // Winter: no offset.
   assert.equal(formatLondonTime('2026-01-15T23:52:00Z'), '23:52');
+});
+
+test('London wall-clock times resolve to the right absolute instant', () => {
+  // 23:12 BST is 22:12 UTC.
+  assert.equal(
+    new Date(toInstantMillis('2026-07-30T23:12:00')).toISOString(),
+    '2026-07-30T22:12:00.000Z'
+  );
+  // 23:12 GMT is 23:12 UTC.
+  assert.equal(
+    new Date(toInstantMillis('2026-01-15T23:12:00')).toISOString(),
+    '2026-01-15T23:12:00.000Z'
+  );
+  // Either side of the autumn change, when 01:30 happens twice. The first pass can
+  // land on the wrong side of the transition, which is why there is a second.
+  assert.equal(
+    new Date(toInstantMillis('2026-10-25T00:30:00')).toISOString(),
+    '2026-10-24T23:30:00.000Z'
+  );
+  assert.equal(
+    new Date(toInstantMillis('2026-10-25T03:30:00')).toISOString(),
+    '2026-10-25T03:30:00.000Z'
+  );
+});
+
+test('the last trains of the night keep their real times', () => {
+  // The reported bug, as a whole scenario: real c2c departures from Grays, as the
+  // API sends them. Every one of these read an hour late in production.
+  const serviceDate = '2026-07-30';
+  const departures = ['2026-07-30T23:17:00', '2026-07-30T23:47:00', '2026-07-31T00:18:00'];
+  const shown = departures.map((d) => ({
+    at: formatLondonTime(d),
+    afterMidnight: londonDateOf(d) !== serviceDate,
+  }));
+
+  assert.deepEqual(shown, [
+    { at: '23:17', afterMidnight: false },
+    { at: '23:47', afterMidnight: false },
+    { at: '00:18', afterMidnight: true },
+  ]);
 });
 
 test('an arrival after midnight is recognised as the next calendar day', () => {

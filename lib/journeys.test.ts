@@ -17,6 +17,13 @@ import type {
   ServiceLocation,
 } from './rtt.ts';
 
+/**
+ * Departure times here use the shape the API actually sends: a London wall-clock
+ * time with no timezone at all. `Z`-suffixed instants would be unambiguous, and so
+ * would pass under any server timezone -- which is precisely how an hour-late bug
+ * reached production unnoticed. `npm test` runs under `TZ=UTC` to keep it honest.
+ */
+
 // ------------------------------------------------------------------- fixtures
 
 interface StubOptions {
@@ -78,7 +85,7 @@ const buildOptions = {
 
 test('a boardable departure is returned with its London time', () => {
   const departures = sortedDepartures(
-    lineUp([stub({ id: 'a', depart: '2026-07-29T22:52:00Z' })])
+    lineUp([stub({ id: 'a', depart: '2026-07-29T23:52:00' })])
   );
 
   assert.equal(departures.length, 1);
@@ -94,7 +101,7 @@ test('a departure after midnight is flagged and still belongs to this service da
   // 00:22 BST on the 30th is the last train of the 29th's service day. The flag is
   // relative to the service day on screen, not the train's own origin date.
   const departures = sortedDepartures(
-    lineUp([stub({ id: 'late', depart: '2026-07-29T23:22:00Z' })])
+    lineUp([stub({ id: 'late', depart: '2026-07-30T00:22:00' })])
   );
 
   const service = toDepartureService(departures[0], buildOptions);
@@ -105,8 +112,8 @@ test('a departure after midnight is flagged and still belongs to this service da
 test('trains that only pass through are excluded', () => {
   const departures = sortedDepartures(
     lineUp([
-      stub({ id: 'pass', depart: '2026-07-29T22:00:00Z', displayAs: 'PASS', callType: null }),
-      stub({ id: 'stop', depart: '2026-07-29T22:30:00Z' }),
+      stub({ id: 'pass', depart: '2026-07-29T23:00:00', displayAs: 'PASS', callType: null }),
+      stub({ id: 'stop', depart: '2026-07-29T23:30:00' }),
     ])
   );
 
@@ -118,7 +125,7 @@ test('trains that only pass through are excluded', () => {
 
 test('a null displayAs counts as a pass, not a stop', () => {
   const departures = sortedDepartures(
-    lineUp([stub({ id: 'a', depart: '2026-07-29T22:00:00Z', displayAs: null, callType: null })])
+    lineUp([stub({ id: 'a', depart: '2026-07-29T23:00:00', displayAs: null, callType: null })])
   );
   assert.equal(departures.length, 0);
 });
@@ -126,7 +133,7 @@ test('a null displayAs counts as a pass, not a stop', () => {
 test('operational-only stops are excluded', () => {
   // A crew-change stop is a stop the public cannot board.
   const departures = sortedDepartures(
-    lineUp([stub({ id: 'crew', depart: '2026-07-29T22:00:00Z', callType: 'OPERATIONAL_ONLY' })])
+    lineUp([stub({ id: 'crew', depart: '2026-07-29T23:00:00', callType: 'OPERATIONAL_ONLY' })])
   );
   assert.equal(departures.length, 0);
 });
@@ -134,13 +141,13 @@ test('operational-only stops are excluded', () => {
 test('a pick-up call can be boarded but a set-down call cannot', () => {
   assert.equal(
     sortedDepartures(
-      lineUp([stub({ id: 'a', depart: '2026-07-29T22:00:00Z', callType: 'ADVERTISED_PICK_UP' })])
+      lineUp([stub({ id: 'a', depart: '2026-07-29T23:00:00', callType: 'ADVERTISED_PICK_UP' })])
     ).length,
     1
   );
   assert.equal(
     sortedDepartures(
-      lineUp([stub({ id: 'b', depart: '2026-07-29T22:00:00Z', callType: 'ADVERTISED_SET_DOWN' })])
+      lineUp([stub({ id: 'b', depart: '2026-07-29T23:00:00', callType: 'ADVERTISED_SET_DOWN' })])
     ).length,
     0
   );
@@ -149,8 +156,8 @@ test('a pick-up call can be boarded but a set-down call cannot', () => {
 test('empty stock and freight are excluded', () => {
   const departures = sortedDepartures(
     lineUp([
-      stub({ id: 'ecs', depart: '2026-07-29T22:00:00Z', inPassengerService: false }),
-      stub({ id: 'pax', depart: '2026-07-29T22:10:00Z' }),
+      stub({ id: 'ecs', depart: '2026-07-29T23:00:00', inPassengerService: false }),
+      stub({ id: 'pax', depart: '2026-07-29T23:10:00' }),
     ])
   );
   assert.deepEqual(
@@ -161,7 +168,7 @@ test('empty stock and freight are excluded', () => {
 
 test('cancelled departures are excluded', () => {
   const departures = sortedDepartures(
-    lineUp([stub({ id: 'a', depart: '2026-07-29T22:00:00Z', cancelled: true })])
+    lineUp([stub({ id: 'a', depart: '2026-07-29T23:00:00', cancelled: true })])
   );
   assert.equal(departures.length, 0);
 });
@@ -170,9 +177,9 @@ test('departures come back in time order regardless of API order', () => {
   // The 00:22 is last, not first: it is after midnight but still tonight's train.
   const departures = sortedDepartures(
     lineUp([
-      stub({ id: 'postMidnight', depart: '2026-07-29T23:22:00Z' }), // 00:22
-      stub({ id: 'firstOfDay', depart: '2026-07-29T04:30:00Z' }), // 05:30
-      stub({ id: 'evening', depart: '2026-07-29T22:52:00Z' }), // 23:52
+      stub({ id: 'postMidnight', depart: '2026-07-30T00:22:00' }), // 00:22
+      stub({ id: 'firstOfDay', depart: '2026-07-29T05:30:00' }), // 05:30
+      stub({ id: 'evening', depart: '2026-07-29T23:52:00' }), // 23:52
     ])
   );
 
@@ -187,8 +194,8 @@ test('operators are merged in one list, never filtered apart', () => {
   // line, and the last train is often the Greater Anglia one.
   const departures = sortedDepartures(
     lineUp([
-      stub({ id: 'xr', depart: '2026-07-29T22:00:00Z', toc: 'XR', tocName: 'Elizabeth line' }),
-      stub({ id: 'le', depart: '2026-07-29T22:30:00Z', toc: 'LE', tocName: 'Greater Anglia' }),
+      stub({ id: 'xr', depart: '2026-07-29T23:00:00', toc: 'XR', tocName: 'Elizabeth line' }),
+      stub({ id: 'le', depart: '2026-07-29T23:30:00', toc: 'LE', tocName: 'Greater Anglia' }),
     ])
   );
 
@@ -200,13 +207,13 @@ test('operators are merged in one list, never filtered apart', () => {
 
 test('a replacement bus is flagged rather than passed off as a train', () => {
   const departures = sortedDepartures(
-    lineUp([stub({ id: 'bus', depart: '2026-07-29T09:00:00Z', mode: 'REPLACEMENT_BUS' })])
+    lineUp([stub({ id: 'bus', depart: '2026-07-29T10:00:00', mode: 'REPLACEMENT_BUS' })])
   );
   assert.equal(toDepartureService(departures[0], buildOptions).isReplacementBus, true);
 });
 
 test('splitting trains show both destinations', () => {
-  const service = stub({ id: 'split', depart: '2026-07-29T09:00:00Z' });
+  const service = stub({ id: 'split', depart: '2026-07-29T10:00:00' });
   service.destination = [
     { location: { description: 'Shoeburyness' } },
     { location: { description: 'Grays' } },
