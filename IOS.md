@@ -1,139 +1,187 @@
 # Last Train — UK-wide iOS app
 
-A spec for taking the existing app national and native: every UK station, a
-from→to search, SwiftUI, App Store.
+A spec for taking the existing app national and native: every UK station, compass
+directions, SwiftUI, App Store.
 
 Written against the working web app, which stays as-is until this ships.
 
 ---
 
-## 1. What changes
+## 1. Scope, and what it deliberately excludes
+
+**The app answers one question: what is the last train home, and if you miss it,
+what is the first one back?**
+
+It is a departure board with first-and-last framing. It is **not** a journey
+planner, and will not become one. There are many good journey planners; there is
+no good answer to "I am standing here at 23:40, what have I got left". That gap is
+the entire product.
+
+Concretely, out of scope for good:
+
+- Journeys requiring a change. Not "later" — not at all.
+- Fares, tickets, seat reservations, platforms-as-a-service, live disruption feeds
+- Destination search. You pick where you *are*, not where you are going.
+
+This is a narrowing from the previous draft, and it is the right call. It removes
+the largest risk in the project: at national scale most station *pairs* need a
+change, so an A→B direct-only app would have answered "no direct service" to most
+questions. Asking "what leaves here, going that way" never has that failure mode.
 
 | | Now | Then |
 |---|---|---|
 | Coverage | 67 stations, 3 operators | ~2,600 stations, all operators |
-| Query | station + direction | station → station |
-| Journeys | direct only | direct only, changes later (§4) |
+| Query | station + east/west | station + compass direction |
 | Client | Next.js PWA | SwiftUI, App Store |
-| Licence | personal, non-commercial | **paid — this is the blocker, see §3** |
-
-**What does not change:** the question. First and last train, legible at 23:40,
-in under two seconds. Everything below serves that or gets cut.
-
-The west/east toggle retires. It was the right answer for three linear corridors
-where "which way am I going" was the only real question; at national scale the
-destination is the question, and there is no coherent "east" from Crewe.
+| Licence | personal, non-commercial | paid — see §3 |
 
 ---
 
 ## 2. The data source decision
 
-This is the part worth reading. The short version: **stay on Realtime Trains and
-pay for it.** Everything else is worse for this specific app, and I checked.
+**Stay on Realtime Trains and pay for it.** Everything else is worse for this
+specific app, and I checked.
 
-| Source | First/last of day? | Direct A→B? | Changes? | Licence for a distributed app |
-|---|---|---|---|---|
-| **RTT next-gen** (current) | ✅ 23h59m window | ✅ `filterTo` | ❌ | ✅ paid tier, £4–29/mo |
-| Darwin **LDBWS** | ❌ **2h window, 10 rows** | ✅ `filterCrs` | ❌ | ✅ free, open tier |
-| Darwin **timetable files** | ✅ whole day | ✅ (after ingest) | ❌ | ✅ free |
-| National Rail **OJP** | ✅ | ✅ | ✅ | ❌ signed licence, paid, not self-serve |
-| **TransportAPI** | ✅ | ✅ | ✅ | ✅ commercial, paid |
+| Source | Whole service day? | Licence for a distributed app |
+|---|---|---|
+| **RTT next-gen** (current) | ✅ 23h59m window in one query | ✅ paid tier, £4–29/mo |
+| Darwin **LDBWS** | ❌ **2h window, 10 rows** | ✅ free |
+| Darwin **timetable files** | ✅ (after building an ingest) | ✅ free |
+| National Rail **OJP** | ✅ | ❌ signed licence, not self-serve |
 
 ### Why not Darwin/LDBWS, despite being free and official
 
-LDBWS is a **departure board**, not a timetable. Its parameters cap at
-`timeOffset` ±120 minutes, `timeWindow` 120 minutes, `numRows` 10. It can tell you
-what leaves in the next two hours. It structurally **cannot** answer "what is the
-first train tomorrow" or "what is the last train tonight" when you ask at 14:00.
+It is the obvious choice right up until you read the parameter limits. LDBWS is a
+**departure board**, not a timetable: `timeOffset` ±120 minutes, `timeWindow` 120
+minutes, `numRows` **10**. It tells you what leaves in the next two hours.
 
-That is the entire product. So LDBWS is out as the primary source, and this is
-the single most important finding in this document — it is the obvious choice
-until you read the parameter limits.
+Ask it at 14:00 what the last train tonight is and it structurally cannot answer.
+That is the entire product, so LDBWS is out. This is the single most important
+finding in this document.
 
-### Why not the Darwin timetable files
+### Why RTT
 
-They do contain the full day, and they are free. But they are bulk XML dropped to
-a bucket, so using them means running an ingest pipeline and a timetable database,
-and reimplementing schedule assembly (associations, splits, overlays, STP
-cancellations) that RTT already does. That is a rail-data project with a train app
-attached, rather than a train app.
+One query returns a **whole service day** at a station. That is the only thing
+this app needs, and RTT is the only source that provides it without either a
+two-hour ceiling or building a timetable database.
 
-Worth revisiting only if the RTT bill ever stops making sense, or if per-query
-rate limits become the constraint.
+Note that the narrowed scope in §1 means we no longer need `filterTo` either. We
+need exactly one endpoint: the station line-up. Which makes the request budget
+almost trivially small — see §5.
 
-### Why RTT stays
+### The fallback, if RTT ever says no
 
-It already does the two hard things: a **23h59m window** in one query, and
-**station-pair filtering** in the same query. That combination is why the current
-app can answer first-and-last at all. It is also the only source in the table that
-gives it to us without either a 2-hour ceiling or a data pipeline.
-
-The blocker was never technical. It was the licence, and RTT sells one.
+Darwin timetable files: free, whole-day, but bulk XML that must be ingested into
+our own timetable database, reimplementing schedule assembly (associations,
+splits, STP overlays) that RTT already does. A rail-data project with a train app
+attached. Only worth it if §3 fails.
 
 ---
 
-## 3. Licensing — the actual blocker
+## 3. Licensing, and the debug/production split
 
-**The current token cannot ship.** It is issued for personal, non-commercial use,
-and the terms are explicit that a token found in a downstream user application
-gets revoked. Putting the current build on the App Store would breach it.
+**The current token cannot ship.** It is personal, non-commercial, and the terms
+are explicit that a token found in a distributed application gets revoked.
 
-Three things must be true before submission:
+The plan you've chosen — free tier while building, paid before publishing — is
+right, and the code should make the switch a non-event.
 
-1. **A paid RTT plan.** Self-service from £4/month (hobbyist) and £29/month
-   (business). Which tier depends on whether a free App Store app counts as
-   commercial — **ask RTT directly at hello@realtimetrains.com**, do not assume.
-   Get the answer in writing before building anything.
+### How the switch works: it doesn't
 
-2. **The token still never reaches the device.** A paid plan does not change this.
-   The rule is that end-user applications proxy through a server-side component,
-   so the SwiftUI app talks to *our* API, never to `data.rtt.io`. See §5.
+**Do not build a `FREE` / `PAID` mode flag.** RTT returns the actual limits on
+every response:
 
-3. **Visible attribution.** RTT requires clearly visible credit with a link to
-   realtimetrains.co.uk in any public-facing application. The web app has this in
-   the footer; the iOS app needs it somewhere permanent, not buried in an About
-   sheet.
+```
+X-RateLimit-Limit-Minute / -Hour / -Day / -Week
+X-RateLimit-Remaining-Minute / -Hour / -Day / -Week
+```
 
-> If RTT decline to license App Store distribution at any price, the fallback is
-> the Darwin timetable ingest (§2). Establish this **first**. It is the one
-> question that can invalidate the whole plan, and it costs an email.
+Read those and adapt. Then switching plans is swapping one environment variable,
+and there is no mode flag to forget to flip on release day. A hardcoded tier is a
+bug waiting for the worst possible moment.
+
+### What debug mode actually is
+
+A **diagnostics surface**, not a different code path:
+
+- Current remaining quota on all four dimensions, live from the last response
+- Requests spent on the last lookup, and whether it was a cache hit
+- The resolved service date and query window, so a wrong answer is traceable
+- Which token is loaded — free or paid — **never the token itself**
+
+Gated behind an env var on the server (`DEBUG_DIAGNOSTICS=1`) and a hidden gesture
+in the app, e.g. long-press the masthead. Ships disabled.
+
+### Three things true before submission
+
+1. **A paid plan.** £4/month hobbyist, £29/month business. Which tier a free App
+   Store app needs is not obvious — **ask RTT in writing at
+   hello@realtimetrains.com** before building. It costs an email and it is the one
+   question that can invalidate the project.
+2. **The token still never reaches the device**, paid or not. The app talks to our
+   API, never to `data.rtt.io`. See §5.
+3. **Visible attribution** — RTT require clear credit with a link in any
+   public-facing app. Permanent, not buried in an About sheet.
 
 ---
 
-## 4. Direct only, with a door left open
+## 4. Compass directions, context-aware
 
-Ship direct-only. Architect so a journey planner can slot in behind the same UI.
+East/west was right for three linear corridors. Nationally it needs all four, and
+it needs to know which ones are real.
 
-### The problem this creates, stated plainly
+### Classification: bearing, not longitude
 
-For c2c and the Elizabeth line, "direct only" was near-complete — a blank result
-genuinely meant "nothing runs". Nationally that inverts. **Most UK station pairs
-need a change.** Manchester → Brighton, Cardiff → Norwich, and the large majority
-of anything not on one line.
+The current code compares destination longitude against the station's. Replace
+with the **bearing** from station to destination, bucketed into four 90° sectors
+centred on the cardinal points:
 
-So "no direct service" goes from a rare, trustworthy answer to the *common* one.
-An app that says "no direct trains" to most questions is not obviously useful, and
-this is the biggest product risk in this document — bigger than any technical item.
+| Sector | Direction |
+|---|---|
+| 315°–45° | North |
+| 45°–135° | East |
+| 135°–225° | South |
+| 225°–315° | West |
 
-### Mitigations, in order of value
+This behaves sensibly on real journeys: Euston→Birmingham reads north, Paddington→
+Bristol west, Liverpool Street→Norwich east, Victoria→Brighton south. Keep the
+existing minimum-distance guard so a train terminating one stop away doesn't
+produce a meaningless bearing.
 
-1. **Say which it is.** "No direct trains — this journey needs a change" reads as
-   an answer. A blank result reads as a broken app. The distinction is free: if
-   the pair returns nothing, that *is* the finding.
-2. **Lead with what direct-only is genuinely good at.** Commuter corridors and
-   rural branches. The last train from a village station with four services a day
-   is where this app is most valuable, and it is always direct.
-3. **Suggest the interchange without planning it.** For a pair with no direct
-   service, both stations usually share one obvious hub. Offering "try via
-   Birmingham New Street" is cheap and honest, and is not journey planning.
-4. **Keep the seam clean.** One function answers "services from A to B on date D".
-   A licensed planner replaces its body without the UI knowing.
+Destination bearing, not next-calling-point bearing — it matches how a passenger
+thinks about which way a train is going.
 
-### The door
+### Availability comes free with the query
 
-If changes are ever wanted: TransportAPI is the pragmatic route (REST, JSON,
-commercial, no signed paperwork). National Rail OJP is the official one but is
-SOAP, needs a countersigned licence, and is not self-serve.
+At Upminster, north and south have no services and must not be offered.
+
+Do not precompute this. **The unfiltered line-up already contains every service at
+the station**, so classifying them into four buckets yields the available
+directions as a by-product of the query you were making anyway. The response
+returns counts for all four directions and services for the selected one.
+
+The client caches availability per station effectively forever — track topology
+does not change week to week — so a station visited before shows the right
+controls instantly.
+
+This replaces the `onward` field currently generated by sampling calling patterns,
+which does not scale to 2,600 stations.
+
+### The control: adaptive, and unchanged where it can be
+
+A genuine design tension, flagged rather than hidden. The current sliding block
+encodes direction by *position*, which is the best idea in the interface — and a
+four-way control cannot do that in one horizontal axis.
+
+Proposal:
+
+- **Two opposite directions** (the common case, and every station on the current
+  network): the existing sliding block, **completely unchanged**.
+- **Three or four:** a compass arrangement — north above, south below, west and
+  east flanking. Position still encodes meaning; it costs vertical space, but only
+  at the stations that actually need it.
+
+Worth prototyping both before committing. The fold budget was hard-won.
 
 ---
 
@@ -145,28 +193,35 @@ SwiftUI app  ──►  our API (Vercel)  ──►  Realtime Trains
    stations           caches aggressively
 ```
 
-The app is a client of our own API, not of RTT. This is forced by §3 and has
-consequences worth being honest about:
+The app is a client of our own API, not of RTT. Forced by §3, with consequences
+worth stating: the app needs our server up, so the Vercel deployment is
+infrastructure rather than convenience, and cached answers make it feel
+offline-ish without making it offline.
 
-- **The app needs the internet and needs our server up.** It is not offline-first.
-  Cached answers make it feel offline-ish; they do not make it offline.
-- **The Vercel deployment becomes infrastructure**, not a convenience. If it is
-  down, the App Store app is down.
-- **The existing `/api/trains` route is reusable almost as-is.** It already holds
-  the token, caches by key, and returns a clean contract. It needs the `direction`
-  parameter swapped back for `to`, which is largely reverting a known-good commit.
+### The narrowed scope makes this very cheap
 
-### Caching gets more important, not less
+One lookup is **one API request** — a single station line-up for the service day,
+which is then split four ways and cached. Compare with the current app's up-to-
+eight, and note what §1 deleted:
 
-67 stations produced few distinct cache keys. 2,600 stations produce a long tail
-where almost every query is a miss. Rate limits then bind much harder.
+- No operator scope filter. Nationally every operator is in scope by definition.
+- No corridor membership check, no `corridorDestinations`, no `servesScopeAhead`.
+  Those existed to keep Cambridge trains out of a three-operator app; now a
+  Cambridge train from Liverpool Street is simply a northbound train.
+- No `filterTo` pair queries.
 
-- Cache on the **server** by `from:to:date`, as now, but expect a far lower hit
-  rate.
-- Cache on the **device** too, so a repeated journey costs nothing at all. The
-  device cache is what makes the widget (§7) viable.
-- Check the paid tier's actual limits before assuming headroom. The free tier is
-  10/minute, and one lookup currently costs up to eight requests.
+**Recommend dropping the `via` route label for v1.** It existed for one real
+ambiguity — c2c via Basildon versus the slower Tilbury loop — and it is what costs
+the extra four requests per lookup. Nationally, with the destination shown on every
+row, it earns much less. Dropping it takes a lookup to a single request, which
+makes the free tier's 10/minute comfortable for development.
+
+### Caching matters more, not less
+
+67 stations produced few distinct cache keys; 2,600 produce a long tail where most
+queries miss. Cache server-side by `station:date` as now — note the key loses its
+direction component, since one query serves all four — and cache on the device too,
+which is what makes the widget viable.
 
 ---
 
@@ -176,130 +231,120 @@ where almost every query is a miss. Rate limits then bind much harder.
 TIPLOC, operator, name, latitude, longitude — assembled from Darwin reference data,
 NaPTAN and manual research. That is the base list, and the licence permits use.
 
-Cross-check it against RTT's `/data/stops`, which is authoritative for *what our
-token can actually query*. A station in one and not the other is a bug to
-investigate, not to paper over.
+Cross-check against RTT's `/data/stops`, authoritative for what our token can
+actually query. Present in one and not the other is a bug to investigate.
 
-**The existing rule stands: no CRS code is ever typed by hand.** The generator
-already resolves names to codes against the API and refuses to emit an invalid
-list; extend it rather than replacing it.
+**The existing rule stands: no CRS code is ever typed by hand.** Extend the
+generator rather than replacing it — it already resolves names against the API and
+refuses to emit an invalid list.
 
 ### What breaks at 2,600 stations
 
-- **Nearest-station** is currently a linear scan with a haversine per station.
-  Fine for 67, wasteful for 2,600 on every location update. Use a spatial grid or
-  k-d tree, or bucket by rounded lat/lon.
-- **Search** must disambiguate. There are two Newports, several Ashfords,
-  Whitchurch in three counties. Show the county or operator on collision, and rank
-  by size — nobody typing "birmingham" wants Birmingham International first.
+- **Nearest-station** is a linear haversine scan. Fine for 67, wasteful for 2,600
+  on every location update. Bucket by rounded lat/lon, or use a k-d tree.
+- **Search must disambiguate.** Two Newports, several Ashfords, Whitchurch in
+  three counties. Show county or operator on collision, and rank by size — nobody
+  typing "birmingham" wants Birmingham International first.
 - **Cities are not stations.** London has ~18 terminals; Glasgow, Manchester,
-  Birmingham, Leeds and Edinburgh all have multiple. Typing "Manchester" must
-  offer Piccadilly *and* Victoria, not guess. The "London Terminals" grouping
-  concept exists in rail data and is worth supporting explicitly.
+  Birmingham, Leeds and Edinburgh have several each. Typing "Manchester" offers
+  Piccadilly *and* Victoria rather than guessing.
 
 ---
 
 ## 7. The native app
 
-### What justifies going native at all
+### What justifies going native
 
-Not the App Store listing. **The widget.** A home-screen or lock-screen widget
-showing the last train home, updating through the evening, is precisely this
-app's use case and is impossible in a PWA on iOS. If only one native feature ships,
-it is this one.
+Not the App Store listing. **The widget.** Last train home on the lock screen,
+updating through the evening, is precisely this app's use case and is impossible in
+a PWA on iOS. If one native feature ships, it is that one.
 
-After that: App Intents ("Siri, when's my last train home?"), Live Activities for
-a journey in progress, and Core Location without a permission prompt every session.
+Then App Intents ("Siri, when's my last train home?"), and Core Location without a
+permission prompt every session.
 
 A wrapped web view would also risk rejection under the minimum-functionality
-guideline. Native sidesteps that.
+guideline. Native sidesteps it.
 
-### What to port, not redesign
+### Port, don't redesign
 
-The design is settled and should transfer intact:
+The design is settled:
 
 - Full-bleed blocks, zero radius, zero gaps
-- **Red means last train, and nothing else.** `#E4002B`, not flag red — it was
-  chosen by measurement against the blue it sits beneath, and the reasoning is in
-  the CSS. Carry the visible `LAST TRAIN` label too; colour is never the only signal.
+- **Red means last train and nothing else.** `#E4002B`, not flag red — chosen by
+  measurement against the blue beneath it. Keep the visible `LAST TRAIN` label;
+  colour is never the only signal.
 - Mono tabular times as the largest thing on screen
 - Operator as a white outline, never a filled brand colour
 
-Use Dynamic Type properly rather than fixed sizes — it is the native equivalent of
-the 200% font test the web app already passes.
+Use Dynamic Type rather than fixed sizes — the native equivalent of the 200% font
+test the web app already passes.
 
-### What must be reimplemented carefully
+### Reimplement carefully
 
-The **service day** logic. It is the part most likely to be got wrong in a rewrite
-and the part where being wrong is invisible: 03:00 boundary, "tonight" versus
-"today" after midnight, and London wall-clock times that arrive from the API with
-no timezone marker at all. Port the tests first, then the code.
+The **service day** logic: the 03:00 boundary, "tonight" versus "today" after
+midnight, and London wall-clock times arriving with no timezone marker at all.
+Port the tests first, then the code.
 
-Swift's `Calendar`/`TimeZone` handle this well *if* you set the timezone
-explicitly on every formatter. The web app's bug — an hour late in production —
-came from trusting a default. Do not trust a default.
+Set the timezone explicitly on every Swift formatter. The web app's hour-late
+production bug came from trusting a default; a rewrite is exactly where that
+returns.
 
 ---
 
 ## 8. Domain rules that get harder nationally
 
-The existing rules all still apply. These are new:
+The existing rules still apply. These are new:
 
 **Sleepers cross the service day mid-journey.** The Caledonian Sleeper leaves
-Euston around 21:00 and arrives in Inverness after 08:00. Nothing in the current
-three-operator world does that. The 03:00 boundary now falls *inside* journeys, not
-just between them. Decide deliberately which service day such a train belongs to —
-the answer is its origin's, but the display needs to make the arrival day obvious.
+Euston around 21:00 and reaches Inverness after 08:00. Nothing in the current
+three-operator world does that, so the 03:00 boundary now falls *inside* journeys.
+It belongs to its origin's service day; the display has to make the arrival day
+obvious without reintroducing calendar-day thinking.
 
-**Very long journeys need duration back.** Dropped it because Grays→Fenchurch
-Street is always about 40 minutes. Penzance→Aberdeen is not, and "how long is
-this" becomes a real question again.
+**Splits and joins matter more.** A train can carry two destinations and divide en
+route, and boarding the wrong half is a real failure. The API returns both — keep
+surfacing both, and consider whether joining with "&" is clear enough at scale.
 
-**Splits and joins are common.** Portion working exists on the current network but
-matters far more nationally. A train can carry two destinations and divide en
-route; boarding the wrong half is a genuine failure. The API returns both
-destinations — surface it clearly rather than joining with "&".
-
-**Replacement buses are frequent.** Already badged; at national scale this will be
-a routine occurrence rather than an oddity, especially at weekends.
+**Replacement buses become routine**, especially at weekends. Already badged.
 
 **Rural is the best case, not the edge case.** A station with four trains a day is
-where "first and last" is most valuable and where a wrong answer is most costly.
-Test against one — Berney Arms, Denton, Teesside Airport — not just against
-high-frequency commuter routes where being wrong is cheap.
+where "last train home" matters most and where a wrong answer costs most. Test
+against Berney Arms or Denton, not only high-frequency commuter routes where being
+wrong is cheap.
 
 ---
 
 ## 9. Build order
 
 1. **Email RTT.** Confirm in writing that a paid plan permits an App Store app.
-   Nothing else starts until this is answered (§3).
-2. **Prove the pair query nationally.** A throwaway script: first and last direct
-   train, Penzance→Plymouth, Inverness→Perth, somewhere rural. Confirm the
-   23h59m window and `filterTo` behave the same outside the south-east.
-3. **Station data.** FasterRoute JSON crossed against `/data/stops`, validated the
-   way the current generator validates. Spatial index for nearest.
-4. **API route.** Revert `direction` to `to`; keep the caching, the service-day
-   window, and the token handling.
-5. **SwiftUI app.** Service-day logic and its tests first. Then pickers, then the
+   Nothing else starts until this is answered.
+2. **Prove the line-up query nationally.** A throwaway script: whole service day at
+   Penzance, Inverness, Upminster, somewhere rural. Confirm the 23h59m window
+   behaves the same outside the south-east, and that four-way bucketing produces
+   sensible directions.
+3. **Station data.** FasterRoute crossed against `/data/stops`, validated as now.
+   Spatial index for nearest.
+4. **API route.** Direction becomes compass; return all four buckets from one
+   query; drop the corridor machinery and `via`. Add the diagnostics surface (§3).
+5. **SwiftUI app.** Service-day logic and its tests first, then pickers, then the
    result stack, then the design system.
 6. **Widget.** The reason for doing any of this.
-7. **App Store.** Attribution visible, privacy manifest, location usage string.
+7. **Paid token, attribution, submit.**
 
 ---
 
 ## 10. Open questions
 
 - **Does a free App Store app count as commercial to RTT?** Blocks everything.
-- **What are the paid tier's rate limits?** Determines whether the current
-  eight-requests-per-lookup design survives 2,600 stations.
+- **What are the paid tier's rate limits?** Determines how hard the device cache
+  has to work.
+- **Two-direction vs four-direction control** — does the compass arrangement earn
+  its vertical space, or is there something better? Prototype before committing.
 - **Is the server dependency acceptable?** The app cannot work without our Vercel
-  deployment. If that is unacceptable, the answer is the Darwin ingest (§2), which
-  is a much larger project but removes the dependency on someone else's uptime.
-- **Do we support station groups (London Terminals)?** Affects the picker and the
-  query model, and is easier to decide now than to retrofit.
-- **How aggressively do we suggest interchanges** for pairs with no direct service
-  before it becomes journey planning we are not licensed to do?
+  deployment. If not, the answer is the Darwin ingest, which is a much larger
+  project but removes reliance on someone else's uptime.
+- **Do we keep `via` anywhere?** Dropping it is recommended, but the c2c Tilbury
+  case was real and you use that line daily.
 
 ---
 
@@ -307,10 +352,7 @@ high-frequency commuter routes where being wrong is cheap.
 
 - [Realtime Trains API portal](https://api-portal.rtt.io) — plans and tokens
 - [RTT API specification](https://realtimetrains.github.io/api-specification/)
-- [Rail Data Marketplace](https://raildata.org.uk) — Darwin, LDBWS
 - [LDBWS documentation](https://realtime.nationalrail.co.uk/OpenLDBWS/) — note the
   2-hour and 10-row limits
-- [National Rail developers](https://www.nationalrail.co.uk/developers/) — OJP
-  licensing
+- [Rail Data Marketplace](https://raildata.org.uk) — Darwin
 - [FasterRoute](https://www.fasteroute.com/) — Apache-2.0 UK station JSON
-- [TransportAPI](https://www.transportapi.com/) — commercial journey planning
