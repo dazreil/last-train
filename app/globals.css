@@ -37,6 +37,20 @@
   --signal-paper: #ffffff;
   --signal-rule: rgb(255 255 255 / 0.2);
 
+  /*
+   * Safe areas, via custom properties rather than env() inline so they can be
+   * exercised in a browser that has no notch. Installed to the home screen with
+   * viewport-fit=cover, the web view extends into the status bar and the home
+   * indicator; without these the masthead sits underneath the notch.
+   */
+  --sa-top: env(safe-area-inset-top, 0px);
+  --sa-right: env(safe-area-inset-right, 0px);
+  --sa-bottom: env(safe-area-inset-bottom, 0px);
+  --sa-left: env(safe-area-inset-left, 0px);
+
+  /* The page gutter, shared so full-bleed blocks know exactly how far to escape. */
+  --gutter: 1rem;
+
   /* Set once at the root. Nothing overrides it. */
   --radius: 0;
   --tap: 48px;
@@ -87,6 +101,8 @@ body {
 }
 
 body {
+  padding-left: var(--sa-left);
+  padding-right: var(--sa-right);
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
@@ -101,7 +117,8 @@ body {
 .app {
   max-width: 34rem;
   margin: 0 auto;
-  padding: 1rem 1rem calc(2rem + env(safe-area-inset-bottom));
+  padding: calc(var(--gutter) + var(--sa-top)) var(--gutter)
+    calc(2rem + var(--sa-bottom));
 }
 
 /* ------------------------------------------------------------------ header */
@@ -166,7 +183,7 @@ body {
  * screen rather than inside a card.
  */
 .direction {
-  margin: 0.4rem -1rem;
+  margin: 0.4rem calc(-1 * var(--gutter));
   overflow: hidden;
 }
 
@@ -527,7 +544,7 @@ input.station-input::placeholder {
   flex-direction: column;
   gap: 0;
   list-style: none;
-  margin: 0 -1rem;
+  margin: 0 calc(-1 * var(--gutter));
   padding: 0;
 }
 

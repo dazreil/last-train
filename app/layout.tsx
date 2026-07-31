@@ -40,8 +40,18 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: 'Last Train',
-    // Matches --bg so the status bar does not sit on a pale strip in dark mode.
-    statusBarStyle: 'black-translucent',
+    /*
+     * Not black-translucent, for two reasons.
+     *
+     * It pulls the web view up under the status bar, which is what buried the
+     * masthead beneath the notch on the home-screen app -- the safe-area padding
+     * now handles that, but this removes the cause rather than compensating for it.
+     *
+     * And it forces white status-bar glyphs regardless of theme, which are
+     * illegible on the light background. `default` lets iOS choose them against
+     * the theme colour below, which is declared per colour scheme.
+     */
+    statusBarStyle: 'default',
   },
   // Personal tool; nothing here should be indexed.
   robots: { index: false, follow: false },
