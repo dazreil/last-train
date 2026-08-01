@@ -35,9 +35,10 @@ not be on PATH.
 
 The licensing blocker is cleared. RTT confirmed on 1 August 2026 that a free App
 Store app still needs a **commercial plan**, on call volume rather than on price to
-the user, so `IOS.md` §9 can start at step 2. Which tier — £4/month hobbyist or
-£29/month business — is still open and follows from volume. The current token
-explicitly cannot ship.
+the user, so `IOS.md` §9 can start at step 2. **The tier is Team, £29/month**;
+hobbyist at £4 raises no rate limits and so cannot answer a volume requirement. Build
+on the free tier and buy the plan at submission — the current token explicitly cannot
+ship.
 
 ## If the next task is more work on the web app
 

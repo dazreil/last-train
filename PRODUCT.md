@@ -89,10 +89,17 @@ ship, and a paid plan is a precondition of submission. The app therefore carries
 monthly cost from its first day on the store, and that cost is a product constraint
 rather than an implementation detail.
 
+**The tier is Team, £29/month** — 40/minute, 1200/hour, 12000/day, **25000/week**,
+5 keys, and a licence permitting incorporation into existing products while allowing
+only derivative data to be published. Hobbyist at £4 raises no rate limits, so it
+cannot satisfy a requirement that was about volume. Size against `week ÷ 7`:
+3571/day sustained against the free tier's 1000, about 3.6× rather than the 12× the
+daily headline implies. **That ceiling is a product constraint**: it caps how many
+distinct stations can be in daily use, and the lever on it is cache lifetime, not
+anything the interface does.
+
 Explicitly undecided, and not to be invented:
 
-- **Which paid tier that lands on, and its rate limits.** The tier follows from call
-  volume, and the limits determine how hard the on-device cache must work
 - Whether the `via` route label survives nationally (it exists for one real
   ambiguity: c2c via Basildon versus the slower Tilbury loop)
 

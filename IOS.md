@@ -116,9 +116,27 @@ in the app, e.g. long-press the masthead. Ships disabled.
 
 1. **A paid plan. Confirmed in writing with RTT, 1 August 2026: a free App Store app
    still needs a commercial one**, because of the number of calls it makes. Being
-   free to the user is not the test; call volume is. £4/month hobbyist, £29/month
-   business — which of those the volume lands on is the next thing to pin down, and
-   §5's single-request lookup is now an argument about money as well as latency.
+   free to the user is not the test; call volume is.
+
+   **Team, £29/month: 40/minute, 1200/hour, 12000/day, 25000/week**, 5 API keys,
+   31 days history, tip-jar and ad friendly, "permission to incorporate in your
+   existing products but may only publish derivative data".
+
+   Size against `week ÷ 7`, never the daily headline. Which cap binds differs between
+   the tiers: on free, 7 × 1000/day fits inside 10000/week, so 1000/day is a rate you
+   can hold; on Team, 7 × 12000 is 84000 against a 25000 ceiling, so 12000/day is a
+   burst worth **two days** before the week is gone. Sustainable is **3571/day against
+   free's 1000 — about 3.6×, not the 12× the daily figures imply**.
+
+   **Hobbyist at £4 is not an option**, and not on price. Its listing offers 2 keys,
+   detailed mode, allocations, monetisation permission and "for use by individuals
+   only" — but says nothing about rate limits, where Team's states them outright, so
+   it carries the free tier's. RTT required a commercial plan *because of call
+   volume*; a tier that does not raise volume cannot answer that. £29/month, £348 a
+   year, is the real price of shipping.
+
+   Take the 5 keys. A separate development key means testing never competes with
+   production for quota, which on the free tier it does.
 2. **The token still never reaches the device**, paid or not. The app talks to our
    API, never to `data.rtt.io`. See §5.
 3. **Visible attribution** — RTT require clear credit with a link in any
@@ -340,9 +358,15 @@ wrong is cheap.
 - ~~Does a free App Store app count as commercial to RTT?~~ **Answered 1 August
   2026: yes, a commercial plan is required, on call volume rather than on price to
   the user.**
-- **Which tier, and what are its rate limits?** The tier follows from volume, and the
-  limits determine how hard the device cache has to work. This is now the live
-  licensing question.
+- ~~Team at £29/month, or is £4 hobbyist enough?~~ **Team. Hobbyist does not raise
+  the rate limits, so it cannot answer a volume requirement — see §3.** What is left
+  is whether £348/year is worth it for this app, which is a decision rather than a
+  question.
+- **What upstream volume actually scales with.** Not users and not widget refreshes —
+  the app is a client of our API, which caches line-ups by `station:date`, so a
+  refresh onto a warm cache costs RTT nothing. The cost is *distinct station-days ×
+  cache miss rate*, which makes the server-side TTL the lever rather than the
+  widget's refresh cadence. Worth measuring over a real week before committing.
 - **Two-direction vs four-direction control** — does the compass arrangement earn
   its vertical space, or is there something better? Prototype before committing.
 - **Is the server dependency acceptable?** The app cannot work without our Vercel

@@ -87,9 +87,49 @@ under any timezone and hide this entire class of bug.
 
 ### Rate limits are a third of what the original brief said
 
-Free tier is **10/minute, 100/hour, 1000/day**. The brief said 30/750/9000. Every
-budget in the app is sized against 10/minute. Do not run `npm run stations` while
-testing the live app — they share the quota.
+Free tier is **10/minute, 100/hour, 1000/day, 10000/week**. The brief said
+30/750/9000. Every budget in the app is sized against 10/minute. Do not run
+`npm run stations` while testing the live app — they share the quota.
+
+### Team tier, £29/month — the real numbers
+
+Confirmed 1 August 2026: **40/minute, 1200/hour, 12000/day, 25000/week**, up to
+**5 API keys**, 31 days history, tip-jar and ad friendly. Licence adds "permission to
+incorporate in your existing products but may only publish derivative data".
+
+**Which cap binds changes between the tiers, and that is the whole trap.** On free,
+7 × 1000/day fits inside 10000/week, so the daily cap binds and 1000/day is a rate you
+can actually hold. On Team, 7 × 12000 is 84000 against a 25000 weekly ceiling, so the
+**weekly** cap binds — 12000/day is a burst you can spend on **two days** before the
+week is gone, not a rate.
+
+| | Free | Team | Increase |
+|---|---|---|---|
+| Per minute | 10 | 40 | 4× |
+| Per day, headline | 1000 | 12000 | 12× |
+| Per week | 10000 | 25000 | 2.5× |
+| **Sustainable per day** | **1000** (day-bound) | **3571** (week-bound) | **3.6×** |
+
+**£29/month buys about 3.6× the sustainable volume, not 12×.** Size against
+`week ÷ 7`, never the daily headline, or the app works on Monday and is throttled by
+Wednesday.
+
+The 5 keys are worth taking: a separate development key retires the shared-quota trap
+above, so testing the live app and running the generator stop competing with
+production.
+
+### Hobbyist at £4 does not raise the rate limits, so it cannot ship the app
+
+Its listing offers 2 API keys, detailed mode, passenger allocations, tip-jar and ad
+permission, and "for use by individuals only". **It says nothing about rate limits**,
+where Team's listing states them outright — so it carries the free tier's.
+
+That is decisive, and not on price. RTT's reason for requiring a commercial plan was
+**call volume**. A tier that does not raise the volume cannot answer a volume
+objection, whatever it costs. **Team is the tier**, and £29/month is the real number.
+
+Inferred from the absence of a limits line rather than stated by RTT. Cheap to
+confirm on the open email thread, but the volume reasoning stands either way.
 
 The generator caches responses in `.rtt-cache/` (gitignored), so re-runs cost
 nothing; the last several runs used **0 API calls**. Delete it to force a clean run.
@@ -162,9 +202,16 @@ volume is.
 
 So the plan holds — `IOS.md` already assumed a paid tier — but the app now carries a
 monthly cost from its first day on the store, and that is a product decision rather
-than a line item. £4/month hobbyist versus £29/month business is unresolved and
-follows from volume, which makes `IOS.md` §5's single-request lookup an argument about
-money as well as latency. The current token still cannot ship: a token found in a
+than a line item.
+
+**The tier is Team, £29/month.** Hobbyist at £4 does not raise the rate limits (see
+Traps), so it cannot answer an objection that was about volume. £348/year is the real
+price of shipping this, and `IOS.md` §5's single-request lookup is now an argument
+about money as well as latency.
+
+Nothing changes about how to build: stay on the free tier throughout, exactly as
+`IOS.md` §3 planned, and buy the plan at submission. The cost starts when the app
+ships, not now. The current token still cannot ship either way — a token found in a
 distributed app gets revoked.
 
 ### Per `IOS.md` §9
@@ -180,10 +227,18 @@ distributed app gets revoked.
 
 ### Open questions carried forward
 
-- **Which paid tier, and what are its limits?** Now the live licensing question. The
-  tier follows from call volume, and the limits set how hard the on-device cache has
-  to work — so this wants answering before the widget is designed, since a widget
-  refreshing through the evening is most of the volume.
+- **Is £348/year worth it for this?** The tier question is answered; whether the app
+  is worth its running cost is a separate one, and it is now a real decision rather
+  than a rounding error. Tip-jar and ads are permitted on both paid tiers if it ever
+  needs to pay for itself.
+- **What the volume actually scales with.** Not users, and not widget refreshes:
+  the app is a client of our API, which caches line-ups by `station:date`, so a
+  refresh that hits a warm cache costs RTT nothing. Upstream cost is
+  *distinct station-days × cache miss rate*, which makes the TTL in `lib/cache.ts`
+  the lever — not the widget's refresh cadence. At a 1-hour live-day TTL a station
+  watched all evening costs a request an hour, so Team's 3571/day sustainable covers
+  a few hundred stations in daily use. Confirm that arithmetic against a real week
+  before committing to a tier.
 - Does the compass control earn its vertical space at 3–4 directions, or does the
   two-direction sliding block cover enough? Prototype before committing.
 - Keep `via` nationally? Recommended to drop — it exists for one real ambiguity (c2c
