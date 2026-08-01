@@ -1,0 +1,381 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-01T04:23:48.347Z",
+  "title": "Design System: Last Train",
+  "extensions": {
+    "colorMeta": {
+      "last-train-red": {
+        "role": "primary",
+        "displayName": "Last Train Red",
+        "canonical": "#e4002b",
+        "tonalRamp": [
+          "#87001a",
+          "#e50c35",
+          "#e93255",
+          "#ed5975",
+          "#f17f95",
+          "#f6a5b5",
+          "#faccd4",
+          "#fef2f4"
+        ]
+      },
+      "service-blue": {
+        "role": "secondary",
+        "displayName": "Service Blue",
+        "canonical": "#012169",
+        "tonalRamp": [
+          "#012066",
+          "#233f7d",
+          "#465d92",
+          "#687ba6",
+          "#8b9abb",
+          "#aeb8cf",
+          "#d1d6e4",
+          "#f3f5f8"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#1f1f1f",
+          "#3d3d3d",
+          "#5c5c5c",
+          "#7a7a7a",
+          "#999999",
+          "#b8b8b8",
+          "#d6d6d6",
+          "#f5f5f5"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#0b0d10",
+        "tonalRamp": [
+          "#1d1f22",
+          "#3c3d40",
+          "#5b5c5e",
+          "#797b7c",
+          "#98999a",
+          "#b7b8b9",
+          "#d6d6d7",
+          "#f5f5f5"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Surface",
+        "canonical": "#14181d",
+        "tonalRamp": [
+          "#1b1f24",
+          "#3a3e42",
+          "#595c60",
+          "#787b7e",
+          "#97999b",
+          "#b7b8b9",
+          "#d6d6d7",
+          "#f5f5f5"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#2a323b",
+        "tonalRamp": [
+          "#1a1f25",
+          "#373e47",
+          "#565d64",
+          "#767b81",
+          "#969a9e",
+          "#b5b8bb",
+          "#d5d6d8",
+          "#f4f5f5"
+        ]
+      },
+      "text-dim": {
+        "role": "neutral",
+        "displayName": "Text Dim",
+        "canonical": "#9aa7b4",
+        "tonalRamp": [
+          "#1d1f21",
+          "#393e43",
+          "#565d64",
+          "#727c85",
+          "#8f9ba7",
+          "#afb9c3",
+          "#d1d7dd",
+          "#f4f5f6"
+        ]
+      },
+      "accent-sky": {
+        "role": "tertiary",
+        "displayName": "Accent Sky",
+        "canonical": "#4ea3ff",
+        "tonalRamp": [
+          "#102133",
+          "#1f4267",
+          "#2f639a",
+          "#3f84ce",
+          "#50a4ff",
+          "#85bfff",
+          "#b9dbff",
+          "#eef6ff"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Departure times only. The largest element on screen, monospaced and tabular so the column aligns."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "The direction block heading: WESTBOUND, EASTBOUND."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "The selected station name in the From field."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Destination on a result block. Wraps at real length, never truncated."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Section headings, masthead, RECENT, LAST TRAIN. Names a thing rather than being the thing."
+      }
+    },
+    "lightAppearance": {
+      "note": "Neutral ramp inverts; the two signal colours do not change.",
+      "ink": "#f4f6f8",
+      "surface": "#ffffff",
+      "surface-raised": "#ffffff",
+      "hairline": "#d7dde3",
+      "text": "#10151a",
+      "text-dim": "#55636f",
+      "text-faint": "#7d8a96",
+      "accent-sky": "#0b62c4"
+    },
+    "contrastRecord": [
+      {
+        "pair": "paper on service-blue",
+        "ratio": 14.76,
+        "verdict": "AA"
+      },
+      {
+        "pair": "paper on last-train-red",
+        "ratio": 4.85,
+        "verdict": "AA"
+      },
+      {
+        "pair": "text-faint on ink",
+        "ratio": 6.19,
+        "verdict": "AA"
+      },
+      {
+        "pair": "last-train-red on service-blue",
+        "ratio": 3.05,
+        "verdict": "block separation; the reason flag red #C8102F (2.51) was rejected"
+      },
+      {
+        "pair": "white 75% on service-blue",
+        "ratio": 8.8,
+        "verdict": "AA"
+      },
+      {
+        "pair": "white 75% on last-train-red",
+        "ratio": 3.07,
+        "verdict": "fails: why text on red is full strength"
+      }
+    ],
+    "shadows": [
+      {
+        "name": "dropdown-lift",
+        "value": "0 12px 32px rgb(0 0 0 / 0.35)",
+        "purpose": "The station suggestion list, and nothing else. The only shadow in the system."
+      }
+    ],
+    "motion": [
+      {
+        "name": "direction-slide",
+        "value": "transform 240ms cubic-bezier(0.2, 0, 0, 1)",
+        "purpose": "The direction block moving between its left and right anchors. The only orchestrated movement in the product; removed under prefers-reduced-motion."
+      },
+      {
+        "name": "skeleton-shimmer",
+        "value": "1.2s linear infinite",
+        "purpose": "Loading rows at the exact height of a result block so the layout never jumps. Static under prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "container",
+        "value": "34rem",
+        "purpose": "Single-column maximum width; the layout is otherwise fluid and phone-first."
+      }
+    ],
+    "safeArea": {
+      "note": "Applied via custom properties rather than inline env() so behaviour is testable without a notch.",
+      "tokens": [
+        "--sa-top",
+        "--sa-right",
+        "--sa-bottom",
+        "--sa-left"
+      ],
+      "gutter": "--gutter: 1rem"
+    }
+  },
+  "components": [
+    {
+      "name": "Result Block",
+      "kind": "card",
+      "refersTo": "service-block",
+      "description": "One ordinary departure. Flat, full bleed, square, separated from its neighbour by a hairline only when both are the same colour.",
+      "html": "<li class=\"ds-service\"><div class=\"ds-service-times\"><span class=\"ds-time\">23:17</span><span class=\"ds-destination\">Fenchurch Street</span><span class=\"ds-badge\">C2C</span></div><div class=\"ds-service-meta\"><span class=\"ds-via\">via Ockendon</span><span class=\"ds-sep\">·</span><span>plat 1</span><span class=\"ds-sep\">·</span><span class=\"ds-headcode\">2D87</span></div></li>",
+      "css": ".ds-service{list-style:none;background:#012169;color:#fff;border:0;border-radius:0;padding:11px 16px 10px;font-family:\"Inter Tight\",system-ui,sans-serif}.ds-service-times{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px}.ds-time{font-family:\"Geist Mono\",ui-monospace,monospace;font-size:44px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-0.04em;line-height:1;flex:0 0 auto}.ds-destination{flex:1 1 8ch;min-width:0;font-size:18px;font-weight:700;line-height:1.15;overflow-wrap:anywhere}.ds-badge{flex:0 0 auto;margin-left:auto;padding:2px 6px;border:1px solid #fff;border-radius:0;font-size:11.5px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap}.ds-service-meta{margin-top:5px;display:flex;flex-wrap:wrap;gap:5px 8px;font-size:13.6px;color:rgb(255 255 255 / .75)}.ds-via{color:#fff;font-weight:700}.ds-sep{color:rgb(255 255 255 / .45)}.ds-headcode{color:rgb(255 255 255 / .6);letter-spacing:0.04em}"
+    },
+    {
+      "name": "Result Block — Last Train",
+      "kind": "card",
+      "refersTo": "service-block-last",
+      "description": "The final departure of the service day. Red fill plus a visible LAST TRAIN label, because colour is never the only signal. Secondary text goes full strength here: held-back white fails on this lighter fill.",
+      "html": "<li class=\"ds-service-last\"><span class=\"ds-flag\">Last train</span><div class=\"ds-service-times\"><span class=\"ds-time\">23:47</span><span class=\"ds-destination\">Fenchurch Street</span><span class=\"ds-badge\">C2C</span></div><div class=\"ds-service-meta-last\"><span class=\"ds-via\">via Ockendon</span><span class=\"ds-sep-last\">·</span><span>plat 1</span><span class=\"ds-sep-last\">·</span><span>2D89</span></div></li>",
+      "css": ".ds-service-last{list-style:none;background:#e4002b;color:#fff;border:0;border-radius:0;padding:11px 16px 10px;font-family:\"Inter Tight\",system-ui,sans-serif}.ds-flag{display:block;margin-bottom:2px;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase}.ds-service-times{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px}.ds-time{font-family:\"Geist Mono\",ui-monospace,monospace;font-size:44px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-0.04em;line-height:1;flex:0 0 auto}.ds-destination{flex:1 1 8ch;min-width:0;font-size:18px;font-weight:700;line-height:1.15;overflow-wrap:anywhere}.ds-badge{flex:0 0 auto;margin-left:auto;padding:2px 6px;border:1px solid #fff;border-radius:0;font-size:11.5px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap}.ds-service-meta-last{margin-top:5px;display:flex;flex-wrap:wrap;gap:5px 8px;font-size:13.6px;color:#fff}.ds-via{font-weight:700}.ds-sep-last{color:rgb(255 255 255 / .7)}"
+    },
+    {
+      "name": "Direction Block",
+      "kind": "custom",
+      "refersTo": "direction-block",
+      "description": "Direction as position: anchored left for westbound, translated right for eastbound, sliding between them. The mark is original — the British Rail double arrow is protected.",
+      "html": "<div class=\"ds-direction\"><button class=\"ds-direction-block\" type=\"button\"><span class=\"ds-mark\"><svg viewBox=\"0 0 34 24\" width=\"30\" height=\"22\"><path d=\"M3 3 L14 12 L3 21\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4.5\" stroke-linecap=\"square\"/><path d=\"M19 3 L30 12 L19 21\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4.5\" stroke-linecap=\"square\"/></svg></span><span class=\"ds-direction-text\"><span class=\"ds-direction-heading\">Westbound</span><span class=\"ds-direction-towards\">towards London Fenchurch Street</span></span></button></div>",
+      "css": ".ds-direction{overflow:hidden}.ds-direction-block{display:flex;align-items:center;gap:14px;width:72%;min-height:68px;padding:11px 16px;background:#012169;color:#fff;border:0;border-radius:0;text-align:left;font-family:\"Inter Tight\",system-ui,sans-serif;cursor:pointer;transform:translateX(0);transition:transform 240ms cubic-bezier(0.2,0,0,1)}.ds-direction-block:hover{filter:brightness(1.15)}.ds-direction-block:focus-visible{outline:3px solid #fff;outline-offset:-3px}.ds-mark{flex:0 0 auto;display:grid;place-items:center;transform:scaleX(-1)}.ds-direction-text{display:flex;flex-direction:column;gap:2px;min-width:0}.ds-direction-heading{font-size:24px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;line-height:1}.ds-direction-towards{font-size:12px;color:rgb(255 255 255 / .8);overflow-wrap:anywhere}"
+    },
+    {
+      "name": "Recent Block",
+      "kind": "chip",
+      "refersTo": "recent-block",
+      "description": "A recent search is a station and a direction. A block carrying only the code would restore a query the user did not ask for. Shared edges collapse so the row reads as one object.",
+      "html": "<ul class=\"ds-recent-row\"><li><button class=\"ds-recent ds-recent-active\" type=\"button\" aria-current=\"true\"><span class=\"ds-crs\">GRY</span><span class=\"ds-heading\">← W</span></button></li><li><button class=\"ds-recent\" type=\"button\"><span class=\"ds-crs\">GRY</span><span class=\"ds-heading\">→ E</span></button></li><li><button class=\"ds-recent\" type=\"button\"><span class=\"ds-crs\">FST</span><span class=\"ds-heading\">→ E</span></button></li></ul>",
+      "css": ".ds-recent-row{display:flex;gap:0;margin:0;padding:0;list-style:none}.ds-recent-row li{flex:1 1 0;min-width:0}.ds-recent{display:flex;width:100%;min-height:48px;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px 3px;background:none;border:1px solid #2a323b;border-left-width:0;border-radius:0;color:#9aa7b4;font-family:\"Inter Tight\",system-ui,sans-serif;cursor:pointer}.ds-recent-row li:first-child .ds-recent{border-left-width:1px}.ds-recent:focus-visible{outline:3px solid #fff;outline-offset:-3px}.ds-recent-active{background:#012169;border-color:#012169;color:#fff}.ds-crs{font-size:15px;font-weight:700;letter-spacing:0.06em}.ds-heading{font-size:11px;letter-spacing:0.04em;opacity:.8}"
+    },
+    {
+      "name": "Operator Badge",
+      "kind": "chip",
+      "refersTo": "operator-badge",
+      "description": "White outline, never a brand fill. Filled badges were removed because one was almost exactly the reserved red, on the operator that runs the last trains.",
+      "html": "<span class=\"ds-badge-solo\">C2C</span>",
+      "css": ".ds-badge-solo{display:inline-block;padding:2px 6px;border:1px solid #fff;border-radius:0;font-family:\"Inter Tight\",system-ui,sans-serif;font-size:11.5px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#fff;background:none;white-space:nowrap}"
+    },
+    {
+      "name": "Station Input",
+      "kind": "input",
+      "refersTo": "station-input",
+      "description": "Label sits inside the box above the value. Square, hairline bordered, focus ring inset.",
+      "html": "<div class=\"ds-field\"><label class=\"ds-field-label\">From</label><input class=\"ds-input\" value=\"Grays\" /></div>",
+      "css": ".ds-field{position:relative}.ds-field-label{position:absolute;z-index:1;top:8px;left:14px;font-family:\"Inter Tight\",system-ui,sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#6b7885;pointer-events:none}.ds-input{width:100%;min-height:54px;padding:22px 14px 7px;font-family:\"Inter Tight\",system-ui,sans-serif;font-weight:700;font-size:24px;color:#f2f5f8;background:#14181d;border:1px solid #2a323b;border-radius:0;appearance:none}.ds-input:focus{outline:2px solid #4ea3ff;outline-offset:-1px}"
+    },
+    {
+      "name": "Notice",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Empty and error states share one treatment. An error is marked by a heavier border and an uppercase heading, never by colour — red is spoken for, and an empty result is a real answer rather than a failure.",
+      "html": "<div class=\"ds-notice\"><h2 class=\"ds-notice-h\">Nothing eastbound</h2><p class=\"ds-notice-p\">No trains run east from Shenfield on Thu 30 Jul.</p></div>",
+      "css": ".ds-notice{background:#14181d;border:1px solid #2a323b;border-radius:0;padding:18px 16px;font-family:\"Inter Tight\",system-ui,sans-serif}.ds-notice-h{margin:0 0 6px;font-size:17px;color:#f2f5f8}.ds-notice-p{margin:6px 0 0;color:#9aa7b4;font-size:14.4px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Departure Board",
+    "overview": "The board on the platform wall. Institutional rather than branded, built to be read from a distance by someone who is already moving. It does not introduce itself, it does not explain, and it has no opinion about how you feel — it states times, and it states them in an order and a weight that tells you which one matters.\n\nEverything follows from the reading conditions: one hand, outdoors, after dark, in a hurry, usually around 23:40. That scene outranks every aesthetic preference in the system. Where legibility and expression have conflicted, expression has lost, and the record of those losses is in the values.\n\nThe palette derives from the Great British Railways identity but takes the geometry and the flat colour rather than the flag-waving. Red, white and blue appear because three states needed encoding, not because of a flag.",
+    "keyCharacteristics": [
+      "Flat colour blocks, zero radius, zero gaps — the result stack is one object",
+      "Red means exactly one thing, and the system is arranged to protect that",
+      "Monospaced tabular times as the largest element, aligned down a column",
+      "Full-bleed to the edges of the usable area; no cards, no floating surfaces",
+      "Every colour pair verified by computation, not by eye"
+    ],
+    "rules": [
+      {
+        "name": "The One Red Rule",
+        "body": "Red means \"this is the last train\". The moment it also means error, alert, operator or emphasis, it means nothing.",
+        "section": "colors"
+      },
+      {
+        "name": "The Measured Palette Rule",
+        "body": "No colour pair enters the system on the strength of looking right. Compute the contrast ratio, record it, and let the number decide.",
+        "section": "colors"
+      },
+      {
+        "name": "The Opacity Is Not Portable Rule",
+        "body": "Held-back white behaves differently on different fills: 75% white reaches 8.8:1 on Service Blue but only 3.07:1 on Last Train Red. Never reuse an opacity across two fills without re-measuring.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tabular Rule",
+        "body": "Every time uses tabular-nums in a monospaced face. The result stack is read as a column, and a column only scans if the digits line up.",
+        "section": "typography"
+      },
+      {
+        "name": "The Advance Width Rule",
+        "body": "The mono advance is a layout constraint, not a stylistic choice. Geist Mono is 0.56em; Martian Mono is 0.66em and forced every station name onto a second line.",
+        "section": "typography"
+      },
+      {
+        "name": "The Real Length Rule",
+        "body": "Station names are never truncated or ellipsised. If a name is long it wraps; London termini drop the \"London\" for display instead.",
+        "section": "typography"
+      },
+      {
+        "name": "The Fold Rule",
+        "body": "Controls end by 40% of the viewport. The first departure and the last-train block are both visible without scrolling.",
+        "section": "layout"
+      },
+      {
+        "name": "The Grow-Never-Clip Rule",
+        "body": "At 200% text the stack grows downward and never overflows sideways.",
+        "section": "layout"
+      },
+      {
+        "name": "The One Shadow Rule",
+        "body": "A shadow is permitted only where an element genuinely floats above content that still exists beneath it. Everything else is flat at rest and flat in every state.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Zero Radius Rule",
+        "body": "Set once at :root, never overridden anywhere. A single rounded corner would make the whole system look like an accident.",
+        "section": "shapes"
+      },
+      {
+        "name": "The No Gaps Rule",
+        "body": "The result stack has gap: 0. Blocks butt together into one solid column, which is what lets the red block register as the end of service from across a platform.",
+        "section": "shapes"
+      },
+      {
+        "name": "The Position Is The Answer Rule",
+        "body": "The direction block means where it sits, not what it says. A segmented control would be more conventional and would throw away the only pre-linguistic thing in the interface.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "Do reserve #e4002b exclusively for the last departure of the service day, and give it a visible LAST TRAIN label as well as the fill.",
+      "Do compute contrast for every new colour pair and record the ratio.",
+      "Do re-measure opacity when moving muted text between fills.",
+      "Do set every time in Geist Mono with tabular-nums, so the column scans.",
+      "Do let station names wrap at their real length, and drop \"London\" from London termini rather than truncating them.",
+      "Do keep the control stack inside 40% of the viewport, and check the last-train block is still fully visible after any change above it.",
+      "Do apply safe-area insets on all four edges via the --sa-* custom properties.",
+      "Do let result rows wrap under magnification; verify at 200% text."
+    ],
+    "donts": [
+      "Don't use red for errors, alerts, operators, emphasis, or anything else. There is no --danger token in this project, deliberately.",
+      "Don't fill an operator badge with its brand colour. Outline only.",
+      "Don't introduce a border radius anywhere. --radius: 0 is set once at the root.",
+      "Don't add gaps between result blocks, or a rule between the blue and red blocks.",
+      "Don't add a second shadow. The suggestion dropdown is the only element that floats.",
+      "Don't truncate or ellipsise a station name.",
+      "Don't substitute the mono face without measuring its advance width.",
+      "Don't let this drift toward dashboard or analytics UI — no charts, no sparklines, no KPI tiles, no dense multi-column data."
+    ]
+  }
+}
