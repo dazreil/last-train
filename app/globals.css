@@ -402,13 +402,6 @@ input.station-input::placeholder {
 
 /* ----------------------------------------------------------------- chips */
 
-.chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-top: 0.25rem;
-}
-
 .chip {
   min-height: 2.4rem;
   padding: 0 0.8rem;
@@ -500,16 +493,6 @@ input.station-input::placeholder {
   opacity: 0.8;
 }
 
-.segmented {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.segmented .chip {
-  flex: 1;
-  text-align: center;
-}
-
 /* --------------------------------------------------------------- results */
 
 .results {
@@ -595,10 +578,6 @@ input.station-input::placeholder {
   gap: 0.25rem 0.6rem;
 }
 
-.destination {
-  flex: 1 1 8ch;
-}
-
 .time {
   font-family: var(--font-mono), ui-monospace, monospace;
   font-size: var(--t-time);
@@ -609,11 +588,12 @@ input.station-input::placeholder {
   flex: 0 0 auto;
 }
 
-/* Where the train is going. The headline answer alongside the time, so it takes
-   the remaining width and truncates rather than wrapping the badge onto a new
-   line. */
+/* Where the train is going: the headline answer beside the time. Takes the
+   remaining width and wraps at its real length -- never truncated, because
+   "London Fenchurch S..." loses the only word that identifies it. The 8ch basis
+   is what keeps it readable rather than crushed once the row wraps at 200%. */
 .destination {
-  flex: 1;
+  flex: 1 1 8ch;
   min-width: 0;
   font-size: var(--t-md);
   font-weight: 700;
@@ -699,15 +679,6 @@ input.station-input::placeholder {
 
 .service.last-train .service-meta .sep {
   color: rgb(255 255 255 / 0.7);
-}
-
-/* Sits under the direction buttons: "Shoeburyness, Pitsea". Tells you what "east"
-   actually means from where you are standing. */
-.towards {
-  margin: 0.15rem 0 0;
-  font-size: 0.78rem;
-  color: var(--text-faint);
-  text-align: center;
 }
 
 /* ------------------------------------------------------ states & messages */
