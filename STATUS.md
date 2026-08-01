@@ -43,6 +43,7 @@ npm test             # 70 tests, TZ=UTC (that is deliberate, see Traps)
 npm run typecheck
 npm run build
 npm run spike        # throwaway API probe; needs .env.local
+npm run national     # IOS.md §9 step 2 probe; 5 requests, then cached
 npm run stations     # regenerate data/stations.json + data/geo.json
 ```
 
@@ -128,8 +129,8 @@ That is decisive, and not on price. RTT's reason for requiring a commercial plan
 **call volume**. A tier that does not raise the volume cannot answer a volume
 objection, whatever it costs. **Team is the tier**, and £29/month is the real number.
 
-Inferred from the absence of a limits line rather than stated by RTT. Cheap to
-confirm on the open email thread, but the volume reasoning stands either way.
+Confirmed with RTT, 1 August 2026. It was first inferred from the absence of a limits
+line, and the inference was right.
 
 The generator caches responses in `.rtt-cache/` (gitignored), so re-runs cost
 nothing; the last several runs used **0 API calls**. Delete it to force a clean run.
@@ -150,6 +151,14 @@ stays at eight requests, which is where it was before.
 - **Direction is derived, never queried.** Pairing a station with its line's terminus
   would drop eastbound services that terminate short — which is frequently the last
   one out.
+- **The minimum-distance guard on direction is ~140 metres, and must stay that small.**
+  It stops two places at the same spot producing a bearing out of rounding noise. It
+  is not a guard against short journeys. Sizing it at 5km — which sounds right, since
+  a train terminating one stop away gives a meaningless bearing — silently deleted
+  every London Overground departure on the Romford branch at Upminster, 32 real
+  trains, because Romford is 4.99km away. Any threshold big enough to catch
+  "terminates one stop away" is big enough to delete a branch line, and it does it
+  quietly.
 - **The board's arrangement is decided against a real first departure**, read from
   the timetable, never a guessed hour. It differs between a Monday, a Sunday and a
   rural branch. Within a service day the mode only ever goes `pre-service → normal`,
@@ -216,7 +225,12 @@ distributed app gets revoked.
 
 ### Per `IOS.md` §9
 
-1. Prove the line-up query nationally (Penzance, Inverness, Upminster, somewhere rural)
+1. ~~Prove the line-up query nationally~~ — **done, `npm run national`, it passes.**
+   The 23h59m window returns a whole service day at Penzance, Inverness, Upminster,
+   Berney Arms and Denton alike; all 319 departures were timezone-less; Inverness
+   returns all four compass directions correctly and Upminster still returns only two.
+   Two things it changed are in `IOS.md` §4 and §8 — see Traps below for the one that
+   nearly cost a branch line.
 2. Station data: FasterRoute's Apache-2.0 UK station JSON, cross-checked against
    `/data/stops`, plus a spatial index for nearest-station
 3. API route: compass directions, all four buckets from one query, drop the corridor

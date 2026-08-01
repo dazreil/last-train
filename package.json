@@ -10,6 +10,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "spike": "node scripts/spike.mjs",
+    "national": "node scripts/national.mjs",
     "stations": "node scripts/generate-stations.mjs",
     "test": "TZ=UTC node --test lib/*.test.ts"
   },
