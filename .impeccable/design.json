@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-01T04:23:48.347Z",
+  "generatedAt": "2026-08-01T12:28:58.029Z",
   "title": "Design System: Last Train",
   "extensions": {
     "colorMeta": {
@@ -214,6 +214,11 @@
         "name": "container",
         "value": "34rem",
         "purpose": "Single-column maximum width; the layout is otherwise fluid and phone-first."
+      },
+      {
+        "name": "bleed-collapse",
+        "value": "34rem",
+        "purpose": "Where --bleed goes to 0: past the container max width there is no screen edge to bleed to, so bands align to the controls instead."
       }
     ],
     "safeArea": {
@@ -283,6 +288,14 @@
       "description": "Empty and error states share one treatment. An error is marked by a heavier border and an uppercase heading, never by colour — red is spoken for, and an empty result is a real answer rather than a failure.",
       "html": "<div class=\"ds-notice\"><h2 class=\"ds-notice-h\">Nothing eastbound</h2><p class=\"ds-notice-p\">No trains run east from Shenfield on Thu 30 Jul.</p></div>",
       "css": ".ds-notice{background:#14181d;border:1px solid #2a323b;border-radius:0;padding:18px 16px;font-family:\"Inter Tight\",system-ui,sans-serif}.ds-notice-h{margin:0 0 6px;font-size:17px;color:#f2f5f8}.ds-notice-p{margin:6px 0 0;color:#9aa7b4;font-size:14.4px}"
+    },
+    {
+      "name": "Notice",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Empty and error states share one treatment: a full-bleed band with hairline top and bottom, the same silhouette as a result block because it occupies the same slot. Marked as an error by a heavier border and an uppercase heading, never by colour.",
+      "html": "<div class=\"ds-notice\"><h2 class=\"ds-notice-h\">Nothing eastbound</h2><p class=\"ds-notice-p\">No trains run east from Shenfield on Sat 1 Aug.</p></div>",
+      "css": ".ds-notice{background:#14181d;border:1px solid #2a323b;border-left-width:0;border-right-width:0;border-radius:0;padding:18px 16px;font-family:\"Inter Tight\",system-ui,sans-serif}.ds-notice-h{margin:0 0 6px;font-size:17px;color:#f2f5f8}.ds-notice-p{margin:6px 0 0;color:#9aa7b4;font-size:14.4px}"
     }
   ],
   "narrative": {
@@ -355,6 +368,16 @@
         "name": "The Position Is The Answer Rule",
         "body": "The direction block means where it sits, not what it says. A segmented control would be more conventional and would throw away the only pre-linguistic thing in the interface.",
         "section": "components"
+      },
+      {
+        "name": "The One Column Rule",
+        "body": "Every band in the results area shares one left edge, whatever the state. A notice is a band, not a card: inset while the blocks bled, the column visibly changed width between \"here are your trains\" and \"nothing that way\".",
+        "section": "layout"
+      },
+      {
+        "name": "The Drawn Mark Rule",
+        "body": "No glyph stands in for an icon. A pasted reticle is a type designer's idea of the shape sitting next to a mark drawn for this app, at a stroke weight nothing else shares — and it cannot be referenced from copy without the two drifting apart.",
+        "section": "components"
       }
     ],
     "dos": [
@@ -365,7 +388,8 @@
       "Do let station names wrap at their real length, and drop \"London\" from London termini rather than truncating them.",
       "Do keep the control stack inside 40% of the viewport, and check the last-train block is still fully visible after any change above it.",
       "Do apply safe-area insets on all four edges via the --sa-* custom properties.",
-      "Do let result rows wrap under magnification; verify at 200% text."
+      "Do let result rows wrap under magnification; verify at 200% text.",
+      "Do draw icons as SVG in one stroke language, and let controls carry the accessible name so the icon stays aria-hidden."
     ],
     "donts": [
       "Don't use red for errors, alerts, operators, emphasis, or anything else. There is no --danger token in this project, deliberately.",
@@ -375,7 +399,8 @@
       "Don't add a second shadow. The suggestion dropdown is the only element that floats.",
       "Don't truncate or ellipsise a station name.",
       "Don't substitute the mono face without measuring its advance width.",
-      "Don't let this drift toward dashboard or analytics UI — no charts, no sparklines, no KPI tiles, no dense multi-column data."
+      "Don't let this drift toward dashboard or analytics UI — no charts, no sparklines, no KPI tiles, no dense multi-column data.",
+      "Don't let a full-bleed band stay full-bleed past 34rem, where the container stops growing and there is no edge to bleed to."
     ]
   }
 }

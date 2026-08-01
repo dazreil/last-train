@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import StationPicker from './components/StationPicker';
 import ServiceCard from './components/ServiceCard';
 import DirectionBlock from './components/DirectionBlock';
+import { ChevronDown, DirectionChevron } from './components/Icon';
 import { findStation, type Station } from '@/lib/stations';
 import {
   addDays,
@@ -216,8 +217,8 @@ export default function Page() {
           }
         >
           {tomorrow ? 'Tomorrow' : afterMidnight ? 'Tonight' : 'Today'}
-          <span className="caret" aria-hidden="true">
-            ▾
+          <span className="caret">
+            <ChevronDown />
           </span>
           {formatServiceDate(date)}
         </button>
@@ -268,7 +269,8 @@ export default function Page() {
                     >
                       <span className="crs">{station.crs}</span>
                       <span className="heading" aria-hidden="true">
-                        {entry.direction === 'east' ? '→ E' : '← W'}
+                        <DirectionChevron direction={entry.direction} />
+                        {entry.direction === 'east' ? 'E' : 'W'}
                       </span>
                     </button>
                   </li>
@@ -365,9 +367,13 @@ export default function Page() {
         {!error && !result && !loading && restored && !from && (
           <div className="notice">
             <h2>Where are you?</h2>
+            {/* Names the control by what it does, rather than reproducing its
+                glyph in prose — the icon is drawn now, so a pasted ◎ no longer
+                matches what is on screen. */}
             <p>
-              Tap ◎ to fill in the nearest station, then pick a direction. Trains you can board
-              here, across c2c, the Elizabeth line, and Liverpool Street to Shenfield.
+              Type a station, or use the nearest-station button to fill it in. Then pick a
+              direction. Trains you can board here, across c2c, the Elizabeth line, and
+              Liverpool Street to Shenfield.
             </p>
           </div>
         )}
@@ -383,20 +389,20 @@ export default function Page() {
           Realtime Trains
         </a>
         .
-        {result && (
-          <>
-            {' '}
-            <button
-              type="button"
-              className="chip"
-              style={{ marginTop: '0.6rem' }}
-              onClick={() => from && void lookup(from.crs, direction, date, true)}
-            >
-              Refresh
-            </button>
-          </>
-        )}
       </p>
+
+      {/* Its own row: inside the sentence it broke the line mid-prose. */}
+      {result && (
+        <p className="footnote-actions">
+          <button
+            type="button"
+            className="chip"
+            onClick={() => from && void lookup(from.crs, direction, date, true)}
+          >
+            Refresh
+          </button>
+        </p>
+      )}
     </main>
   );
 }

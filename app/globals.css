@@ -51,6 +51,16 @@
   /* The page gutter, shared so full-bleed blocks know exactly how far to escape. */
   --gutter: 1rem;
 
+  /*
+   * How far a full-bleed band escapes the gutter.
+   *
+   * On a phone that is the whole point: the block runs to the screen edge. Past
+   * the container's max width there is no edge to run to, only black page either
+   * side, and bleeding just makes the bands 16px wider than the controls above
+   * them -- which reads as misalignment rather than intent. So it collapses.
+   */
+  --bleed: calc(-1 * var(--gutter));
+
   /* Set once at the root. Nothing overrides it. */
   --radius: 0;
   --tap: 48px;
@@ -66,6 +76,14 @@
   --t-lg: 1.5rem;
   --t-xl: 2rem;
   --t-time: 2.75rem;
+}
+
+/* 34rem is where .app stops growing, so it is also where bleeding stops meaning
+   anything. */
+@media (min-width: 34rem) {
+  :root {
+    --bleed: 0px;
+  }
 }
 
 @media (prefers-color-scheme: light) {
@@ -167,7 +185,8 @@ body {
 }
 
 .day-toggle .caret {
-  font-size: 0.6rem;
+  display: inline-grid;
+  place-items: center;
   color: var(--text-faint);
 }
 
@@ -183,7 +202,7 @@ body {
  * screen rather than inside a card.
  */
 .direction {
-  margin: 0.4rem calc(-1 * var(--gutter));
+  margin: 0.4rem var(--bleed);
   overflow: hidden;
 }
 
@@ -191,7 +210,17 @@ body {
   display: flex;
   align-items: center;
   gap: 0.9rem;
+  /*
+   * 72% is what makes the anchoring legible -- the block clearly does not fill
+   * the width, so which edge it sits against carries meaning. But it is a
+   * proportion of the screen holding text that scales independently, so under
+   * magnification the content outgrows it and clips. It may grow to fit, up to
+   * the full width: at 200% the position metaphor is worth less than the words
+   * being readable, and the heading still says WESTBOUND.
+   */
   width: 72%;
+  min-width: min-content;
+  max-width: 100%;
   min-height: 4.25rem;
   padding: 0.7rem 1rem;
   background: var(--signal-blue);
@@ -320,6 +349,8 @@ input.station-input::placeholder {
 
 .icon-button {
   flex: 0 0 auto;
+  /* Drawn marks, not glyphs: same square-capped stroke as the direction block. */
+  --icon-stroke: 2.25;
   width: 3.4rem;
   min-height: 3.4rem;
   display: grid;
@@ -403,7 +434,7 @@ input.station-input::placeholder {
 /* ----------------------------------------------------------------- chips */
 
 .chip {
-  min-height: 2.4rem;
+  min-height: var(--tap);
   padding: 0 0.8rem;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -488,9 +519,18 @@ input.station-input::placeholder {
 }
 
 .recent-block .heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
   font-size: 0.68rem;
   letter-spacing: 0.04em;
   opacity: 0.8;
+}
+
+/* A single chevron here against the direction block's double: same drawing, one
+   step lighter for one step smaller. */
+.recent-block .heading svg {
+  flex: 0 0 auto;
 }
 
 /* --------------------------------------------------------------- results */
@@ -527,7 +567,7 @@ input.station-input::placeholder {
   flex-direction: column;
   gap: 0;
   list-style: none;
-  margin: 0 calc(-1 * var(--gutter));
+  margin: 0 var(--bleed);
   padding: 0;
 }
 
@@ -684,10 +724,21 @@ input.station-input::placeholder {
 /* ------------------------------------------------------ states & messages */
 
 .notice {
+  margin: 0 var(--bleed);
   background: var(--surface);
   border: 1px solid var(--border);
+  border-left-width: 0;
+  border-right-width: 0;
   border-radius: var(--radius);
   padding: 1.1rem 1rem;
+}
+
+/* Once the bands stop bleeding there is a real edge again, so give it back. */
+@media (min-width: 34rem) {
+  .notice {
+    border-left-width: 1px;
+    border-right-width: 1px;
+  }
 }
 
 .notice h2 {
@@ -727,7 +778,11 @@ input.station-input::placeholder {
 }
 
 .skeleton-row {
-  height: 4.4rem;
+  /* Matches a single-line result block: 44px time + 0.7/0.65rem padding + the
+     14px meta line. The whole point of the skeleton is that nothing moves when
+     the answer lands, and at 4.4rem every row jumped 20px. */
+  height: 5.6rem;
+  margin: 0 var(--bleed);
   border-radius: var(--radius);
   background: linear-gradient(90deg, var(--surface) 25%, var(--surface-raised) 50%, var(--surface) 75%);
   background-size: 200% 100%;
@@ -748,6 +803,7 @@ input.station-input::placeholder {
 
 .footnote {
   margin-top: 2rem;
+  margin-bottom: 0;
   font-size: 0.75rem;
   color: var(--text-faint);
   line-height: 1.6;
@@ -755,6 +811,10 @@ input.station-input::placeholder {
 
 .footnote a {
   color: var(--text-dim);
+}
+
+.footnote-actions {
+  margin-top: 0.75rem;
 }
 
 .visually-hidden {

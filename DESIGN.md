@@ -243,8 +243,11 @@ stack is budgeted: masthead, From field, direction block, RECENT row — and it 
 last-train block is fully visible at 81%. Every row added above the results is paid
 for out of how much of the answer you can see.
 
-Result blocks and the direction block are **full bleed**: they escape the gutter by
-exactly `calc(-1 * var(--gutter))`, reaching the edge of the usable area. Safe-area
+Result blocks, the direction block and notices are **full bleed**: they escape the
+gutter by exactly `var(--bleed)`, reaching the edge of the usable area. That token
+collapses to `0` at `34rem`, where the container stops growing — past that there is
+no screen edge to bleed to, only page either side, and bleeding would just make the
+bands wider than the controls above them. Safe-area
 insets are applied as custom properties (`--sa-top`, `--sa-right`, `--sa-bottom`,
 `--sa-left`) rather than inline `env()`, so behaviour can be exercised in a browser
 with no notch. Side insets live on the body, which is what keeps a full-bleed block
@@ -260,8 +263,13 @@ without scrolling; the last-train block is fully visible without scrolling. Any 
 that pushes either below the fold has broken the layout regardless of how it looks.
 
 **The Grow-Never-Clip Rule.** At 200% text the stack grows downward and never
-overflows sideways. Result rows wrap the operator badge onto its own line rather than
-pushing past the edge.
+overflows sideways. Result rows wrap the operator badge onto its own line, and the
+direction block grows past its 72% anchor rather than clipping — under magnification
+the words matter more than the position metaphor.
+
+**The One Column Rule.** Every band in the results area shares one left edge,
+whatever the state. A notice is a band, not a card: inset while the blocks bled, the
+column visibly changed width between "here are your trains" and "nothing that way".
 
 ## Elevation & Depth
 
@@ -368,8 +376,10 @@ Direction expressed as position rather than as a control.
 
 ### Notices
 
-- **Style:** Surface ground, hairline border, no radius. Used for the empty state and
-  the error state alike.
+- **Style:** A full-bleed band on Surface ground with hairline top and bottom rules,
+  no radius — the same silhouette as a result block, because it occupies the same
+  slot. Side borders return at `34rem`, where there is a real edge again. Used for
+  the empty state and the error state alike.
 - **Error:** Distinguished by a **2px** border in Text Dim and an uppercase heading —
   never by colour. Red is spoken for, and an error is not the last train.
 - **Empty:** Identical treatment to any other notice. "Nothing eastbound" is a real
@@ -377,11 +387,32 @@ Direction expressed as position rather than as a control.
 
 ### Skeleton
 
-- **Style:** Three full-height rows at the exact height of a result block, shimmering
-  Surface → Surface Raised over 1.2s. Static under `prefers-reduced-motion`.
-- The height is the point: the layout must not jump when the answer lands.
+- **Style:** Three rows at `5.6rem` — the exact height of a single-line result block
+  — shimmering Surface → Surface Raised over 1.2s. Static under
+  `prefers-reduced-motion`.
+- The height is the point: the layout must not jump when the answer lands. Revisit
+  the value if block padding or the time size changes.
+
+### Icons
+
+Drawn, never borrowed and never a Unicode glyph. One stroke language throughout:
+square caps, no fill, `currentColor`, and a weight that steps down with size — the
+direction block's double chevron at 4.5, a recent block's single chevron at 2.75.
+
+- **Crosshair:** nearest station. A reticle rather than a map pin, because it means
+  "where I am", not "a place".
+- **Chevron down:** the date control's affordance.
+- **Single chevron:** direction on a recent block, echoing the direction block's mark.
+
+Every icon sits inside a control that already carries its own accessible name, so all
+are `aria-hidden`.
 
 ### Named Rules
+
+**The Drawn Mark Rule.** No glyph stands in for an icon. A pasted `◎` is a type
+designer's idea of a reticle sitting next to a mark drawn for this app, at a stroke
+weight nothing else shares — and it cannot be referenced from copy without the two
+drifting apart.
 
 **The Position Is The Answer Rule.** The direction block's meaning is where it sits,
 not what it says. Any replacement must preserve that — a segmented control would be

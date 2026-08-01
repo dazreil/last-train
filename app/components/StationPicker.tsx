@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Crosshair } from './Icon';
 import {
   nearestStations,
   searchStations,
@@ -184,7 +185,7 @@ export default function StationPicker({
             aria-label="Use nearest station"
             title="Use nearest station"
           >
-            {locating ? '…' : '◎'}
+            {locating ? <span aria-hidden="true">…</span> : <Crosshair />}
           </button>
         )}
       </div>
