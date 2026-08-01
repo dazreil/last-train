@@ -6,6 +6,7 @@
  * the full-GB longitude table -- even by way of a type import.
  */
 
+import type { BoardMode, ServiceRole } from './board.ts';
 import type { DepartureService } from './journeys.ts';
 
 export interface SystemStatusView {
@@ -13,17 +14,35 @@ export interface SystemStatusView {
   rttCore?: 'OK' | 'REALTIME_DATA_LIMITED' | 'SCHEDULE_ONLY' | 'REALTIME_DEGRADED';
 }
 
-/** Which part of the answer a service is: the first train, or one of the last three. */
-export type ServiceRole = 'first' | 'last';
+/** Roles are owned by `lib/board.ts`, which decides what goes in which block. */
+export type { ServiceRole };
 
 export type DirectionValue = 'east' | 'west';
 
 export interface TrainsResponse {
   from: { crs: string; name: string };
   direction: DirectionValue;
-  /** The service date queried, `YYYY-MM-DD`. */
+  /** The service date on the board, `YYYY-MM-DD`. */
   date: string;
-  /** First train, then the last three, in departure order. */
+  /**
+   * Which arrangement this answer is built for. `normal` is the last trains of
+   * `date` followed by the first train of the next service day; `pre-service` is
+   * the first trains of `date`, which has not started running yet, followed by its
+   * own last train. See `lib/board.ts`.
+   */
+  mode: BoardMode;
+  /**
+   * The service day the `first`-role entries belong to. The day after `date` in
+   * normal mode, and `date` itself in pre-service mode. Stated rather than derived,
+   * so the heading can name the morning it means without the client re-deriving a
+   * service day.
+   */
+  firstDate: string;
+  /**
+   * The chosen services, in departure order, which is also the order they are shown
+   * in. The final `last`-role entry is the last train of `date`, and the only thing
+   * in the app that is red.
+   */
   services: (DepartureService & { role: ServiceRole })[];
   /** Departures in this direction across the whole service day, before selection. */
   totalServices: number;

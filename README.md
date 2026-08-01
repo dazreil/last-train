@@ -80,10 +80,36 @@ public/sw.js              service worker
 
 ```
 GET /api/trains?from=GRY&direction=east&date=2026-07-28
-→ { from, direction, date, towards: [...], totalServices,
-    services: [ { dep, destination, via, toc, tocName, platform,
-                  departsAfterMidnight, role, … } ] }
+→ { from, direction, date, mode, firstDate, towards: [...], totalServices,
+    services: [ { dep, depInstant, destination, via, toc, tocName, platform,
+                  role, … } ] }
 ```
+
+`services` is in departure order, which is also the order it is shown in, and the
+final `role: 'last'` entry is the last train of `date` — the one thing in the app
+that is red.
+
+### Two arrangements, chosen by the clock
+
+`mode` says which, and `lib/board.ts` decides it:
+
+| | `normal` | `pre-service` |
+|---|---|---|
+| When | the day on the board is running | 03:00 until the day's first train |
+| Shows | last three of `date`, then the first train of `date + 1` | first three of `date`, then the last train of `date` |
+| `firstDate` | `date + 1` | `date` |
+| Line-ups | two | one |
+
+Today's own first train is never shown in the evening: at 22:00 it left sixteen
+hours ago. The useful first train is tomorrow's, so that is the one below the red
+block. Between a day's last train and the next day's first there is nothing left to
+catch, and the board inverts — the first trains lead, and the day's last train sits
+under them.
+
+The transition only ever runs `pre-service → normal` within a service day, which is
+why a cached answer can be checked against the boundary on read (`boardHasExpired`)
+rather than keyed on the mode. Keying on it would force a cache miss, and a miss
+costs an API call at exactly the wrong moment.
 
 ### Direction is derived, not queried
 

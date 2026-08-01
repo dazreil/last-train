@@ -6,6 +6,7 @@ import ServiceCard from './components/ServiceCard';
 import DirectionBlock from './components/DirectionBlock';
 import { ChevronDown, DirectionChevron } from './components/Icon';
 import { findStation, type Station } from '@/lib/stations';
+import { boardHasExpired, isServiceDaySpent } from '@/lib/board';
 import {
   addDays,
   currentServiceDate,
@@ -115,7 +116,9 @@ export default function Page() {
 
       if (!refresh) {
         const cached = sessionCache.current.get(key);
-        if (cached) {
+        // Same boundary the server checks: a board built before the day's first train
+        // is the wrong shape once that train has gone.
+        if (cached && !boardHasExpired(cached)) {
           setResult(cached);
           setError(null);
           setLoading(false);
@@ -186,12 +189,46 @@ export default function Page() {
     void lookup(from.crs, direction, date);
   }, [from, direction, date, restored, lookup]);
 
-  const firstTrain = result?.services.filter((service) => service.role === 'first') ?? [];
+  const firstTrains = result?.services.filter((service) => service.role === 'first') ?? [];
   const lastTrains = result?.services.filter((service) => service.role === 'last') ?? [];
+
+  /**
+   * Before the day on screen has started running, the first trains lead and the last
+   * train sits under them. Otherwise the last trains lead and the first train back --
+   * tomorrow morning's, since today's went at dawn -- sits under those.
+   */
+  const preService = result?.mode === 'pre-service';
 
   // The genuine last one, not merely the last section. Services arrive in departure
   // order, so it is the final entry -- the 00:46, not the 23:47 above it.
   const lastTrainId = lastTrains.length ? lastTrains[lastTrains.length - 1].serviceId : null;
+
+  /**
+   * Move on once the day on screen has nothing left in it.
+   *
+   * Between the last train and 03:00 the current service day is still technically
+   * today's, but every departure on it has been and gone -- a board of times that
+   * have all passed answers nothing. The next service day is the one with trains in
+   * it, so switch to it, which lands on the first-trains arrangement above.
+   *
+   * Recorded per station and direction so that tapping back to Today is respected
+   * rather than immediately undone, while a different lookup still gets the same
+   * treatment.
+   */
+  const advancedFor = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!result || tomorrow || result.date !== today) return;
+
+    const stamp = `${result.from.crs}:${result.direction}`;
+    if (advancedFor.current === stamp) return;
+
+    const finalTrain = result.services.findLast((service) => service.role === 'last');
+    if (!isServiceDaySpent(finalTrain?.depInstant ?? null)) return;
+
+    advancedFor.current = stamp;
+    setTomorrow(true);
+  }, [result, tomorrow, today]);
 
   const degraded =
     result?.systemStatus?.rttCore === 'SCHEDULE_ONLY' ||
@@ -329,39 +366,57 @@ export default function Page() {
         )}
 
         {!error && result && result.services.length > 0 && (
-          <>
-            {firstTrain.length > 0 && (
-              <div>
+          /*
+           * Both arrangements read top to bottom in departure order, so the stack is
+           * always a clock. Which block leads is the only thing that changes.
+           */
+          (() => {
+            const firstBlock = firstTrains.length > 0 && (
+              <div key="first">
                 <h2 className="section-heading">
-                  <span>First train {direction}</span>
+                  <span>
+                    {preService
+                      ? `First ${firstTrains.length > 1 ? `${firstTrains.length} trains` : 'train'} ${direction}`
+                      : 'First train back'}
+                  </span>
+                  {/*
+                   * Named, not called "tomorrow". At 00:40 the word would be wrong by
+                   * a day, and this is the one line that says which morning you are
+                   * being offered.
+                   */}
+                  {!preService && <span>{formatServiceDate(result.firstDate)}</span>}
                 </h2>
                 <ul className="service-list">
-                  {firstTrain.map((service) => (
+                  {firstTrains.map((service) => (
                     <ServiceCard key={service.serviceId} service={service} />
                   ))}
                 </ul>
               </div>
-            )}
+            );
 
-            <div>
-              <h2 className="section-heading">
-                <span>
-                  {lastTrains.length > 1 ? `Last ${lastTrains.length} trains` : 'Last train'}{' '}
-                  {direction}
-                </span>
-                {result.totalIsExact && <span>{result.totalServices} services</span>}
-              </h2>
-              <ul className="service-list">
-                {lastTrains.map((service) => (
-                  <ServiceCard
-                    key={service.serviceId}
-                    service={service}
-                    isLastTrain={service.serviceId === lastTrainId}
-                  />
-                ))}
-              </ul>
-            </div>
-          </>
+            const lastBlock = lastTrains.length > 0 && (
+              <div key="last">
+                <h2 className="section-heading">
+                  <span>
+                    {lastTrains.length > 1 ? `Last ${lastTrains.length} trains` : 'Last train'}{' '}
+                    {direction}
+                  </span>
+                  {result.totalIsExact && <span>{result.totalServices} services</span>}
+                </h2>
+                <ul className="service-list">
+                  {lastTrains.map((service) => (
+                    <ServiceCard
+                      key={service.serviceId}
+                      service={service}
+                      isLastTrain={service.serviceId === lastTrainId}
+                    />
+                  ))}
+                </ul>
+              </div>
+            );
+
+            return preService ? [firstBlock, lastBlock] : [lastBlock, firstBlock];
+          })()
         )}
 
         {!error && !result && !loading && restored && !from && (

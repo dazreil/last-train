@@ -70,8 +70,12 @@ planned, out of scope permanently.
 
 - Query is station + compass direction (north/east/south/west), context-aware: only
   directions with actual services are offered. No north or south at Upminster
-- Shows the first train of the service day and the last three, with the final one
-  distinguished
+- Shows the last three trains of the service day, the final one distinguished, and
+  below them the first train of the **next** service day — the "if I miss it" answer.
+  Today's own first train is never shown in the evening; it went at dawn
+- Between a day's last train and the next day's first, that arrangement inverts: the
+  first three trains lead, with the day's last train kept below them. Nothing is left
+  to catch, so the useful answer is what is coming, not what has gone
 - Data source: Realtime Trains next-generation API. Darwin/LDBWS cannot serve this
   product — its 2-hour window and 10-row cap structurally cannot answer "what is the
   last train tonight" when asked in the afternoon

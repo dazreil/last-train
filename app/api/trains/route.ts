@@ -1,14 +1,24 @@
 /**
  * GET /api/trains?from=GRY&direction=east&date=2026-07-28
- *   -> { services: [ { dep, destination, via, toc, tocName, … } ], towards: [...] }
+ *   -> { mode, services: [ { dep, destination, via, role, … } ], towards: [...] }
  *
  * This route exists so the RTT token stays on the server. It is the only thing in
  * the app that can reach the API.
  *
- * Per uncached lookup: one unfiltered location line-up, plus a service query for
- * each service that needs one -- to establish the route it takes, and to confirm it
- * calls somewhere in scope. The line-up is cached separately from the answer, so
- * tapping East and then West costs one API call between them, not two.
+ * The answer comes in one of two arrangements, chosen by the clock in `lib/board.ts`:
+ *
+ *   normal        the last three trains of the service day on the board, then the
+ *                 first train of the *next* one -- the "if I miss it" answer. Today's
+ *                 own first train is not shown at 22:00, because it went at dawn.
+ *   pre-service   the day on the board has not started running yet, so its first
+ *                 three are the answer, with its last train kept below them.
+ *
+ * Per uncached lookup: one unfiltered location line-up per service day involved --
+ * two in normal mode, one in pre-service -- plus a service query for each service
+ * that needs one, to establish the route it takes and to confirm it calls somewhere
+ * in scope. Line-ups are cached separately from answers, so tapping East and then
+ * West costs one API call between them, not two, and the next day's line-up is
+ * fetched once an evening rather than once a lookup.
  */
 
 import {
@@ -28,9 +38,16 @@ import {
   toDepartureService,
   type Departure,
 } from '@/lib/journeys';
+import { boardHasExpired, boardMode, selectBoard } from '@/lib/board';
 import { classifyDirection, isDirection, isOperatorInScope, type Direction } from '@/lib/direction';
 import { isCorridorDestination, longitudeOf } from '@/lib/geo';
-import { currentServiceDate, isValidIsoDate, serviceDayWindow, addDays } from '@/lib/serviceDay';
+import {
+  currentServiceDate,
+  isValidIsoDate,
+  serviceDayWindow,
+  addDays,
+  type IsoDate,
+} from '@/lib/serviceDay';
 import {
   cacheKey,
   lineUpKey,
@@ -48,15 +65,24 @@ import type { TrainsResponse } from '@/lib/contract';
 export const runtime = 'nodejs';
 
 /**
- * Ceiling on corridor checks per lookup.
+ * Ceiling on speculative corridor checks per lookup.
  *
- * The free tier allows ten requests a minute and a lookup already spends one on the
- * line-up. Checks are only needed for services bound outside the app's station list,
- * which in practice means Liverpool Street and nowhere else; their patterns are then
- * reused for route labelling. Four keeps the worst case around eight requests, so a
- * single lookup cannot exhaust the minute on its own.
+ * Checks are only needed for services bound outside the app's station list, which in
+ * practice means Liverpool Street and nowhere else; their patterns are then reused
+ * for route labelling. Four leaves room in the budget below for the services that
+ * actually get shown, which matter more than the ones being sifted.
  */
 const VERIFY_BUDGET = 4;
+
+/**
+ * Ceiling on service queries per lookup, whatever they are for.
+ *
+ * The free tier allows ten requests a minute, and a lookup now spends up to two of
+ * them on line-ups. Six leaves the worst case at eight, which is where it was before
+ * the next service day was brought in -- so a single lookup still cannot exhaust the
+ * minute on its own. Cache hits are free and do not count against it.
+ */
+const DETAIL_BUDGET = 6;
 
 const json = (body: unknown, init?: ResponseInit) =>
   new Response(JSON.stringify(body), {
@@ -102,7 +128,10 @@ export async function GET(request: Request) {
 
   if (!refresh) {
     const hit = getCached<TrainsResponse>(key);
-    if (hit) {
+    // A stored answer outlives its arrangement exactly once a day, when the first
+    // train goes and a pre-service board becomes an ordinary one. Checked here rather
+    // than keyed on, so the mode never forces a cache miss that costs an API call.
+    if (hit && !boardHasExpired(hit.value)) {
       return json(hit.value, {
         headers: {
           'cache-control': `private, max-age=${Math.max(ttl - hit.ageSeconds, 0)}`,
@@ -128,6 +157,8 @@ export async function GET(request: Request) {
       from: { crs: from.crs, name: from.name },
       direction,
       date,
+      mode: 'normal',
+      firstDate: addDays(date, 1),
       services: [],
       totalServices: 0,
       totalIsExact: true,
@@ -141,60 +172,23 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Unfiltered: every service at this station across the whole service day. There
-    // is no destination to filter to, and filtering to a line's far terminus would
-    // drop the services that terminate short -- often including the last one.
-    const rawKey = lineUpKey(from.crs, date);
-    let lineUp: LocationLineUpResponse | null = null;
-    let fromCache = false;
-
-    if (!refresh) {
-      const cachedLineUp = getCachedLineUp<LocationLineUpResponse | null>(rawKey);
-      if (cachedLineUp) {
-        lineUp = cachedLineUp.value;
-        fromCache = true;
-      }
-    }
-
-    if (!fromCache) {
-      lineUp = await locationLineUp({ code: from.crs, ...serviceDayWindow(date) });
-      setCachedLineUp(rawKey, lineUp, ttl);
-    }
-
-    const candidates = sortedDepartures(lineUp).filter((departure) => {
-      if (!isOperatorInScope(departure.service.scheduleMetadata?.operator?.code)) return false;
-      // A service whose direction genuinely cannot be established is left out rather
-      // than guessed at. It would otherwise appear under both buttons.
-      return classifyDirection(departure.service, from.lon, longitudeOf) === direction;
-    });
-
-    // ---- corridor membership -------------------------------------------------
+    // ---- calling patterns ----------------------------------------------------
     //
-    // A service bound for a station the app knows about is in scope by definition,
-    // and that covers almost everything: all of c2c, all of the Elizabeth line.
-    // Anything else needs its calling pattern read, because the destination alone
-    // cannot tell a Colchester train that calls at Shenfield from one that runs
-    // past it, nor either from a Cambridge train that never comes near.
-    //
-    // Destinations are matched by name as well as by code: a line-up's destination
-    // pair carries a description but usually no codes, so matching on codes alone
-    // made every single service look like it needed checking.
+    // Request-scoped, and shared across both service days: a budget that reset per
+    // day would let one lookup spend twice what it used to.
     const patterns = new Map<string, ServiceLocation[] | null>();
-
-    const boundForKnownStation = (departure: Departure) =>
-      destinationCodes(departure.service).some(isKnownStation) ||
-      destinationNames(departure.service).some(
-        (name) => isKnownStationName(name) || isCorridorDestination(name)
-      );
+    let checksSpent = 0;
+    let detailsSpent = 0;
+    let lineUpsFetched = 0;
 
     /**
      * Fetch a calling pattern, memoised for the request and cached across requests.
      *
      * A service's calling pattern on a given day never changes, so this is the safest
-     * thing in the app to cache and the most valuable: at ten requests a minute, the
-     * four route labels are most of a lookup's budget. Caching them makes the second
-     * and subsequent lookups at a station nearly free -- which is what stops the
-     * `via` labels quietly going missing at Fenchurch Street, where they matter most.
+     * thing in the app to cache and the most valuable: at ten requests a minute, route
+     * labels are most of a lookup's budget. Caching them makes the second and
+     * subsequent lookups at a station nearly free -- which is what stops the `via`
+     * labels quietly going missing at Fenchurch Street, where they matter most.
      */
     const fetchPattern = async (id: string) => {
       if (patterns.has(id)) return;
@@ -204,6 +198,9 @@ export async function GET(request: Request) {
         patterns.set(id, cached.value);
         return;
       }
+
+      if (detailsSpent >= DETAIL_BUDGET) return;
+      detailsSpent++;
 
       try {
         const detail = await serviceDetail(id);
@@ -216,8 +213,6 @@ export async function GET(request: Request) {
       }
     };
 
-    let checksSpent = 0;
-
     /**
      * Whether to show this service, reading its calling pattern only if it has to.
      *
@@ -226,6 +221,12 @@ export async function GET(request: Request) {
      * outcome than showing one train too many -- and the destination is always on
      * screen, so an off-corridor train is visible for what it is.
      */
+    const boundForKnownStation = (departure: Departure) =>
+      destinationCodes(departure.service).some(isKnownStation) ||
+      destinationNames(departure.service).some(
+        (name) => isKnownStationName(name) || isCorridorDestination(name)
+      );
+
     const isInCorridor = async (departure: Departure): Promise<boolean> => {
       if (boundForKnownStation(departure)) return true;
 
@@ -248,7 +249,11 @@ export async function GET(request: Request) {
      * unverified. Walking until the answer is found spends the minimum, which matters
      * when the whole minute's allowance is ten requests.
      */
-    const takeFrom = async (fromEnd: boolean, wanted: number): Promise<Departure[]> => {
+    const takeFrom = async (
+      candidates: Departure[],
+      fromEnd: boolean,
+      wanted: number
+    ): Promise<Departure[]> => {
       const picked: Departure[] = [];
       const order = fromEnd ? [...candidates].reverse() : candidates;
 
@@ -260,27 +265,82 @@ export async function GET(request: Request) {
       return fromEnd ? picked.reverse() : picked;
     };
 
-    // ---- pick the first, and the last three ---------------------------------
-    const lastThree = await takeFrom(true, 3);
-    const [earliest] = await takeFrom(false, 1);
+    // ---- one service day at a time -------------------------------------------
 
-    // If the earliest qualifying service is already among the last three, it belongs
-    // only there -- on a quiet day nothing should be listed twice.
-    const alreadyShown = earliest && lastThree.some((d) => d.id === earliest.id);
+    interface Day {
+      lineUp: LocationLineUpResponse | null;
+      /** Departures this way, in time order, before corridor verification. */
+      candidates: Departure[];
+      fromCache: boolean;
+    }
 
-    const selected = [
-      ...(earliest && !alreadyShown
-        ? [{ departure: earliest, role: 'first' as const }]
-        : []),
-      ...lastThree.map((departure) => ({ departure, role: 'last' as const })),
-    ];
+    /**
+     * Unfiltered: every service at this station across the whole service day. There
+     * is no destination to filter to, and filtering to a line's far terminus would
+     * drop the services that terminate short -- often including the last one.
+     */
+    const loadDay = async (forDate: IsoDate): Promise<Day> => {
+      const rawKey = lineUpKey(from.crs, forDate);
+      let lineUp: LocationLineUpResponse | null = null;
+      let fromCache = false;
+
+      if (!refresh) {
+        const cachedLineUp = getCachedLineUp<LocationLineUpResponse | null>(rawKey);
+        if (cachedLineUp) {
+          lineUp = cachedLineUp.value;
+          fromCache = true;
+        }
+      }
+
+      if (!fromCache) {
+        lineUp = await locationLineUp({ code: from.crs, ...serviceDayWindow(forDate) });
+        lineUpsFetched++;
+        setCachedLineUp(rawKey, lineUp, ttlSecondsFor(forDate));
+      }
+
+      const candidates = sortedDepartures(lineUp).filter((departure) => {
+        if (!isOperatorInScope(departure.service.scheduleMetadata?.operator?.code)) return false;
+        // A service whose direction genuinely cannot be established is left out rather
+        // than guessed at. It would otherwise appear under both buttons.
+        return classifyDirection(departure.service, from.lon, longitudeOf) === direction;
+      });
+
+      return { lineUp, candidates, fromCache };
+    };
+
+    const day = await loadDay(date);
+
+    const mode = boardMode({
+      isLiveServiceDay: date === today,
+      // The earliest candidate, taken before corridor verification. Verification can
+      // only ever move this later, and only at Liverpool Street; a few minutes' slack
+      // at a boundary crossed once a day is not worth a request against an allowance
+      // of ten a minute.
+      firstDeparture: day.candidates[0]?.depInstant ?? null,
+    });
+
+    // ---- pick the board ------------------------------------------------------
+    //
+    // Both arrangements come out in departure order, which is also the order they are
+    // shown in, and in both the final `last` entry is the genuine last train of the
+    // service day on the board -- the one thing in the app that is red.
+    //
+    // In pre-service mode the first trains are the day's own, so they are the day on
+    // the board; in normal mode they are the next day's, which is a second line-up.
+    const firstDate = mode === 'pre-service' ? date : addDays(date, 1);
+
+    const selected = await selectBoard(mode, async (which, fromEnd, wanted) => {
+      const candidates =
+        which === 'current' ? day.candidates : (await loadDay(firstDate)).candidates;
+      return takeFrom(candidates, fromEnd, wanted);
+    });
 
     // The route label needs the calling pattern too. Most of these are already in
     // hand from the corridor check; fetch whatever is missing, in parallel.
     await Promise.all(
       selected
-        .filter(({ departure }) => !patterns.has(departure.id))
-        .map(({ departure }) => fetchPattern(departure.id))
+        .filter(({ item }) => !patterns.has(item.id))
+        .map(({ item }) => fetchPattern(item.id))
     );
 
     const callingPatterns = new Map<string, ServiceLocation[]>();
@@ -288,8 +348,8 @@ export async function GET(request: Request) {
       if (pattern) callingPatterns.set(id, pattern);
     }
 
-    const services = selected.map(({ departure, role }) => ({
-      ...toDepartureService(departure, {
+    const services = selected.map(({ item, role }) => ({
+      ...toDepartureService(item, {
         fromCrs: from.crs,
         markers: routeMarkers,
         callingPatterns,
@@ -297,25 +357,27 @@ export async function GET(request: Request) {
       role,
     }));
 
-    // How many departures run this way. Exact only when every candidate was bound
-    // somewhere in scope and so needed no checking -- true everywhere except
-    // Liverpool Street, where the line-up also holds West Anglia services that were
-    // never counted. Rather than show a confident wrong number there, the UI omits
-    // it; see `totalIsExact`.
-    const definite = candidates.filter(boundForKnownStation);
-    const totalIsExact = definite.length === candidates.length;
+    // How many departures run this way on the day on the board. Exact only when every
+    // candidate was bound somewhere in scope and so needed no checking -- true
+    // everywhere except Liverpool Street, where the line-up also holds West Anglia
+    // services that were never counted. Rather than show a confident wrong number
+    // there, the UI omits it; see `totalIsExact`.
+    const definite = day.candidates.filter(boundForKnownStation);
+    const totalIsExact = definite.length === day.candidates.length;
 
     const body: TrainsResponse = {
       from: { crs: from.crs, name: from.name },
       direction,
       date,
+      mode,
+      firstDate,
       services,
-      totalServices: totalIsExact ? candidates.length : definite.length,
+      totalServices: totalIsExact ? day.candidates.length : definite.length,
       totalIsExact,
       // Taken from the services actually shown, which are the only ones fully
       // verified. It exists to answer "what does east mean from here".
       towards: summariseDestinations(services.map((service) => service.destination)),
-      systemStatus: lineUp?.systemStatus,
+      systemStatus: day.lineUp?.systemStatus,
       apiVersion: API_VERSION,
     };
 
@@ -328,7 +390,7 @@ export async function GET(request: Request) {
     return json(body, {
       headers: {
         'cache-control': `private, max-age=${ttl}`,
-        'x-cache': fromCache ? 'PARTIAL' : 'MISS',
+        'x-cache': lineUpsFetched === 0 ? 'PARTIAL' : 'MISS',
         'x-ratelimit-remaining': JSON.stringify(rateLimitSnapshot()),
       },
     });
