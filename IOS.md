@@ -114,10 +114,11 @@ in the app, e.g. long-press the masthead. Ships disabled.
 
 ### Three things true before submission
 
-1. **A paid plan.** £4/month hobbyist, £29/month business. Which tier a free App
-   Store app needs is not obvious — **ask RTT in writing at
-   hello@realtimetrains.com** before building. It costs an email and it is the one
-   question that can invalidate the project.
+1. **A paid plan. Confirmed in writing with RTT, 1 August 2026: a free App Store app
+   still needs a commercial one**, because of the number of calls it makes. Being
+   free to the user is not the test; call volume is. £4/month hobbyist, £29/month
+   business — which of those the volume lands on is the next thing to pin down, and
+   §5's single-request lookup is now an argument about money as well as latency.
 2. **The token still never reaches the device**, paid or not. The app talks to our
    API, never to `data.rtt.io`. See §5.
 3. **Visible attribution** — RTT require clear credit with a link in any
@@ -316,8 +317,9 @@ wrong is cheap.
 
 ## 9. Build order
 
-1. **Email RTT.** Confirm in writing that a paid plan permits an App Store app.
-   Nothing else starts until this is answered.
+1. ~~**Email RTT.**~~ **Answered, 1 August 2026.** A free App Store app needs a
+   commercial plan; call volume is the test, not price to the user. Everything below
+   is unblocked. What remains is which tier, which follows from volume.
 2. **Prove the line-up query nationally.** A throwaway script: whole service day at
    Penzance, Inverness, Upminster, somewhere rural. Confirm the 23h59m window
    behaves the same outside the south-east, and that four-way bucketing produces
@@ -335,9 +337,12 @@ wrong is cheap.
 
 ## 10. Open questions
 
-- **Does a free App Store app count as commercial to RTT?** Blocks everything.
-- **What are the paid tier's rate limits?** Determines how hard the device cache
-  has to work.
+- ~~Does a free App Store app count as commercial to RTT?~~ **Answered 1 August
+  2026: yes, a commercial plan is required, on call volume rather than on price to
+  the user.**
+- **Which tier, and what are its rate limits?** The tier follows from volume, and the
+  limits determine how hard the device cache has to work. This is now the live
+  licensing question.
 - **Two-direction vs four-direction control** — does the compass arrangement earn
   its vertical space, or is there something better? Prototype before committing.
 - **Is the server dependency acceptable?** The app cannot work without our Vercel

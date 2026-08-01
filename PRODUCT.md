@@ -82,17 +82,19 @@ planned, out of scope permanently.
 - **The token must never reach the device.** The app talks to our API only
 - Terminology in use: CRS, TIPLOC, TOC, service day, calling pattern, headcode
 
+**Settled in writing with Realtime Trains, 1 August 2026: a free App Store app still
+needs a commercial plan.** Being free to the user is not the test — the number of
+calls the app makes is. The current credential is personal and non-commercial, cannot
+ship, and a paid plan is a precondition of submission. The app therefore carries a
+monthly cost from its first day on the store, and that cost is a product constraint
+rather than an implementation detail.
+
 Explicitly undecided, and not to be invented:
 
-- **Whether a free App Store app counts as commercial to Realtime Trains.** Must be
-  confirmed in writing with them before native work starts; it can invalidate the
-  plan
-- **Paid tier rate limits**, which determine how hard the on-device cache must work
+- **Which paid tier that lands on, and its rate limits.** The tier follows from call
+  volume, and the limits determine how hard the on-device cache must work
 - Whether the `via` route label survives nationally (it exists for one real
   ambiguity: c2c via Basildon versus the slower Tilbury loop)
-
-The current credential is personal and non-commercial. It cannot ship, and a paid
-plan is a precondition of submission.
 
 ## Brand Commitments
 

@@ -33,9 +33,10 @@ not be on PATH.
 
 ## If the next task is the iOS app
 
-The blocker comes first: email `hello@realtimetrains.com` and confirm in writing
-whether a free App Store app counts as commercial use, and what the paid tier's rate
-limits are. Nothing in `IOS.md` should start before that answer — the current token
+The licensing blocker is cleared. RTT confirmed on 1 August 2026 that a free App
+Store app still needs a **commercial plan**, on call volume rather than on price to
+the user, so `IOS.md` §9 can start at step 2. Which tier — £4/month hobbyist or
+£29/month business — is still open and follows from volume. The current token
 explicitly cannot ship.
 
 ## If the next task is more work on the web app

@@ -18,8 +18,8 @@ because it went at dawn. Between a day's last train and the next day's first tha
 inverts: the first three lead, with the day's last train kept below. In both, the red
 block is the genuine last train of the day on the board.
 
-The next piece of work is a **UK-wide native iOS app**, specced in `IOS.md` and
-blocked on one email (see Blockers).
+The next piece of work is a **UK-wide native iOS app**, specced in `IOS.md`. The
+licensing question that used to block it is answered — see Next.
 
 | | |
 |---|---|
@@ -154,16 +154,20 @@ Two rules from `DESIGN.md` are load-bearing and easy to break by accident:
 
 ## Next
 
-### Blocker — do this first
+### The blocker is cleared
 
-**Email `hello@realtimetrains.com`** and confirm in writing whether a *free* App
-Store app counts as commercial use, and what the paid tier's rate limits are.
+RTT replied on 1 August 2026: **a free App Store app still needs a commercial plan**,
+because of the number of calls it makes. Being free to the user is not the test; call
+volume is.
 
-Nothing in `IOS.md` should start before that answer. It can invalidate the plan, and
-the current token explicitly cannot ship — a token found in a distributed app gets
-revoked.
+So the plan holds — `IOS.md` already assumed a paid tier — but the app now carries a
+monthly cost from its first day on the store, and that is a product decision rather
+than a line item. £4/month hobbyist versus £29/month business is unresolved and
+follows from volume, which makes `IOS.md` §5's single-request lookup an argument about
+money as well as latency. The current token still cannot ship: a token found in a
+distributed app gets revoked.
 
-### Then, per `IOS.md` §9
+### Per `IOS.md` §9
 
 1. Prove the line-up query nationally (Penzance, Inverness, Upminster, somewhere rural)
 2. Station data: FasterRoute's Apache-2.0 UK station JSON, cross-checked against
@@ -176,11 +180,16 @@ revoked.
 
 ### Open questions carried forward
 
+- **Which paid tier, and what are its limits?** Now the live licensing question. The
+  tier follows from call volume, and the limits set how hard the on-device cache has
+  to work — so this wants answering before the widget is designed, since a widget
+  refreshing through the evening is most of the volume.
 - Does the compass control earn its vertical space at 3–4 directions, or does the
   two-direction sliding block cover enough? Prototype before committing.
 - Keep `via` nationally? Recommended to drop — it exists for one real ambiguity (c2c
   via Basildon versus the slower Tilbury loop) and it is what costs the extra
-  requests per lookup.
+  requests per lookup. That is now a question about the monthly bill, not only
+  latency.
 - The app depends on our Vercel deployment being up. If that is unacceptable, the
   alternative is ingesting Darwin timetable files — a much larger project.
 
