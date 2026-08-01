@@ -1,6 +1,6 @@
 # Status — handoff
 
-Written 1 August 2026 at commit `4d9b243`. Working tree clean, `main` in sync with
+Written 1 August 2026 at commit `2a770ee`. Working tree clean, `main` in sync with
 origin.
 
 ---
@@ -11,6 +11,13 @@ The web app is **finished, deployed and in daily use**. It answers one question 
 the last train home, and the first one back — for 67 stations across c2c, the
 Elizabeth line, and the Liverpool Street ↔ Shenfield corridor.
 
+The board takes one of two arrangements, chosen by the clock in `lib/board.ts`.
+Normally it is the last three trains of the service day, then the first train of the
+**next** one below them — today's own first train is never shown in the evening,
+because it went at dawn. Between a day's last train and the next day's first that
+inverts: the first three lead, with the day's last train kept below. In both, the red
+block is the genuine last train of the day on the board.
+
 The next piece of work is a **UK-wide native iOS app**, specced in `IOS.md` and
 blocked on one email (see Blockers).
 
@@ -20,7 +27,7 @@ blocked on one email (see Blockers).
 | Live | `https://last-train-dazreils-projects.vercel.app` |
 | Stack | Next.js 16 (App Router), React 19, TypeScript, plain CSS |
 | Data | Realtime Trains next-gen API, `data.rtt.io`, **free tier** |
-| Tests | 55, all passing, run under `TZ=UTC` |
+| Tests | 70, all passing, run under `TZ=UTC` |
 
 **`last-train.vercel.app` is not this app.** That subdomain belongs to an unrelated
 Singapore MRT tracker. Use the full alias above.
@@ -32,7 +39,7 @@ Singapore MRT tracker. Use the full alias above.
 ```bash
 npm run dev          # dev server
 npm run dev:lan      # dev server reachable from a phone on the same Wi-Fi
-npm test             # 55 tests, TZ=UTC (that is deliberate, see Traps)
+npm test             # 70 tests, TZ=UTC (that is deliberate, see Traps)
 npm run typecheck
 npm run build
 npm run spike        # throwaway API probe; needs .env.local
@@ -87,6 +94,13 @@ testing the live app — they share the quota.
 The generator caches responses in `.rtt-cache/` (gitignored), so re-runs cost
 nothing; the last several runs used **0 API calls**. Delete it to force a clean run.
 
+**A cold lookup now spends two station line-ups, not one** — the first train back
+belongs to the next service day, so it is a second query. Repeats cost nothing:
+flipping direction at Upminster returns `x-cache: PARTIAL` with no API calls, because
+both days are already cached, and a pre-service board never fetches the second day at
+all. `DETAIL_BUDGET` in the route caps service queries per lookup so the worst case
+stays at eight requests, which is where it was before.
+
 ### Domain rules that produce wrong answers rather than crashes
 
 - **The service day runs 03:00 → 02:59.** A train leaving at 00:22 belongs to the
@@ -96,6 +110,16 @@ nothing; the last several runs used **0 API calls**. Delete it to force a clean 
 - **Direction is derived, never queried.** Pairing a station with its line's terminus
   would drop eastbound services that terminate short — which is frequently the last
   one out.
+- **The board's arrangement is decided against a real first departure**, read from
+  the timetable, never a guessed hour. It differs between a Monday, a Sunday and a
+  rural branch. Within a service day the mode only ever goes `pre-service → normal`,
+  which is why a cached answer is checked against the boundary on read rather than
+  keyed on the mode — keying on it would force a cache miss, and a miss costs an API
+  call at exactly the wrong moment.
+- **Between roughly 00:30 and 03:00 the page advances to the next service day.** The
+  current day is still technically today's but has nothing left in it. This is a
+  deliberate choice, confirmed: you lose "you just missed the 00:22" in exchange for a
+  board with trains on it. Tapping back to Today is respected, not undone.
 
 ### Build environment
 
