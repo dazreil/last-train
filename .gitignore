@@ -47,3 +47,11 @@ next-env.d.ts
 
 # Generator response cache (see scripts/generate-stations.mjs). Safe to delete.
 .rtt-cache/
+
+# Swift. `.build` is ~100MB of object files; `.swiftpm` and xcuserdata are
+# per-machine editor state. All of it regenerates from `swift run`.
+ios/.build/
+ios/.swiftpm/
+*.xcuserdatad
+xcuserdata/
+DerivedData/

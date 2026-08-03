@@ -48,6 +48,12 @@ npm run national:data # regenerate data/national.json; 0 requests on a warm cach
 npm run stations     # regenerate data/stations.json + data/geo.json
 ```
 
+The native app is a separate toolchain, and a separate runner — see Traps.
+
+```bash
+cd ios && TZ=UTC swift run CoreTests   # 17 tests, the native service-day logic
+```
+
 Node was installed via Homebrew for this project (`/opt/homebrew/bin/node`, v26).
 It is not on the default PATH in every shell — prefix with
 `export PATH="/opt/homebrew/bin:$PATH"` if `node` is not found.
@@ -142,6 +148,42 @@ flipping direction at Upminster returns `x-cache: PARTIAL` with no API calls, be
 both days are already cached, and a pre-service board never fetches the second day at
 all. `DETAIL_BUDGET` in the route caps service queries per lookup so the worst case
 stays at eight requests, which is where it was before.
+
+### Xcode is not installed, and that bounds what the native app can be
+
+`xcode-select -p` points at `/Library/Developer/CommandLineTools`. Swift 6.2.3 is
+there and works, but **`xcodebuild` is not, and neither is any iOS SDK**. So:
+
+- **Possible now:** the `ios/` Swift package. Pure Foundation, builds and runs with
+  the Command Line Tools, which is why `IOS.md` §9 step 4 starts with the service-day
+  logic rather than a view.
+- **Not possible until Xcode is installed:** SwiftUI, the simulator, the widget, and
+  submission. All of it.
+
+Installing Xcode is from the App Store (~15GB), then
+`sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`. That needs a
+password, so it is not something a session can do for you.
+
+**Neither `XCTest` nor `swift-testing` ships with the Command Line Tools** — both
+arrive with Xcode. So `ios/Sources/CoreTests` is an ordinary executable with a small
+assertion harness rather than a test target, and it is run with `swift run CoreTests`,
+not `swift test`. The assertions port to XCTest mechanically once Xcode exists; that
+conversion is the point at which `swift test` starts working.
+
+### The Swift port has the same timezone hazard, and the same tests
+
+`ios/Sources/LastTrainCore/ServiceDay.swift` sets `timeZone` and `locale` explicitly
+on **every** formatter, per `IOS.md` §7. The 17 tests are the JavaScript suite ported
+test for test, and they are worth their weight: swapping the one London timezone for
+`TimeZone.current` fails four of them, including the scenario that reproduces the
+original production bug. They pass under UTC, London, New York, Sydney and Kolkata.
+
+One Swift-specific difference from the JavaScript: bad input returns `nil` rather than
+`NaN`, so a malformed departure cannot be rendered as a plausible-looking time.
+
+`ISO8601DateFormatter` cannot be a shared static under Swift 6 strict concurrency —
+it is not `Sendable`. `DateFormatter` is fine. The port uses `DateFormatter` with an
+`XXXXX` offset pattern throughout, which accepts `Z` and `+01:00` alike.
 
 ### The nearest-station grid is easy to make subtly wrong
 
