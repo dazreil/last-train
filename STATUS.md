@@ -27,7 +27,7 @@ licensing question that used to block it is answered — see Next.
 | Live | `https://last-train-dazreils-projects.vercel.app` |
 | Stack | Next.js 16 (App Router), React 19, TypeScript, plain CSS |
 | Data | Realtime Trains next-gen API, `data.rtt.io`, **free tier** |
-| Tests | 70, all passing, run under `TZ=UTC` |
+| Tests | 85, all passing, run under `TZ=UTC` |
 
 **`last-train.vercel.app` is not this app.** That subdomain belongs to an unrelated
 Singapore MRT tracker. Use the full alias above.
@@ -39,11 +39,12 @@ Singapore MRT tracker. Use the full alias above.
 ```bash
 npm run dev          # dev server
 npm run dev:lan      # dev server reachable from a phone on the same Wi-Fi
-npm test             # 70 tests, TZ=UTC (that is deliberate, see Traps)
+npm test             # 85 tests, TZ=UTC (that is deliberate, see Traps)
 npm run typecheck
 npm run build
 npm run spike        # throwaway API probe; needs .env.local
 npm run national     # IOS.md §9 step 2 probe; 5 requests, then cached
+npm run national:data # regenerate data/national.json; 0 requests on a warm cache
 npm run stations     # regenerate data/stations.json + data/geo.json
 ```
 
@@ -142,6 +143,34 @@ both days are already cached, and a pre-service board never fetches the second d
 all. `DETAIL_BUDGET` in the route caps service queries per lookup so the worst case
 stays at eight requests, which is where it was before.
 
+### The nearest-station grid is easy to make subtly wrong
+
+`lib/nearest.ts` buckets 2,619 stations by rounded lat/lon. Two things about it are
+not optional:
+
+- **Searching the 3×3 block around the query and stopping is wrong.** It fails
+  whenever the nearest station sits just over a cell boundary, and it looks perfectly
+  fine in casual use. Every ring is followed by a proof that nothing unsearched can be
+  closer, and the tests assert the grid agrees *exactly* with a full linear scan from
+  several thousand positions.
+- **A cell is not a fixed number of kilometres.** A degree of longitude is 71km at
+  Penzance and 57km at Wick. The bound uses the smallest kilometres-per-degree in
+  play, which can only cause more searching, never a wrong answer.
+
+Worth knowing: it is 80× faster than the scan near a station, but only 3–4× over a
+box that includes open sea, because empty rings grow as the square of their radius.
+It falls back to a scan once it has probed more cells than there are stations.
+
+### NaPTAN alone misses Waterloo, Victoria and London Bridge
+
+Joining the API's TIPLOC straight to NaPTAN's `9100`-prefixed ATCO code covers 2,612
+of 2,622 stops and silently loses some of the busiest stations in Britain, because
+NaPTAN splits large stations into platform groups under suffixed codes — `WATRLOO` is
+`WATRLMN`, `CLPHMJN` is five separate rows. A canonical-name fallback closes it, and
+is safe only because the generator checks the two routes never disagree by more than
+500m. Six more stations, the Elizabeth line core, carry `0,0` coordinates and a real
+OS grid reference instead. All of this lives in `scripts/lib/naptan.mjs`.
+
 ### Domain rules that produce wrong answers rather than crashes
 
 - **The service day runs 03:00 → 02:59.** A train leaving at 00:22 belongs to the
@@ -231,13 +260,26 @@ distributed app gets revoked.
    returns all four compass directions correctly and Upminster still returns only two.
    Two things it changed are in `IOS.md` §4 and §8 — see Traps below for the one that
    nearly cost a branch line.
-2. Station data: FasterRoute's Apache-2.0 UK station JSON, cross-checked against
-   `/data/stops`, plus a spatial index for nearest-station
+2. ~~Station data~~ — **done, `npm run national:data`.** `data/national.json`, 2,619
+   stations, generated and validated, 0 API requests on a warm cache. FasterRoute was
+   not needed: `/data/stops` is the base list and NaPTAN places all but three stops,
+   two of which are rail-air interchanges rather than stations. Nearest-station is
+   `lib/nearest.ts` — see Traps for the part that is easy to get wrong
 3. API route: compass directions, all four buckets from one query, drop the corridor
    machinery
 4. SwiftUI app — port the service-day tests *first*, then the code
 5. The widget. It is the actual reason for going native
 6. Paid token, attribution, submit
+
+### Parked, not scheduled
+
+**Fast Train** — tapping the "Last Train" title flips the app into a from/to mode
+showing four trains ordered by *arrival*, plus a hidden "Last Fast Train" variant.
+Captured in full in `IOS.md` §11. It is not in the build order and does not change
+it. Two things to know before anyone starts it: arrival ordering needs each service's
+calling pattern, which is about a request per train and breaks the one-request
+lookup; and it makes the `via` question below moot, since the Tilbury/Basildon case
+is exactly what it exists to solve.
 
 ### Open questions carried forward
 

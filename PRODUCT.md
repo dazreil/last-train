@@ -124,11 +124,12 @@ Explicitly undecided, and not to be invented:
 - `data/stations.json` (67 stations) and `data/geo.json`, generated from the API and
   NaPTAN. **No CRS code in this project was ever typed by hand**, and the generator
   refuses to emit an invalid list
-- 55 passing tests covering the service-day boundary, timezone resolution, direction
-  classification and departure filtering
+- `data/national.json` (2,619 stations, the whole network) generated from RTT's
+  `/data/stops` joined to NaPTAN. Three stops have no position: two rail-air
+  interchanges that are not stations, and Winslow, too new for NaPTAN
+- 85 passing tests covering the service-day boundary, timezone resolution, direction
+  classification, departure filtering, board arrangement and nearest-station
 - `PROJECT.md` (original brief) and `IOS.md` (approved national/native spec)
-- FasterRoute publishes an Apache-2.0 JSON of every UK station (~2,600), suitable as
-  the national base list — not yet integrated
 
 No user research, no testimonials, no analytics, no other users yet. Nothing may be
 claimed about anyone else's behaviour.

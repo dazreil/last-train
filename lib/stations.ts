@@ -135,20 +135,11 @@ export function searchStations(query: string, limit = 8): Station[] {
 
 // -------------------------------------------------------------------- geography
 
-const EARTH_RADIUS_KM = 6371;
-const toRadians = (degrees: number): number => (degrees * Math.PI) / 180;
-
-export function distanceKm(
-  a: { lat: number; lon: number },
-  b: { lat: number; lon: number }
-): number {
-  const dLat = toRadians(b.lat - a.lat);
-  const dLon = toRadians(b.lon - a.lon);
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRadians(a.lat)) * Math.cos(toRadians(b.lat)) * Math.sin(dLon / 2) ** 2;
-  return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(h));
-}
+// One haversine in the project, not two. `lib/nearest.ts` owns it because that is
+// where it is tested; this module re-exports it so the existing callers are unchanged.
+// Imported as well as re-exported, since `nearestStations` below calls it.
+import { distanceKm } from './nearest.ts';
+export { distanceKm };
 
 export interface NearbyStation {
   station: Station;

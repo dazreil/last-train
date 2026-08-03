@@ -29,12 +29,14 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
+// The NaPTAN join, the OSGB36 -> WGS84 converter and its self-test used to live in
+// this file. They moved out when the national generator needed exactly the same
+// three joins; see the module comment for why one of them is not optional.
+import { loadNaptan } from './lib/naptan.mjs';
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BASE = 'https://data.rtt.io';
 const API_VERSION = process.env.RTT_API_VERSION || '2026-04-09';
-
-const NAPTAN_RAIL_CSV =
-  'https://naptan.api.dft.gov.uk/v1/access-nodes?dataFormat=csv&atcoAreaCodes=910';
 
 /**
  * The corridors the app covers, exactly as scoped: the whole of c2c, the whole
@@ -403,237 +405,6 @@ async function rtt(path, params = {}) {
   throw new Error(`GET ${url.pathname} -> gave up after repeated rate limiting`);
 }
 
-// ------------------------------------------------- OSGB36 grid ref -> WGS84
-
-/**
- * Inverse transverse Mercator on the Airy 1830 ellipsoid, then a Helmert
- * transform onto WGS84. Accurate to a few metres, which is ample for deciding
- * which platform you are standing on.
- */
-function gridToOsgb36LatLon(easting, northing) {
-  const a = 6377563.396;
-  const b = 6356256.909;
-  const f0 = 0.9996012717;
-  const lat0 = (49 * Math.PI) / 180;
-  const lon0 = (-2 * Math.PI) / 180;
-  const n0 = -100_000;
-  const e0 = 400_000;
-
-  const e2 = 1 - (b * b) / (a * a);
-  const n = (a - b) / (a + b);
-  const n2 = n * n;
-  const n3 = n2 * n;
-
-  let lat = lat0;
-  let m = 0;
-  do {
-    lat = (northing - n0 - m) / (a * f0) + lat;
-    const ma = (1 + n + 1.25 * n2 + 1.25 * n3) * (lat - lat0);
-    const mb = (3 * n + 3 * n2 + 2.625 * n3) * Math.sin(lat - lat0) * Math.cos(lat + lat0);
-    const mc = (1.875 * n2 + 1.875 * n3) * Math.sin(2 * (lat - lat0)) * Math.cos(2 * (lat + lat0));
-    const md = (35 / 24) * n3 * Math.sin(3 * (lat - lat0)) * Math.cos(3 * (lat + lat0));
-    m = b * f0 * (ma - mb + mc - md);
-  } while (Math.abs(northing - n0 - m) >= 0.00001);
-
-  const sinLat = Math.sin(lat);
-  const cosLat = Math.cos(lat);
-  const nu = (a * f0) / Math.sqrt(1 - e2 * sinLat * sinLat);
-  const rho = (a * f0 * (1 - e2)) / Math.pow(1 - e2 * sinLat * sinLat, 1.5);
-  const eta2 = nu / rho - 1;
-
-  const tanLat = Math.tan(lat);
-  const t2 = tanLat * tanLat;
-  const t4 = t2 * t2;
-  const t6 = t4 * t2;
-  const sec = 1 / cosLat;
-  const nu3 = nu ** 3;
-  const nu5 = nu ** 5;
-  const nu7 = nu ** 7;
-
-  const vii = tanLat / (2 * rho * nu);
-  const viii = (tanLat / (24 * rho * nu3)) * (5 + 3 * t2 + eta2 - 9 * t2 * eta2);
-  const ix = (tanLat / (720 * rho * nu5)) * (61 + 90 * t2 + 45 * t4);
-  const x = sec / nu;
-  const xi = (sec / (6 * nu3)) * (nu / rho + 2 * t2);
-  const xii = (sec / (120 * nu5)) * (5 + 28 * t2 + 24 * t4);
-  const xiia = (sec / (5040 * nu7)) * (61 + 662 * t2 + 1320 * t4 + 720 * t6);
-
-  const d = easting - e0;
-  return {
-    lat: lat - vii * d ** 2 + viii * d ** 4 - ix * d ** 6,
-    lon: lon0 + x * d - xi * d ** 3 + xii * d ** 5 - xiia * d ** 7,
-  };
-}
-
-/** Helmert, OSGB36 -> WGS84 (the inverse of the published WGS84 -> OSGB36 set). */
-function osgb36ToWgs84(latRad, lonRad) {
-  const a1 = 6377563.396;
-  const b1 = 6356256.909;
-  const e1 = 1 - (b1 * b1) / (a1 * a1);
-  const sinLat = Math.sin(latRad);
-  const cosLat = Math.cos(latRad);
-  const nu1 = a1 / Math.sqrt(1 - e1 * sinLat * sinLat);
-
-  const x1 = nu1 * cosLat * Math.cos(lonRad);
-  const y1 = nu1 * cosLat * Math.sin(lonRad);
-  const z1 = (1 - e1) * nu1 * sinLat;
-
-  const tx = 446.448;
-  const ty = -125.157;
-  const tz = 542.06;
-  const s = -20.4894e-6;
-  const arcsec = Math.PI / 180 / 3600;
-  const rx = 0.1502 * arcsec;
-  const ry = 0.247 * arcsec;
-  const rz = 0.8421 * arcsec;
-
-  const x2 = tx + x1 * (1 + s) - y1 * rz + z1 * ry;
-  const y2 = ty + x1 * rz + y1 * (1 + s) - z1 * rx;
-  const z2 = tz - x1 * ry + y1 * rx + z1 * (1 + s);
-
-  const a2 = 6378137.0;
-  const b2 = 6356752.3142;
-  const e22 = 1 - (b2 * b2) / (a2 * a2);
-  const p = Math.hypot(x2, y2);
-
-  let lat = Math.atan2(z2, p * (1 - e22));
-  for (let i = 0; i < 12; i++) {
-    const nu2 = a2 / Math.sqrt(1 - e22 * Math.sin(lat) ** 2);
-    const next = Math.atan2(z2 + e22 * nu2 * Math.sin(lat), p);
-    if (Math.abs(next - lat) < 1e-13) {
-      lat = next;
-      break;
-    }
-    lat = next;
-  }
-
-  return { lat: (lat * 180) / Math.PI, lon: (Math.atan2(y2, x2) * 180) / Math.PI };
-}
-
-function gridToWgs84(easting, northing) {
-  const osgb = gridToOsgb36LatLon(Number(easting), Number(northing));
-  return osgb36ToWgs84(osgb.lat, osgb.lon);
-}
-
-// ------------------------------------------------------------------ NaPTAN load
-
-function parseCsvLine(line) {
-  const out = [];
-  let field = '';
-  let quoted = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (quoted) {
-      if (ch === '"') {
-        if (line[i + 1] === '"') {
-          field += '"';
-          i++;
-        } else quoted = false;
-      } else field += ch;
-    } else if (ch === '"') quoted = true;
-    else if (ch === ',') {
-      out.push(field);
-      field = '';
-    } else field += ch;
-  }
-  out.push(field);
-  return out;
-}
-
-const haversineMetres = (a, b) => {
-  const toRad = (d) => (d * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLon = toRad(b.lon - a.lon);
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
-  return 2 * 6_371_000 * Math.asin(Math.sqrt(h));
-};
-
-async function loadNaptan() {
-  console.log('  fetching NaPTAN rail access nodes...');
-  const res = await fetch(NAPTAN_RAIL_CSV);
-  if (!res.ok) throw new Error(`NaPTAN download failed: HTTP ${res.status}`);
-  const text = await res.text();
-
-  const lines = text.split(/\r?\n/).filter(Boolean);
-  const header = parseCsvLine(lines[0]);
-  const col = (name) => {
-    const index = header.indexOf(name);
-    if (index === -1) throw new Error(`NaPTAN column "${name}" missing; format changed`);
-    return index;
-  };
-  const iAtco = col('ATCOCode');
-  const iName = col('CommonName');
-  const iEast = col('Easting');
-  const iNorth = col('Northing');
-  const iLon = col('Longitude');
-  const iLat = col('Latitude');
-  const iStatus = col('Status');
-
-  /** TIPLOC -> { name, lat, lon, source } */
-  const byTiploc = new Map();
-  const checks = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const row = parseCsvLine(lines[i]);
-    const atco = row[iAtco];
-    if (!atco?.startsWith('9100')) continue;
-    if (row[iStatus] && row[iStatus] !== 'active') continue;
-
-    const tiploc = atco.slice(4).trim().toUpperCase();
-    if (!tiploc) continue;
-
-    const lat = Number(row[iLat]);
-    const lon = Number(row[iLon]);
-    const east = Number(row[iEast]);
-    const north = Number(row[iNorth]);
-
-    const hasLatLon = Number.isFinite(lat) && Number.isFinite(lon) && lat !== 0 && lon !== 0 && row[iLat] !== '';
-    const hasGrid = Number.isFinite(east) && Number.isFinite(north) && east > 0 && north > 0;
-
-    if (hasLatLon && hasGrid) {
-      // Free self-test for the converter, on real data.
-      checks.push({ expected: { lat, lon }, got: gridToWgs84(east, north) });
-    }
-
-    let coords = null;
-    let source = null;
-    if (hasLatLon) {
-      coords = { lat, lon };
-      source = 'naptan';
-    } else if (hasGrid) {
-      // The Elizabeth line central core stations land here.
-      coords = gridToWgs84(east, north);
-      source = 'naptan-grid';
-    }
-    if (!coords) continue;
-
-    byTiploc.set(tiploc, {
-      name: row[iName]?.replace(/\s+Rail Station$/i, '').trim(),
-      lat: Number(coords.lat.toFixed(6)),
-      lon: Number(coords.lon.toFixed(6)),
-      source,
-    });
-  }
-
-
-  // Validate the grid conversion before trusting it for anything.
-  const errors = checks.map((c) => haversineMetres(c.expected, c.got)).sort((a, b) => a - b);
-  const median = errors[Math.floor(errors.length / 2)];
-  const p99 = errors[Math.floor(errors.length * 0.99)];
-  console.log(
-    `  ${byTiploc.size} TIPLOCs with coordinates ` +
-      `(grid converter checked on ${checks.length} rows: median ${median.toFixed(1)}m, p99 ${p99.toFixed(1)}m)`
-  );
-  if (median > 15) {
-    throw new Error(
-      `OSGB->WGS84 conversion is wrong (median error ${median.toFixed(1)}m). Refusing to emit coordinates.`
-    );
-  }
-
-  return byTiploc;
-}
 
 // -------------------------------------------------------------------- resolving
 
@@ -692,7 +463,10 @@ async function main() {
   const info = await rtt('/api/info');
   console.log(`  API version served: ${info.api_version} (asked for ${API_VERSION})`);
 
-  const naptan = await loadNaptan();
+  // Only the TIPLOC index, which is the join this generator has always made. The
+  // name and grid fallbacks exist for the national list, where the busiest stations
+  // in Britain need them; the 67 stations here are all reachable by TIPLOC alone.
+  const { byTiploc: naptan } = await loadNaptan();
 
   console.log('\n--- resolving probe endpoints --------------------------------\n');
   const stops = (await rtt('/data/stops'))?.stops ?? [];

@@ -266,24 +266,73 @@ which is what makes the widget viable.
 
 ## 6. Station data
 
-**FasterRoute publishes an Apache-2.0 JSON of every National Rail station** — CRS,
-TIPLOC, operator, name, latitude, longitude — assembled from Darwin reference data,
-NaPTAN and manual research. That is the base list, and the licence permits use.
+**Done, 1 August 2026 — `npm run national:data` writes `data/national.json`, 2,619
+stations.** `stations.json` and `geo.json` are untouched; the web app stays as-is.
 
-Cross-check against RTT's `/data/stops`, authoritative for what our token can
-actually query. Present in one and not the other is a bug to investigate.
+### FasterRoute is not needed after all
 
-**The existing rule stands: no CRS code is ever typed by hand.** Extend the
-generator rather than replacing it — it already resolves names against the API and
-refuses to emit an invalid list.
+The earlier plan was FasterRoute's Apache-2.0 JSON as the base list, cross-checked
+against `/data/stops`. Measured, it earns nothing: **RTT's own `/data/stops` is the
+list, and NaPTAN alone places 2,619 of its 2,622 stops.**
+
+`/data/stops` is the right base rather than a cross-check, because it is *by
+definition* what the token can query — a station in FasterRoute but not here is a
+station the app cannot answer for. It carries no coordinates, only namespace,
+description, `shortCode` and `uniqueIdentity`, so position comes from NaPTAN via
+`/data/locations_ungrouped`, which supplies the TIPLOC to join on.
+
+That join needs three passes, and the first alone silently misses the busiest
+stations in Britain. `scripts/lib/naptan.mjs` has the detail; in short, NaPTAN splits
+large stations into platform groups under suffixed codes, so `WATRLOO` is `WATRLMN`
+and `CLPHMJN` is five separate rows — Waterloo, Victoria, London Bridge, Clapham
+Junction and Vauxhall all need the name fallback. Six more, the Elizabeth line core,
+carry `0,0` for latitude and longitude but a real OS grid reference.
+
+Matching by name is only safe because it was checked: across every station where both
+the code and the name route resolve, they never disagreed by more than 500m. The
+generator asserts that on every run.
+
+**Three stops have no position, and that is the whole gap:**
+
+| CRS | | |
+|---|---|---|
+| `XPB` | Bristol International Airport | a rail-air interchange, not a rail station |
+| `XMT` | East Midlands Airport | a rail-air interchange, not a rail station |
+| `WNO` | Winslow | reopened on East West Rail, not yet published by NaPTAN |
+
+Two of those are not stations. Taking on a third-party dependency for the third is
+not a trade worth making, so the generator names them and refuses to emit if a
+*fourth* ever appears.
+
+**The existing rule stands: no CRS code is ever typed by hand.** The generator
+validates before writing — every coordinate inside Great Britain, every CRS unique,
+no two stations within 25m of each other, the name and code joins in agreement, and
+the gap list exactly as expected.
 
 ### What breaks at 2,600 stations
 
-- **Nearest-station** is a linear haversine scan. Fine for 67, wasteful for 2,600
-  on every location update. Bucket by rounded lat/lon, or use a k-d tree.
+- ~~**Nearest-station** is a linear haversine scan.~~ **Done — `lib/nearest.ts`.**
+  Bucketed by rounded lat/lon at 0.1°, with ring-by-ring expansion outward. The part
+  that matters is the stopping rule: searching the 3×3 block around the query and
+  stopping is wrong whenever the nearest station is just over a cell boundary, so
+  each ring is followed by a proof that nothing unsearched could be closer. The bound
+  uses the smallest kilometres-per-degree in play, because a degree of longitude is
+  71km at Penzance and 57km at Wick.
+
+  **80× faster than the scan where a phone actually is**, 7µs against 560µs. Over a
+  box that includes open sea it is only 3–4×, because empty rings grow as the square
+  of their radius; once more cells have been probed than there are stations it gives
+  up and scans, which bounds the worst case. Tested by agreeing exactly with a full
+  scan from several thousand positions across Britain, beside every station, and at
+  both latitude extremes.
 - **Search must disambiguate.** Two Newports, several Ashfords, Whitchurch in
   three counties. Show county or operator on collision, and rank by size — nobody
   typing "birmingham" wants Birmingham International first.
+
+  `national.json` carries NaPTAN's `locality` and `town` for this, populated for 732
+  and 84 stations respectively — enough to separate collisions, not enough to rank
+  by size. **Ranking still has no data source.** Passenger-entry counts are published
+  by ORR annually; that is the obvious candidate and is not yet in the repo.
 - **Cities are not stations.** London has ~18 terminals; Glasgow, Manchester,
   Birmingham, Leeds and Edinburgh have several each. Typing "Manchester" offers
   Piccadilly *and* Victoria rather than guessing.
@@ -386,8 +435,12 @@ matter far more nationally than it ever did in Essex.
      longitude comparison found none.
    - **Two things it changed:** the minimum-distance guard (§4) and what "rural"
      really means (§8).
-3. **Station data.** FasterRoute crossed against `/data/stops`, validated as now.
-   Spatial index for nearest.
+3. ~~**Station data.**~~ **Done, 1 August 2026.** `npm run national:data` →
+   `data/national.json`, 2,619 stations, generated and validated, 0 API requests on a
+   warm cache. FasterRoute turned out to be unnecessary — `/data/stops` plus NaPTAN
+   covers all but three stops, two of which are not rail stations. Nearest-station is
+   `lib/nearest.ts`, a bucketed grid, 80× the scan where it matters and proved against
+   the scan everywhere. See §6.
 4. **API route.** Direction becomes compass; return all four buckets from one
    query; drop the corridor machinery and `via`. Add the diagnostics surface (§3).
 5. **SwiftUI app.** Service-day logic and its tests first, then pickers, then the
@@ -421,6 +474,63 @@ matter far more nationally than it ever did in Essex.
 
 ---
 
+## 11. Parked for a future update — Fast Train
+
+**Not part of this build.** Recorded so it is neither lost nor quietly reinvented as
+something smaller. Nothing in §9 changes.
+
+### The gesture
+
+Tapping **"Last Train"** in the header switches the app into **Fast Train** mode —
+the same interaction as tapping the date opposite it, which already swaps today for
+tomorrow. Two taps at opposite ends of the same bar, each toggling one axis.
+
+The name is the description: the mode ranks by how fast you get there, and it is one
+word swapped in the title the tap lands on — *Last* Train becomes *Fast* Train.
+
+### Fast Train
+
+Same app, one addition: you enter a **from** and a **to**. It lists **four trains,
+ordered by arrival time at the destination**, fastest first.
+
+Ordering by arrival rather than departure is the entire feature. UPM→SOC: a train
+leaving in a few minutes goes via Tilbury and arrives later than one leaving fifteen
+minutes afterwards via Basildon. A departure board cannot show you that; this can.
+
+In this mode the date tap changes meaning too. Instead of today/tomorrow it pages
+forward — the next four trains after the four on screen.
+
+### Last Fast Train
+
+The third mode, unadvertised: last-train behaviour with a selectable destination,
+listing the **last four trains ordered by arrival**. Usually that is the same order
+as the plain last-train board; where it is not, it is the case that matters most, and
+it hands over complete control.
+
+### What has to be settled before any of this is built
+
+1. **It asks where you are going.** `PRODUCT.md` positioning is "it never asks where
+   you are going", and §1 above puts destination search out of scope for good. This
+   survives that only if Fast Train is a *separate mode* behind a deliberate tap, and
+   the default surface — the one that must answer in two seconds — never gains a
+   destination field. That is a change to the positioning and should be written down
+   as one, not slipped in.
+2. **Arrival times are not in the line-up.** The single query returns departures. To
+   rank by arrival at a chosen station, each service's calling pattern is needed —
+   roughly a request per train shown. That runs directly against §5's one-request
+   lookup and against the Team tier's ceiling in §3. **Size it before designing it**;
+   it may be what decides whether the mode is affordable.
+3. **Still direct-only.** Ranking direct services by arrival is not journey planning,
+   as long as nothing ever proposes a change. But it reintroduces the failure mode §1
+   removed: nationally, most station pairs have no direct service, so "nothing runs
+   between these two" must be believable on its own (Principle 2).
+4. **It resurrects `via`.** The open question about dropping `via` is now entangled
+   with this — the Tilbury/Basildon ambiguity is this feature's motivating example.
+   If Fast Train ever ships, either `via` comes back or the arrival time does its job
+   better. Do not delete the reasoning behind it, only the code.
+
+---
+
 ## Reference
 
 - [Realtime Trains API portal](https://api-portal.rtt.io) — plans and tokens
@@ -428,4 +538,7 @@ matter far more nationally than it ever did in Essex.
 - [LDBWS documentation](https://realtime.nationalrail.co.uk/OpenLDBWS/) — note the
   2-hour and 10-row limits
 - [Rail Data Marketplace](https://raildata.org.uk) — Darwin
-- [FasterRoute](https://www.fasteroute.com/) — Apache-2.0 UK station JSON
+- [NaPTAN](https://naptan.api.dft.gov.uk/) — DfT access nodes, Open Government
+  Licence. Where every coordinate in this project comes from
+- [FasterRoute](https://www.fasteroute.com/) — Apache-2.0 UK station JSON. Evaluated
+  and **not used**; see §6
