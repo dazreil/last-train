@@ -27,7 +27,12 @@ let package = Package(
         .library(name: "LastTrainCore", targets: ["LastTrainCore"]),
     ],
     targets: [
-        .target(name: "LastTrainCore"),
+        .target(
+            name: "LastTrainCore",
+            // Written by `npm run national:data`, which emits the same bytes here and
+            // to `data/national.json` for the API. Generated, never hand-maintained.
+            resources: [.process("Resources/national.json")]
+        ),
         .testTarget(name: "LastTrainCoreTests", dependencies: ["LastTrainCore"]),
     ]
 )

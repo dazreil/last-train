@@ -51,8 +51,8 @@ npm run stations     # regenerate data/stations.json + data/geo.json
 The native app is a separate toolchain.
 
 ```bash
-cd ios && TZ=UTC swift test   # 60 tests, ~8s
-cd ios && TZ=UTC LASTTRAIN_EXHAUSTIVE=1 swift test   # full nearest coverage, ~60s
+cd ios && TZ=UTC swift test   # 68 tests, ~7s
+cd ios && TZ=UTC LASTTRAIN_EXHAUSTIVE=1 swift test   # full nearest coverage, ~55s
 ```
 
 Node was installed via Homebrew for this project (`/opt/homebrew/bin/node`, v26).
@@ -207,6 +207,33 @@ direction of its own. Both documents are corrected.
 The lesson generalises: **a hand-written list of which directions a station has will be
 wrong, and wrong in the direction of hiding trains.** Availability is counted from the
 line-up on every query, never stored.
+
+### The station list has two copies, and the generator writes both
+
+`npm run national:data` emits byte-identical files to `data/national.json`, which the
+API reads from disk, and `ios/Sources/LastTrainCore/Resources/national.json`, which the
+app loads through `Bundle.module`. An app ships as a bundle and cannot reach into the
+repo, so it needs its own copy; writing it from the generator is what stops the second
+copy going stale.
+
+**Never edit either by hand.** Regenerate, and both are current.
+
+Deleting the bundled copy is a *build* failure rather than a silent empty list —
+SwiftPM refuses to build a target whose declared resource is missing. If it is ever
+present but unreadable, `Stations.validate()` throws and `StationsTests` fails, which
+is the check the app should also make at launch.
+
+### Swift test runtime is dominated by cross-module calls, not by the work
+
+Worth knowing before optimising anything in `ios/`: in a `-Onone` test build, a call
+into another module is a real call, and the nearest-station agreement tests make
+millions of them. Moving the reference scan's haversine into the test file took the
+suite from 22 seconds to 7 — after two earlier guesses (reference-scan allocation,
+then a computed property) each made it *slower*. Measure per-test before changing
+anything; the numbers also swing with machine load, so compare like with like.
+
+That local haversine is a better oracle anyway: a reference that calls the same
+function as the code under test cannot catch an error inside that function.
 
 ### Two implementations of the compass, which must not drift
 

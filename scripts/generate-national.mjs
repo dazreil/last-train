@@ -19,7 +19,7 @@
  * fetched by the other scripts, and coordinates come from NaPTAN, which is the DfT's.
  */
 
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -27,7 +27,22 @@ import { loadEnvLocal, rtt, requestsSpent, rateLimits } from './lib/rtt.mjs';
 import { loadNaptan, haversineMetres, canonicalName } from './lib/naptan.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const OUT = join(ROOT, 'data', 'national.json');
+
+/**
+ * Two destinations, one source of truth.
+ *
+ * The API reads `data/national.json` from disk. The native app cannot — it ships as a
+ * bundle and has no repo to reach into — so the same bytes are written into the Swift
+ * package's resources, where `Bundle.module` can find them.
+ *
+ * Written by the generator rather than copied by hand, because a second copy of
+ * generated data that somebody has to remember to sync is a copy that will be stale.
+ * Re-run `npm run national:data` and both are current.
+ */
+const OUTPUTS = [
+  join(ROOT, 'data', 'national.json'),
+  join(ROOT, 'ios', 'Sources', 'LastTrainCore', 'Resources', 'national.json'),
+];
 
 /**
  * Stops with no coordinates, and why.
@@ -234,8 +249,12 @@ async function main() {
     stations,
   };
 
-  writeFileSync(OUT, JSON.stringify(body));
-  console.log(`\n  wrote ${OUT}`);
+  const serialised = JSON.stringify(body);
+  for (const out of OUTPUTS) {
+    mkdirSync(dirname(out), { recursive: true });
+    writeFileSync(out, serialised);
+    console.log(`\n  wrote ${out}`);
+  }
   console.log(`  ${stations.length} stations, ${missing.length} unplaced`);
   console.log(
     `  ${requestsSpent()} API requests spent${rateLimits() ? `  [remaining: ${rateLimits()}]` : ''}`

@@ -495,7 +495,11 @@ matter far more nationally than it ever did in Essex.
    - ~~Nearest~~ — `Nearest.swift`, 15 tests. The bucketed grid, reusing the haversine
      already in `Direction` rather than adding a second one.
 
-   **`LastTrainCore` is complete: 60 tests, no SwiftUI, no UIKit.** What remains is the
+   - ~~Bundled stations~~ — `Stations.swift`, loading `Resources/national.json` through
+     `Bundle.module`. `npm run national:data` writes that copy and the API's from the
+     same run, so neither is hand-maintained.
+
+   **`LastTrainCore` is complete: 68 tests, no SwiftUI, no UIKit.** What remains is the
    views, the app target and the widget, all of which need the iOS platform installed
    alongside Xcode.
 6. **Widget.** The reason for doing any of this.

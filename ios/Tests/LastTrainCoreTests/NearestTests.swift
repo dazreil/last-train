@@ -12,6 +12,12 @@ import LastTrainCore
  when the nearest station sits just across a cell boundary, and which looks perfectly
  fine in casual use.
  */
+/// The synthetic cases need something with a position and nothing else.
+private struct Marker: Located, Sendable {
+    let coordinate: Coordinate
+    init(_ lat: Double, _ lon: Double) { self.coordinate = Coordinate(lat: lat, lon: lon) }
+}
+
 @Suite("Nearest")
 struct NearestTests {
 
@@ -89,9 +95,38 @@ struct NearestTests {
      It is also still trivially the right answer: measure everything, sort, take the
      front. No cleverness for the grid to accidentally agree with.
      */
+    /**
+     Positions only, pulled out once.
+
+     `Station.coordinate` is a computed property in another module, so in a `-Onone`
+     test build every access is a real call. The reference scan makes 2,619 of them per
+     sampled position, and reading them through the struct rather than from a flat
+     array took these three tests from two seconds each to twenty-five.
+     */
+    private static let coordinates: [Coordinate] = Stations.all.map(\.coordinate)
+
+    /**
+     The reference haversine, written out here rather than called from `Direction`.
+
+     Two reasons, and the second is the better one. It is faster — in a `-Onone` test
+     build every call into another module is a real call, and the reference makes 2,619
+     of them per sampled position, which is most of this file's runtime. And it makes
+     the oracle **independent**: a reference that calls the same function as the code
+     under test cannot catch an error in that function, only in the grid around it.
+     */
+    private static func referenceMetres(_ a: Coordinate, _ b: Coordinate) -> Double {
+        let toRadians = Double.pi / 180
+        let dLat = (b.lat - a.lat) * toRadians
+        let dLon = (b.lon - a.lon) * toRadians
+        let h =
+            sin(dLat / 2) * sin(dLat / 2)
+            + cos(a.lat * toRadians) * cos(b.lat * toRadians) * sin(dLon / 2) * sin(dLon / 2)
+        return 2 * 6_371_000 * asin(min(1, sqrt(h)))
+    }
+
     private func nearestDistances(to position: Coordinate, limit: Int) -> [Double] {
-        Self.stations
-            .map { Direction.distanceMetres(from: position, to: $0.coordinate) }
+        Self.coordinates
+            .map { Self.referenceMetres(position, $0) }
             .sorted()
             .prefix(limit)
             .map { $0 }
@@ -180,16 +215,13 @@ struct NearestTests {
 
     @Test("asking for more stations than exist returns all of them")
     func moreThanExistReturnsAll() {
-        let tiny = SpatialIndex([
-            NationalStation(crs: "AAA", name: "A", lat: 51.5, lon: -0.1),
-            NationalStation(crs: "BBB", name: "B", lat: 55.0, lon: -3.0),
-        ])
+        let tiny = SpatialIndex([Marker(51.5, -0.1), Marker(55.0, -3.0)])
         #expect(tiny.nearest(to: Coordinate(lat: 51.5, lon: -0.1), limit: 10).count == 2)
     }
 
     @Test("an empty index answers with nothing rather than failing")
     func emptyIndexAnswersWithNothing() {
-        let empty = SpatialIndex([NationalStation]())
+        let empty = SpatialIndex([Marker]())
         #expect(empty.nearest(to: Coordinate(lat: 51.5, lon: -0.1)).isEmpty)
         #expect(empty.size == 0)
     }
@@ -202,10 +234,7 @@ struct NearestTests {
 
     @Test("stations without usable coordinates are left out of the index")
     func junkCoordinatesAreExcluded() {
-        let withJunk = SpatialIndex([
-            NationalStation(crs: "AAA", name: "A", lat: 51.5, lon: -0.1),
-            NationalStation(crs: "BAD", name: "Bad", lat: .nan, lon: 0),
-        ])
+        let withJunk = SpatialIndex([Marker(51.5, -0.1), Marker(.nan, 0)])
         #expect(withJunk.size == 1)
     }
 

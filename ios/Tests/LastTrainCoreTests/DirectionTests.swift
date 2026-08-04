@@ -15,7 +15,7 @@ import LastTrainCore
  Inverness is the reason the compass exists at all: it is the station that genuinely
  sends trains in all four directions.
  */
-enum Station {
+enum Place {
     static let inverness = Coordinate(lat: 57.47987, lon: -4.223361)            // INV
     static let wick = Coordinate(lat: 58.441568, lon: -3.096859)                // WCK
     static let aberdeen = Coordinate(lat: 57.143704, lon: -2.098685)            // ABD
@@ -52,11 +52,11 @@ struct DirectionTests {
 
     @Test("Inverness sends trains in all four directions, and each reads right")
     func invernessUsesAllFourDirections() {
-        let from = Station.inverness
-        #expect(Direction.classify(from: from, to: Station.wick) == .north)
-        #expect(Direction.classify(from: from, to: Station.aberdeen) == .east)
-        #expect(Direction.classify(from: from, to: Station.edinburgh) == .south)
-        #expect(Direction.classify(from: from, to: Station.kyleOfLochalsh) == .west)
+        let from = Place.inverness
+        #expect(Direction.classify(from: from, to: Place.wick) == .north)
+        #expect(Direction.classify(from: from, to: Place.aberdeen) == .east)
+        #expect(Direction.classify(from: from, to: Place.edinburgh) == .south)
+        #expect(Direction.classify(from: from, to: Place.kyleOfLochalsh) == .west)
     }
 
     @Test("a station offers only the directions that have services")
@@ -64,12 +64,12 @@ struct DirectionTests {
         // Upminster, using only the c2c main line and the Overground shuttle: west to
         // Fenchurch Street and Barking, east to Shoeburyness, north-west to Romford.
         let tally = Direction.tally(
-            from: Station.upminster,
+            from: Place.upminster,
             destinations: [
-                Station.fenchurchStreet,
-                Station.barking,
-                Station.shoeburyness,
-                Station.romford,
+                Place.fenchurchStreet,
+                Place.barking,
+                Place.shoeburyness,
+                Place.romford,
             ]
         )
 
@@ -89,18 +89,18 @@ struct DirectionTests {
         // at Ockendon, then Chafford Hundred, then Grays, each of them south and
         // slightly east. The claim survived only because the web app offered east and
         // west and nothing else, so a whole branch line was folded into one of the two.
-        #expect(Direction.classify(from: Station.upminster, to: Station.ockendon) == .south)
-        #expect(Direction.classify(from: Station.upminster, to: Station.chaffordHundred) == .south)
-        #expect(Direction.classify(from: Station.upminster, to: Station.grays) == .south)
+        #expect(Direction.classify(from: Place.upminster, to: Place.ockendon) == .south)
+        #expect(Direction.classify(from: Place.upminster, to: Place.chaffordHundred) == .south)
+        #expect(Direction.classify(from: Place.upminster, to: Place.grays) == .south)
 
         // With the branch included, Upminster has three directions, not two.
         let tally = Direction.tally(
-            from: Station.upminster,
+            from: Place.upminster,
             destinations: [
-                Station.fenchurchStreet,
-                Station.shoeburyness,
-                Station.romford,
-                Station.grays,
+                Place.fenchurchStreet,
+                Place.shoeburyness,
+                Place.romford,
+                Place.grays,
             ]
         )
         #expect(tally.available == [.east, .south, .west])
@@ -119,11 +119,11 @@ struct DirectionTests {
      */
     @Test("a branch line five kilometres away is still a direction")
     func shortBranchLineIsNotSwallowedByTheGuard() {
-        let metres = Direction.distanceMetres(from: Station.upminster, to: Station.romford)
+        let metres = Direction.distanceMetres(from: Place.upminster, to: Place.romford)
         #expect(metres > 4_900 && metres < 5_100, "Romford should be about 4.99km from Upminster")
 
         // The whole point: it classifies, and it classifies west.
-        #expect(Direction.classify(from: Station.upminster, to: Station.romford) == .west)
+        #expect(Direction.classify(from: Place.upminster, to: Place.romford) == .west)
     }
 
     @Test("the guard is 140 metres, not kilometres")
@@ -131,30 +131,30 @@ struct DirectionTests {
         #expect(Direction.minimumSeparationMetres == 140)
 
         // Roughly 100m north of Upminster: the same place, no meaningful bearing.
-        let almostHere = Coordinate(lat: Station.upminster.lat + 0.0009, lon: Station.upminster.lon)
-        #expect(Direction.distanceMetres(from: Station.upminster, to: almostHere) < 140)
-        #expect(Direction.classify(from: Station.upminster, to: almostHere) == nil)
+        let almostHere = Coordinate(lat: Place.upminster.lat + 0.0009, lon: Place.upminster.lon)
+        #expect(Direction.distanceMetres(from: Place.upminster, to: almostHere) < 140)
+        #expect(Direction.classify(from: Place.upminster, to: almostHere) == nil)
 
         // Roughly 300m north: far enough to mean something.
-        let clearlyNorth = Coordinate(lat: Station.upminster.lat + 0.0027, lon: Station.upminster.lon)
-        #expect(Direction.distanceMetres(from: Station.upminster, to: clearlyNorth) > 140)
-        #expect(Direction.classify(from: Station.upminster, to: clearlyNorth) == .north)
+        let clearlyNorth = Coordinate(lat: Place.upminster.lat + 0.0027, lon: Place.upminster.lon)
+        #expect(Direction.distanceMetres(from: Place.upminster, to: clearlyNorth) > 140)
+        #expect(Direction.classify(from: Place.upminster, to: clearlyNorth) == .north)
     }
 
     @Test("a service terminating where you are standing has no direction")
     func terminatingHereHasNoDirection() {
-        #expect(Direction.classify(from: Station.upminster, to: Station.upminster) == nil)
+        #expect(Direction.classify(from: Place.upminster, to: Place.upminster) == nil)
     }
 
     @Test("a destination with no coordinates is unclassified, never guessed")
     func missingCoordinatesAreUnclassified() {
         // A service whose direction cannot be established is left out rather than
         // guessed at -- guessing would put it under two buttons at once.
-        #expect(Direction.classify(from: Station.upminster, to: nil) == nil)
+        #expect(Direction.classify(from: Place.upminster, to: nil) == nil)
 
         let tally = Direction.tally(
-            from: Station.upminster,
-            destinations: [Station.shoeburyness, nil, Station.fenchurchStreet]
+            from: Place.upminster,
+            destinations: [Place.shoeburyness, nil, Place.fenchurchStreet]
         )
         #expect(tally.unclassified == 1)
         #expect(tally.total == 2)
@@ -168,12 +168,12 @@ struct DirectionTests {
         // Penzance is a terminus: everything leaves in one broad direction. St Ives is
         // 21.8 degrees, Edinburgh 12.7 -- both north, which is what a passenger would
         // say about the sleeper.
-        #expect(Direction.classify(from: Station.penzance, to: Station.stIves) == .north)
-        #expect(Direction.classify(from: Station.penzance, to: Station.edinburgh) == .north)
+        #expect(Direction.classify(from: Place.penzance, to: Place.stIves) == .north)
+        #expect(Direction.classify(from: Place.penzance, to: Place.edinburgh) == .north)
 
         let tally = Direction.tally(
-            from: Station.penzance,
-            destinations: [Station.stIves, Station.edinburgh]
+            from: Place.penzance,
+            destinations: [Place.stIves, Place.edinburgh]
         )
         #expect(tally.available == [.north])
     }
@@ -182,12 +182,12 @@ struct DirectionTests {
     func ruralStationsClassify() {
         // Denton has two departures all day, one each way, 5.5km and 6.1km out. Under
         // a kilometres-scale guard this station would have no directions at all.
-        #expect(Direction.classify(from: Station.denton, to: Station.stalybridge) == .east)
-        #expect(Direction.classify(from: Station.denton, to: Station.stockport) == .south)
+        #expect(Direction.classify(from: Place.denton, to: Place.stalybridge) == .east)
+        #expect(Direction.classify(from: Place.denton, to: Place.stockport) == .south)
 
         // Berney Arms: a request stop with three trains, two east and one west.
-        #expect(Direction.classify(from: Station.berneyArms, to: Station.greatYarmouth) == .east)
-        #expect(Direction.classify(from: Station.berneyArms, to: Station.norwich) == .west)
+        #expect(Direction.classify(from: Place.berneyArms, to: Place.greatYarmouth) == .east)
+        #expect(Direction.classify(from: Place.berneyArms, to: Place.norwich) == .west)
     }
 
     // MARK: - Geometry
@@ -195,14 +195,14 @@ struct DirectionTests {
     @Test("bearings match the ones the national probe measured")
     func bearingsMatchTheProbe() {
         let cases: [(Coordinate, Coordinate, Double, String)] = [
-            (Station.upminster, Station.romford, 290.6, "Upminster to Romford"),
-            (Station.upminster, Station.fenchurchStreet, 257.1, "Upminster to Fenchurch Street"),
-            (Station.upminster, Station.shoeburyness, 94.5, "Upminster to Shoeburyness"),
-            (Station.penzance, Station.stIves, 21.8, "Penzance to St Ives"),
-            (Station.inverness, Station.wick, 31.4, "Inverness to Wick"),
-            (Station.inverness, Station.kyleOfLochalsh, 256.6, "Inverness to Kyle of Lochalsh"),
-            (Station.denton, Station.stalybridge, 55.9, "Denton to Stalybridge"),
-            (Station.denton, Station.stockport, 200.0, "Denton to Stockport"),
+            (Place.upminster, Place.romford, 290.6, "Upminster to Romford"),
+            (Place.upminster, Place.fenchurchStreet, 257.1, "Upminster to Fenchurch Street"),
+            (Place.upminster, Place.shoeburyness, 94.5, "Upminster to Shoeburyness"),
+            (Place.penzance, Place.stIves, 21.8, "Penzance to St Ives"),
+            (Place.inverness, Place.wick, 31.4, "Inverness to Wick"),
+            (Place.inverness, Place.kyleOfLochalsh, 256.6, "Inverness to Kyle of Lochalsh"),
+            (Place.denton, Place.stalybridge, 55.9, "Denton to Stalybridge"),
+            (Place.denton, Place.stockport, 200.0, "Denton to Stockport"),
         ]
 
         for (from, to, expected, label) in cases {
@@ -216,11 +216,11 @@ struct DirectionTests {
         // The narrowest margin the national probe measured was 10.9 degrees, at Denton
         // to Stalybridge. Nothing in real data sits on a boundary waiting to flip.
         let pairs: [(Coordinate, Coordinate)] = [
-            (Station.upminster, Station.romford),
-            (Station.upminster, Station.shoeburyness),
-            (Station.inverness, Station.wick),
-            (Station.denton, Station.stalybridge),
-            (Station.penzance, Station.stIves),
+            (Place.upminster, Place.romford),
+            (Place.upminster, Place.shoeburyness),
+            (Place.inverness, Place.wick),
+            (Place.denton, Place.stalybridge),
+            (Place.penzance, Place.stIves),
         ]
 
         for (from, to) in pairs {
@@ -255,9 +255,9 @@ struct DirectionTests {
 
     @Test("distance is symmetric and zero against itself")
     func distanceIsWellBehaved() {
-        #expect(Direction.distanceMetres(from: Station.upminster, to: Station.upminster) == 0)
-        let there = Direction.distanceMetres(from: Station.inverness, to: Station.wick)
-        let back = Direction.distanceMetres(from: Station.wick, to: Station.inverness)
+        #expect(Direction.distanceMetres(from: Place.upminster, to: Place.upminster) == 0)
+        let there = Direction.distanceMetres(from: Place.inverness, to: Place.wick)
+        let back = Direction.distanceMetres(from: Place.wick, to: Place.inverness)
         #expect(abs(there - back) < 0.001)
         #expect(there > 125_000 && there < 127_000, "Inverness to Wick is about 126km")
     }
@@ -265,15 +265,15 @@ struct DirectionTests {
     @Test("the reverse bearing is the opposite direction")
     func reverseBearingIsOpposite() {
         // Not exactly 180 degrees apart on a sphere, but the sectors must oppose.
-        #expect(Direction.classify(from: Station.upminster, to: Station.shoeburyness) == .east)
-        #expect(Direction.classify(from: Station.shoeburyness, to: Station.upminster) == .west)
-        #expect(Direction.classify(from: Station.inverness, to: Station.edinburgh) == .south)
-        #expect(Direction.classify(from: Station.edinburgh, to: Station.inverness) == .north)
+        #expect(Direction.classify(from: Place.upminster, to: Place.shoeburyness) == .east)
+        #expect(Direction.classify(from: Place.shoeburyness, to: Place.upminster) == .west)
+        #expect(Direction.classify(from: Place.inverness, to: Place.edinburgh) == .south)
+        #expect(Direction.classify(from: Place.edinburgh, to: Place.inverness) == .north)
     }
 
     @Test("an empty line-up offers no directions rather than all of them")
     func emptyTallyOffersNothing() {
-        let tally = Direction.tally(from: Station.upminster, destinations: [Coordinate?]())
+        let tally = Direction.tally(from: Place.upminster, destinations: [Coordinate?]())
         #expect(tally.available.isEmpty)
         #expect(tally.total == 0)
         #expect(tally.unclassified == 0)
