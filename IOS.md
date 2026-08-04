@@ -150,9 +150,11 @@ it needs to know which ones are real.
 
 ### Classification: bearing, not longitude
 
-The current code compares destination longitude against the station's. Replace
-with the **bearing** from station to destination, bucketed into four 90° sectors
-centred on the cardinal points:
+**Built — `ios/Sources/LastTrainCore/Direction.swift`.** The web app compares
+destination longitude against the station's, which works on three corridors running
+broadly east–west and fails the moment the network does anything else. The native
+code takes the **bearing** from station to destination, bucketed into four 90°
+sectors centred on the cardinal points:
 
 | Sector | Direction |
 |---|---|
@@ -160,6 +162,13 @@ centred on the cardinal points:
 | 45°–135° | East |
 | 135°–225° | South |
 | 225°–315° | West |
+
+Boundaries belong to the clockwise sector — exactly 45° is east, exactly 315° is
+north. Which side they fall on matters far less than that it is stated and tested.
+
+`Direction.tally` returns the counts for all four directions **and** the number it
+could not classify, so a service with no coordinate for its destination is visibly
+absent rather than quietly folded into a bucket.
 
 This behaves sensibly on real journeys — now measured rather than asserted, see §9
 step 2. Inverness is the proof: Wick reads north, Aberdeen east, Edinburgh south and
@@ -445,6 +454,17 @@ matter far more nationally than it ever did in Essex.
    query; drop the corridor machinery and `via`. Add the diagnostics surface (§3).
 5. **SwiftUI app.** Service-day logic and its tests first, then pickers, then the
    result stack, then the design system.
+
+   **In progress. `ios/` is a Swift package; `LastTrainCore` imports Foundation and
+   nothing else, so all of this is proved before anything needs a view.**
+
+   - ~~Service-day logic and its tests~~ — `ServiceDay.swift`, 17 tests ported from
+     the JavaScript suite test for test.
+   - ~~Direction~~ — `Direction.swift`, 15 tests. The one piece here that is new code
+     rather than a port.
+   - Still to port: `Board.swift` (the two arrangements, from `lib/board.ts`) and
+     `Nearest.swift` (the bucketed grid, from `lib/nearest.ts`).
+   - Then the views, which need Xcode and the iOS platform installed.
 6. **Widget.** The reason for doing any of this.
 7. **Paid token, attribution, submit.**
 

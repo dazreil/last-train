@@ -51,7 +51,7 @@ npm run stations     # regenerate data/stations.json + data/geo.json
 The native app is a separate toolchain.
 
 ```bash
-cd ios && TZ=UTC swift test   # 17 tests, the native service-day logic
+cd ios && TZ=UTC swift test   # 32 tests: service day, and compass direction
 ```
 
 Node was installed via Homebrew for this project (`/opt/homebrew/bin/node`, v26).
@@ -228,7 +228,11 @@ OS grid reference instead. All of this lives in `scripts/lib/naptan.mjs`.
 - **Direction is derived, never queried.** Pairing a station with its line's terminus
   would drop eastbound services that terminate short — which is frequently the last
   one out.
-- **The minimum-distance guard on direction is ~140 metres, and must stay that small.**
+- **The minimum-distance guard on direction is 140 metres, and must stay that small.**
+  Now enforced by a test in both languages —
+  `ios/Tests/LastTrainCoreTests/DirectionTests.swift` fails three tests if it is moved
+  to 5km, and one of the failures is the tally silently reclassifying a real service
+  as `unclassified`, which is the production symptom exactly.
   It stops two places at the same spot producing a bearing out of rounding noise. It
   is not a guard against short journeys. Sizing it at 5km — which sounds right, since
   a train terminating one stop away gives a meaningless bearing — silently deleted
