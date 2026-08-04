@@ -407,8 +407,13 @@ is exactly what it exists to solve.
   watched all evening costs a request an hour, so Team's 3571/day sustainable covers
   a few hundred stations in daily use. Confirm that arithmetic against a real week
   before committing to a tier.
-- Does the compass control earn its vertical space at 3–4 directions, or does the
-  two-direction sliding block cover enough? Prototype before committing.
+- ~~Does the compass control earn its vertical space?~~ **Answered — it does not.
+  The control is chevron quadrants; see `IOS.md` §4.** Two findings worth carrying: a
+  2×2 of chevron-clipped blocks holds four directions in two rows and clears the fold
+  on the smallest supported phone, where the compass cross does not. And "keep the
+  slider where a station has two directions" fails, because two directions are usually
+  *perpendicular* rather than opposite — Penzance runs north and east, Denton east and
+  south, and a left-versus-right control cannot express either.
 - Keep `via` nationally? Recommended to drop — it exists for one real ambiguity (c2c
   via Basildon versus the slower Tilbury loop) and it is what costs the extra
   requests per lookup. That is now a question about the monthly bill, not only

@@ -230,21 +230,82 @@ at such a station is the last of a merged set, and may well be a train the passe
 had no interest in. Watch for it at multi-branch stations before assuming it reads
 well.
 
-### The control: adaptive, and unchanged where it can be
+### The control: chevron quadrants
 
-A genuine design tension, flagged rather than hidden. The current sliding block
-encodes direction by *position*, which is the best idea in the interface — and a
-four-way control cannot do that in one horizontal axis.
+**Decided 4 August 2026, after prototyping six arrangements against the fold.** Both
+halves of the previous proposal turned out to be wrong, so it is worth recording what
+replaced them and why.
 
-Proposal:
+A 2×2 grid. Each block is clipped into a chevron pointing the way its trains go, and
+carries the direction word above `towards <destination>` — the same line the sliding
+block already shows. **The shape says which way, so the position does not have to.**
+That is what makes four directions fit in two rows.
 
-- **Two opposite directions** (the common case, and every station on the current
-  network): the existing sliding block, **completely unchanged**.
-- **Three or four:** a compass arrangement — north above, south below, west and
-  east flanking. Position still encodes meaning; it costs vertical space, but only
-  at the stations that actually need it.
+```
+   ┌──────────────┐┌──────────────┐
+   │  ▲  NORTH    ││  ▶  EAST     │
+   │  towards Wick││ towards Aberdeen │
+   └──────────────┘└──────────────┘
+   ┌──────────────┐┌──────────────┐
+   │  ▼  SOUTH    ││  ◀  WEST     │
+   │towards Edinburgh││ towards Kyle of Lochalsh │
+   └──────────────┘└──────────────┘
+```
 
-Worth prototyping both before committing. The fold budget was hard-won.
+- **Order is north, east, south, west** in reading order — compass order. A 2×2 cannot
+  be geographically faithful, so it matches the order directions are listed in
+  everywhere else rather than inventing a second one.
+- **A direction with no services goes black**, to `--ink`, so it reads as a hole in the
+  control rather than a disabled button. The word stays: "nothing runs north" is a real
+  answer and has to be legible as one.
+- **No service count.** The number was never the question. `east` only means something
+  once you know where east goes, which is what the `towards` line is for.
+- **Not red.** Obvious, and worth writing down anyway, because a four-block control is
+  exactly the sort of thing that invites a colour. Red means the last train and nothing
+  else; spend it here and the red block downstairs stops meaning anything.
+
+### Why not the compass, and why not the slider
+
+Measured at 375×667, the smallest phone still supported, with all four directions:
+
+| Arrangement | Control height | Last train |
+|---|---|---|
+| Sliding block | 90px | clears the fold |
+| Compass cross | 169px | **41px below the fold** |
+| Four across | 73px | clears the fold |
+| **Chevron quadrants** | **118px** | **clears the fold** |
+
+**The compass is out.** Its middle row is mostly a dead hub, and the third row costs
+enough to push the red block under the fold on an SE. Dropping empty arms helps only at
+the stations that have an empty arm, and makes the control change height between
+stations — which moves it under the thumb of someone who opens this app for the same
+journey every night.
+
+**"Keep the slider where a station has two directions" does not survive contact with
+the network.** It assumes two directions means an *axis*, and usually it does not:
+**Penzance runs north and east; Denton east and south.** Perpendicular pairs. A control
+whose entire idea is left-versus-right cannot express either of them. Of the stations
+probed, only Berney Arms is a genuine axis.
+
+Four across is cheaper still — and cheaper than today's slider — but it throws away the
+one idea worth keeping. North sitting left of east means nothing.
+
+### What the prototype also settled
+
+- **`towards` fits.** At Inverness, the worst case here, every block is 58px and the
+  control is 118px. `towards Kyle of Lochalsh` wraps to two lines and the row grows to
+  hold it, exactly as the **Real Length Rule** in `DESIGN.md` requires. Names are never
+  ellipsised.
+- **`via` must not be borrowed for this.** It already names a station a train passes
+  *through* — the whole reason the label exists. `via Grays` would read as a train
+  carrying on past Grays when it terminates there. If `towards` ever needs trimming, the
+  bare name is the safe cut: the block already says NORTH.
+- **200% Dynamic Type does not decide anything.** Every arrangement loses the fold at
+  200%, including the one shipping today, by 379px. That budget is already gone and
+  cannot be used to choose between controls.
+
+Prototype: `direction-control.html`, six arrangements, real availability and departures
+from `/api/v2/trains`, every number measured from the rendered page.
 
 ---
 
@@ -521,8 +582,10 @@ matter far more nationally than it ever did in Essex.
   refresh onto a warm cache costs RTT nothing. The cost is *distinct station-days ×
   cache miss rate*, which makes the server-side TTL the lever rather than the
   widget's refresh cadence. Worth measuring over a real week before committing.
-- **Two-direction vs four-direction control** — does the compass arrangement earn
-  its vertical space, or is there something better? Prototype before committing.
+- ~~Two-direction vs four-direction control~~ **Answered 4 August 2026: chevron
+  quadrants.** The compass did not earn its space, and keeping the slider for
+  two-direction stations does not work because two directions are usually
+  perpendicular rather than opposite. See §4.
 - **Is the server dependency acceptable?** The app cannot work without our Vercel
   deployment. If not, the answer is the Darwin ingest, which is a much larger
   project but removes reliance on someone else's uptime.
