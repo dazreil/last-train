@@ -51,7 +51,8 @@ npm run stations     # regenerate data/stations.json + data/geo.json
 The native app is a separate toolchain.
 
 ```bash
-cd ios && TZ=UTC swift test   # 32 tests: service day, and compass direction
+cd ios && TZ=UTC swift test   # 60 tests, ~8s
+cd ios && TZ=UTC LASTTRAIN_EXHAUSTIVE=1 swift test   # full nearest coverage, ~60s
 ```
 
 Node was installed via Homebrew for this project (`/opt/homebrew/bin/node`, v26).
@@ -199,8 +200,10 @@ not optional:
 - **Searching the 3×3 block around the query and stopping is wrong.** It fails
   whenever the nearest station sits just over a cell boundary, and it looks perfectly
   fine in casual use. Every ring is followed by a proof that nothing unsearched can be
-  closer, and the tests assert the grid agrees *exactly* with a full linear scan from
-  several thousand positions.
+  closer, and the tests assert the grid agrees *exactly* with a full linear scan.
+  Measured, by deleting the proof in the Swift port: the naive version returns a
+  station **46km further away** than the real nearest, and all three agreement tests
+  catch it.
 - **A cell is not a fixed number of kilometres.** A degree of longitude is 71km at
   Penzance and 57km at Wick. The bound uses the smallest kilometres-per-degree in
   play, which can only cause more searching, never a wrong answer.

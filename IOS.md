@@ -462,9 +462,14 @@ matter far more nationally than it ever did in Essex.
      the JavaScript suite test for test.
    - ~~Direction~~ — `Direction.swift`, 15 tests. The one piece here that is new code
      rather than a port.
-   - Still to port: `Board.swift` (the two arrangements, from `lib/board.ts`) and
-     `Nearest.swift` (the bucketed grid, from `lib/nearest.ts`).
-   - Then the views, which need Xcode and the iOS platform installed.
+   - ~~Board~~ — `Board.swift`, 13 tests. The two arrangements, and the guarantee that
+     a pre-service board never fetches a second service day.
+   - ~~Nearest~~ — `Nearest.swift`, 15 tests. The bucketed grid, reusing the haversine
+     already in `Direction` rather than adding a second one.
+
+   **`LastTrainCore` is complete: 60 tests, no SwiftUI, no UIKit.** What remains is the
+   views, the app target and the widget, all of which need the iOS platform installed
+   alongside Xcode.
 6. **Widget.** The reason for doing any of this.
 7. **Paid token, attribution, submit.**
 
