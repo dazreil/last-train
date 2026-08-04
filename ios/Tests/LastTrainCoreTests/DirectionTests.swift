@@ -28,6 +28,11 @@ enum Station {
     static let romford = Coordinate(lat: 51.574829, lon: 0.183237)              // RMF
     static let barking = Coordinate(lat: 51.539495, lon: 0.080903)              // BKG
 
+    // The Ockendon branch, which runs south out of Upminster to Grays.
+    static let ockendon = Coordinate(lat: 51.521992, lon: 0.290469)             // OCK
+    static let chaffordHundred = Coordinate(lat: 51.485557, lon: 0.287447)      // CFH
+    static let grays = Coordinate(lat: 51.476248, lon: 0.321832)                // GRY
+
     static let penzance = Coordinate(lat: 50.121674, lon: -5.532565)            // PNZ
     static let stIves = Coordinate(lat: 50.209045, lon: -5.477912)              // SIV
 
@@ -56,10 +61,8 @@ struct DirectionTests {
 
     @Test("a station offers only the directions that have services")
     func availabilityFallsOutOfTheTally() {
-        // Upminster: c2c west to Fenchurch Street and Barking, east to Shoeburyness,
-        // and the Overground shuttle north-west to Romford. PRODUCT.md states it has
-        // no northbound or southbound service, and bearing classification must not
-        // invent one where the longitude comparison found none.
+        // Upminster, using only the c2c main line and the Overground shuttle: west to
+        // Fenchurch Street and Barking, east to Shoeburyness, north-west to Romford.
         let tally = Direction.tally(
             from: Station.upminster,
             destinations: [
@@ -77,6 +80,30 @@ struct DirectionTests {
         #expect(tally.count(.south) == 0)
         #expect(tally.unclassified == 0)
         #expect(tally.total == 4)
+    }
+
+    @Test("the Ockendon branch is southbound, and used to be invisible")
+    func ockendonBranchIsSouthbound() {
+        // Both PRODUCT.md and IOS.md asserted that Upminster has no southbound service.
+        // It has 16 on a weekday, down the Ockendon branch to Grays -- the 07:02 calls
+        // at Ockendon, then Chafford Hundred, then Grays, each of them south and
+        // slightly east. The claim survived only because the web app offered east and
+        // west and nothing else, so a whole branch line was folded into one of the two.
+        #expect(Direction.classify(from: Station.upminster, to: Station.ockendon) == .south)
+        #expect(Direction.classify(from: Station.upminster, to: Station.chaffordHundred) == .south)
+        #expect(Direction.classify(from: Station.upminster, to: Station.grays) == .south)
+
+        // With the branch included, Upminster has three directions, not two.
+        let tally = Direction.tally(
+            from: Station.upminster,
+            destinations: [
+                Station.fenchurchStreet,
+                Station.shoeburyness,
+                Station.romford,
+                Station.grays,
+            ]
+        )
+        #expect(tally.available == [.east, .south, .west])
     }
 
     // MARK: - The guard that ate a branch line

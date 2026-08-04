@@ -192,6 +192,33 @@ One Swift-specific difference from the JavaScript: bad input returns `nil` rathe
 it is not `Sendable`. `DateFormatter` is fine. The port uses `DateFormatter` with an
 `XXXXX` offset pattern throughout, which accepts `Z` and `+01:00` alike.
 
+### Upminster does have a southbound service, whatever the docs used to say
+
+Both `PRODUCT.md` and `IOS.md` asserted that Upminster has no northbound or southbound
+service, and it was used as a known-good oracle in tests. **It is wrong.** Upminster
+has 16 southbound departures on a weekday, down the Ockendon branch to Grays — the
+07:02 calls at Ockendon, then Chafford Hundred, then Grays, each of them south and
+slightly east of Upminster.
+
+The claim survived because the web app only ever offered east and west, so a whole
+branch line was being folded into one of the two and nobody noticed it had no
+direction of its own. Both documents are corrected.
+
+The lesson generalises: **a hand-written list of which directions a station has will be
+wrong, and wrong in the direction of hiding trains.** Availability is counted from the
+line-up on every query, never stored.
+
+### Two implementations of the compass, which must not drift
+
+`lib/compass.ts` and `ios/Sources/LastTrainCore/Direction.swift` are twins — same
+140-metre guard, same sector boundaries, same rule for a destination with no
+coordinates. If they disagree, the counts on screen stop matching the list beneath
+them. Their test suites are deliberately parallel, on the same fixtures, so a drift
+shows up as a failing test rather than as a train under the wrong button.
+
+`lib/direction.ts` is the *old* longitude comparison and still serves `/api/trains`.
+It is not the same rule and is not meant to be; it goes when the web app does.
+
 ### The nearest-station grid is easy to make subtly wrong
 
 `lib/nearest.ts` buckets 2,619 stations by rounded lat/lon. Two things about it are
@@ -320,8 +347,11 @@ distributed app gets revoked.
    not needed: `/data/stops` is the base list and NaPTAN places all but three stops,
    two of which are rail-air interchanges rather than stations. Nearest-station is
    `lib/nearest.ts` — see Traps for the part that is easy to get wrong
-3. API route: compass directions, all four buckets from one query, drop the corridor
-   machinery
+3. ~~API route~~ — **done, `GET /api/v2/trains`**, landing beside `/api/trains` so the
+   deployed web app is untouched. Compass directions, all four buckets from one
+   line-up, no corridor machinery, no `via`, diagnostics behind `DEBUG_DIAGNOSTICS=1`.
+   The two routes share the line-up cache, so a station looked at on the web is free
+   in the app
 4. SwiftUI app — port the service-day tests *first*, then the code
 5. The widget. It is the actual reason for going native
 6. Paid token, attribution, submit

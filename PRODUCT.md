@@ -69,13 +69,21 @@ is 23:40, what have I got left". That gap is the whole product.
 planned, out of scope permanently.
 
 - Query is station + compass direction (north/east/south/west), context-aware: only
-  directions with actual services are offered. No north or south at Upminster
+  directions with actual services are offered. Most stations have two; Inverness has
+  four. Availability is read from the timetable, never assumed — see the Upminster
+  correction below
 - Shows the last three trains of the service day, the final one distinguished, and
   below them the first train of the **next** service day — the "if I miss it" answer.
   Today's own first train is never shown in the evening; it went at dawn
 - Between a day's last train and the next day's first, that arrangement inverts: the
   first three trains lead, with the day's last train kept below them. Nothing is left
   to catch, so the useful answer is what is coming, not what has gone
+- **Availability is counted, never assumed.** This document previously stated that
+  Upminster has no northbound or southbound service. It has 16 southbound departures
+  on a weekday, down the Ockendon branch to Grays — invisible for as long as the app
+  offered only east and west, because they were being folded into one of the two. A
+  hand-written list of a station's directions will be wrong, and wrong in the
+  direction of hiding trains
 - Data source: Realtime Trains next-generation API. Darwin/LDBWS cannot serve this
   product — its 2-hour window and 10-row cap structurally cannot answer "what is the
   last train tonight" when asked in the afternoon

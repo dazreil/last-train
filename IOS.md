@@ -191,7 +191,22 @@ thinks about which way a train is going.
 
 ### Availability comes free with the query
 
-At Upminster, north and south have no services and must not be offered.
+A station must not be offered a direction nothing runs in — at a terminus like
+Penzance, three of the four are empty and always will be.
+
+**Correction, 4 August 2026.** This section used to say "at Upminster, north and south
+have no services and must not be offered." That was wrong, and it is worth
+understanding why, because it is the case the compass was built for.
+
+Upminster has **16 southbound departures on a weekday**, down the Ockendon branch to
+Grays. The 07:02 calls at Ockendon, then Chafford Hundred, then Grays — every one of
+them south and slightly east. The claim survived because the web app only ever offered
+east and west, so those trains were being folded into one of the two and nobody
+noticed a whole branch line had no direction of its own.
+
+The lesson is not about Upminster. It is that **a hand-written list of which directions
+a station has will be wrong**, and wrong in the direction of hiding services. That is
+why availability is counted from the line-up on every query rather than stored.
 
 Do not precompute this. **The unfiltered line-up already contains every service at
 the station**, so classifying them into four buckets yields the available
@@ -450,8 +465,21 @@ matter far more nationally than it ever did in Essex.
    covers all but three stops, two of which are not rail stations. Nearest-station is
    `lib/nearest.ts`, a bucketed grid, 80× the scan where it matters and proved against
    the scan everywhere. See §6.
-4. **API route.** Direction becomes compass; return all four buckets from one
-   query; drop the corridor machinery and `via`. Add the diagnostics surface (§3).
+4. ~~**API route.**~~ **Done, 4 August 2026 — `GET /api/v2/trains`.** It lands
+   *beside* `/api/trains`, which is untouched and still serves the deployed web app.
+
+   Compass direction via `lib/compass.ts`, the TypeScript twin of `Direction.swift`;
+   all four buckets from one line-up; corridor machinery and `via` both gone; the
+   diagnostics surface behind `DEBUG_DIAGNOSTICS=1`.
+
+   The two routes **share the line-up cache**, so looking at a station on the web and
+   then in the app costs one upstream request rather than two. Measured at Upminster:
+   the v2 lookup came back `x-cache: PARTIAL`, spending nothing.
+
+   Verified at Inverness: `{"north":8,"east":17,"south":14,"west":4}` from a single
+   query, nothing unclassified. And at Upminster, 139 westbound against the old
+   route's 107 — the difference is the London Overground services the operator scope
+   filter used to exclude, one of which is now in the last three.
 5. **SwiftUI app.** Service-day logic and its tests first, then pickers, then the
    result stack, then the design system.
 
