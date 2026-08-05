@@ -87,8 +87,17 @@ const lineUps = createStore(8);
  */
 const patterns = createStore(400);
 
-export const cacheKey = (from: string, direction: string, date: IsoDate): string =>
-  `${from}:${direction}:${date}`;
+/**
+ * `advanced` is part of the key because the same service day answers differently
+ * depending on whether the reader has stepped on to it because the previous one is
+ * spent, or is browsing ahead to it. Same data, different arrangement.
+ */
+export const cacheKey = (
+  from: string,
+  direction: string,
+  date: IsoDate,
+  advanced = false
+): string => `${from}:${direction}:${date}${advanced ? ':advanced' : ''}`;
 
 export const lineUpKey = (from: string, date: IsoDate): string => `${from}:${date}`;
 

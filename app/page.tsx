@@ -64,6 +64,15 @@ export default function Page() {
   const [from, setFrom] = useState<Station | null>(null);
   const [direction, setDirection] = useState<DirectionValue>('west');
   const [tomorrow, setTomorrow] = useState(false);
+  /**
+   * True when the board moved to the next service day *because today is spent*, rather
+   * than because the day control was tapped.
+   *
+   * The server cannot tell those apart from the date alone, and they want different
+   * answers: someone planning tomorrow wants tomorrow's last trains, someone standing
+   * on a platform at half past midnight wants the first trains they can still catch.
+   */
+  const [advanced, setAdvanced] = useState(false);
   const [recents, setRecents] = useState<Recent[]>([]);
 
   const [result, setResult] = useState<TrainsResponse | null>(null);
@@ -111,8 +120,14 @@ export default function Page() {
   // ---- fetch ---------------------------------------------------------------
 
   const lookup = useCallback(
-    async (fromCrs: string, which: DirectionValue, forDate: string, refresh = false) => {
-      const key = `${fromCrs}:${which}:${forDate}`;
+    async (
+      fromCrs: string,
+      which: DirectionValue,
+      forDate: string,
+      steppedOn: boolean,
+      refresh = false
+    ) => {
+      const key = `${fromCrs}:${which}:${forDate}${steppedOn ? ':advanced' : ''}`;
 
       if (!refresh) {
         const cached = sessionCache.current.get(key);
@@ -135,6 +150,7 @@ export default function Page() {
 
       try {
         const params = new URLSearchParams({ from: fromCrs, direction: which, date: forDate });
+        if (steppedOn) params.set('advanced', '1');
         if (refresh) params.set('refresh', '1');
 
         const res = await fetch(`/api/trains?${params}`, { signal: controller.signal });
@@ -186,8 +202,8 @@ export default function Page() {
       return next;
     });
 
-    void lookup(from.crs, direction, date);
-  }, [from, direction, date, restored, lookup]);
+    void lookup(from.crs, direction, date, advanced);
+  }, [from, direction, date, advanced, restored, lookup]);
 
   const firstTrains = result?.services.filter((service) => service.role === 'first') ?? [];
   const lastTrains = result?.services.filter((service) => service.role === 'last') ?? [];
@@ -227,6 +243,7 @@ export default function Page() {
     if (!isServiceDaySpent(finalTrain?.depInstant ?? null)) return;
 
     advancedFor.current = stamp;
+    setAdvanced(true);
     setTomorrow(true);
   }, [result, tomorrow, today]);
 
@@ -247,7 +264,12 @@ export default function Page() {
           type="button"
           className="day-toggle"
           aria-pressed={tomorrow}
-          onClick={() => setTomorrow((current) => !current)}
+          onClick={() => {
+            // Tapping this is browsing, not stepping on. Whatever the board was
+            // showing, from here the day is the reader's choice.
+            setAdvanced(false);
+            setTomorrow((current) => !current);
+          }}
           aria-label={
             `Showing ${formatServiceDate(date)}. ` +
             `Switch to ${tomorrow ? "tonight's" : "tomorrow's"} trains.`
@@ -298,6 +320,7 @@ export default function Page() {
                       // Restores both halves of the search, and the lookup effect
                       // runs off the state change. No second tap.
                       onClick={() => {
+                        setAdvanced(false);
                         setFrom(station);
                         setDirection(entry.direction);
                       }}
@@ -337,7 +360,7 @@ export default function Page() {
                   type="button"
                   className="chip"
                   style={{ marginTop: '0.5rem' }}
-                  onClick={() => void lookup(from.crs, direction, date, true)}
+                  onClick={() => void lookup(from.crs, direction, date, advanced, true)}
                 >
                   Try again
                 </button>
@@ -452,7 +475,7 @@ export default function Page() {
           <button
             type="button"
             className="chip"
-            onClick={() => from && void lookup(from.crs, direction, date, true)}
+            onClick={() => from && void lookup(from.crs, direction, date, advanced, true)}
           >
             Refresh
           </button>

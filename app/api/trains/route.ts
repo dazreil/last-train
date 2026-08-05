@@ -123,7 +123,19 @@ export async function GET(request: Request) {
   }
 
   const refresh = params.get('refresh') === '1';
-  const key = cacheKey(from.crs, direction, date);
+
+  /**
+   * "I have stepped on to this day because the last one is spent."
+   *
+   * Between a service day's last train and 03:00 the current day is still today's but
+   * has nothing left in it. The client moves to the next day and says so with this,
+   * because only the client knows the board is being read *now* rather than browsed
+   * ahead to. Without it the server sees a future date and answers with that day's
+   * last trains — right for planning Saturday, wrong for standing on a platform at
+   * half past midnight having just missed the last one.
+   */
+  const advanced = params.get('advanced') === '1' && date === addDays(today, 1);
+  const key = cacheKey(from.crs, direction, date, advanced);
   const ttl = ttlSecondsFor(date);
 
   if (!refresh) {
@@ -311,7 +323,8 @@ export async function GET(request: Request) {
     const day = await loadDay(date);
 
     const mode = boardMode({
-      isLiveServiceDay: date === today,
+      // A day stepped on to counts as live: it is the one with trains still ahead.
+      isLiveServiceDay: date === today || advanced,
       // The earliest candidate, taken before corridor verification. Verification can
       // only ever move this later, and only at Liverpool Street; a few minutes' slack
       // at a boundary crossed once a day is not worth a request against an allowance
