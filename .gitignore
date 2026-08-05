@@ -58,6 +58,11 @@ ios/.swiftpm/
 # it would be a merge conflict. The spec is the source of truth for both.
 ios/LastTrain.xcodeproj/
 ios/App/LastTrain/Info.plist
+ios/App/Widget/Info.plist
+# Entitlements too. The App Group is declared once in project.yml and written into both
+# of these, which is the only way the two cannot drift apart.
+ios/App/LastTrain/LastTrain.entitlements
+ios/App/Widget/LastTrainWidget.entitlements
 *.xcuserdatad
 xcuserdata/
 DerivedData/

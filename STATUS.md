@@ -1,7 +1,6 @@
 # Status — handoff
 
-Written 1 August 2026 at commit `2a770ee`. Working tree clean, `main` in sync with
-origin.
+Written 5 August 2026. Working tree clean, `main` in sync with origin.
 
 ---
 
@@ -18,8 +17,11 @@ because it went at dawn. Between a day's last train and the next day's first tha
 inverts: the first three lead, with the day's last train kept below. In both, the red
 block is the genuine last train of the day on the board.
 
-The next piece of work is a **UK-wide native iOS app**, specced in `IOS.md`. The
-licensing question that used to block it is answered — see Next.
+The **native iOS app is built** and runs on the simulator against the deployment:
+2,619 stations bundled, the chevron direction control, both board arrangements, and
+**the widget** — lock screen and home screen, leading with the last train and holding
+it still through the evening. `IOS.md` §9 steps 1–6 are done. What is left is step 7:
+the paid RTT token, attribution, and submission.
 
 | | |
 |---|---|
@@ -308,6 +310,19 @@ OS grid reference instead. All of this lives in `scripts/lib/naptan.mjs`.
   deliberate choice, confirmed: you lose "you just missed the 00:22" in exchange for a
   board with trains on it. Tapping back to Today is respected, not undone.
 
+### The simulator's widget gallery will not take synthetic taps
+
+Adding a widget needs long-press → Edit → Add Widget, and the tap on **Edit** is
+delivered as a tap on the background every time, which just exits jiggle mode. Three
+variations failed the same way. Do not spend time on it.
+
+What works instead: render the widget's families directly inside the app for one
+build. `BoardProvider.entries(for:)` returns the real timeline, so every entry can be
+drawn at its real size against a live response, including the ones hours away that
+cannot be reached by waiting. `WidgetPreviewContext(family:)` does **not** set
+`widgetFamily` at runtime — the environment value is read-only and everything renders
+as `systemMedium` — so the harness has to build each family's view directly.
+
 ### Build environment
 
 - `lib/*.ts` use explicit `.ts` extensions on relative imports so Node's native type
@@ -379,8 +394,14 @@ distributed app gets revoked.
    line-up, no corridor machinery, no `via`, diagnostics behind `DEBUG_DIAGNOSTICS=1`.
    The two routes share the line-up cache, so a station looked at on the web is free
    in the app
-4. SwiftUI app — port the service-day tests *first*, then the code
-5. The widget. It is the actual reason for going native
+4. ~~SwiftUI app~~ — **done.** `ios/` is an XcodeGen project: `LastTrainCore` (the
+   domain, Foundation only, 81 tests) plus an app target and a widget extension. The
+   board, the chevron direction control, the station picker and the two arrangements
+   all run against the deployed API
+5. ~~The widget. It is the actual reason for going native~~ — **done, 5 August 2026.**
+   Lock screen and home screen; it leads with the *last* train and holds it still all
+   evening, and the whole night is computed from one request. Written up in `IOS.md`
+   §12
 6. Paid token, attribution, submit
 
 ### Parked, not scheduled
@@ -399,14 +420,14 @@ is exactly what it exists to solve.
   is worth its running cost is a separate one, and it is now a real decision rather
   than a rounding error. Tip-jar and ads are permitted on both paid tiers if it ever
   needs to pay for itself.
-- **What the volume actually scales with.** Not users, and not widget refreshes:
-  the app is a client of our API, which caches line-ups by `station:date`, so a
-  refresh that hits a warm cache costs RTT nothing. Upstream cost is
+- **What the volume actually scales with.** Not users, and **not widget refreshes**
+  — that is now settled rather than hoped for. The widget fetches once and derives
+  every later entry from the board it already holds, so it asks again only when a
+  service day runs out, roughly once a night. Upstream cost is
   *distinct station-days × cache miss rate*, which makes the TTL in `lib/cache.ts`
-  the lever — not the widget's refresh cadence. At a 1-hour live-day TTL a station
-  watched all evening costs a request an hour, so Team's 3571/day sustainable covers
-  a few hundred stations in daily use. Confirm that arithmetic against a real week
-  before committing to a tier.
+  the lever. At a 1-hour live-day TTL a station watched all evening costs a request an
+  hour, so Team's 3571/day sustainable covers a few hundred stations in daily use.
+  Confirm that arithmetic against a real week before committing to a tier.
 - ~~Does the compass control earn its vertical space?~~ **Answered — it does not.
   The control is chevron quadrants; see `IOS.md` §4.** Two findings worth carrying: a
   2×2 of chevron-clipped blocks holds four directions in two rows and clears the fold

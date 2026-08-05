@@ -29,6 +29,9 @@ public struct BoardDeparture: Decodable, Sendable, Identifiable, Equatable {
     public let role: ServiceRole
 
     public var id: String { serviceId }
+
+    /// The departure as an absolute instant, for counting down to.
+    public var instant: Date? { ServiceDay.instant(from: depInstant) }
 }
 
 public struct BoardStation: Decodable, Sendable, Equatable {

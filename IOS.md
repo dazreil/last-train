@@ -560,10 +560,10 @@ matter far more nationally than it ever did in Essex.
      `Bundle.module`. `npm run national:data` writes that copy and the API's from the
      same run, so neither is hand-maintained.
 
-   **`LastTrainCore` is complete: 68 tests, no SwiftUI, no UIKit.** What remains is the
-   views, the app target and the widget, all of which need the iOS platform installed
-   alongside Xcode.
-6. **Widget.** The reason for doing any of this.
+   **`LastTrainCore` is complete: 81 tests, no SwiftUI, no UIKit.**
+6. ~~**Widget.**~~ **Done, 5 August 2026.** The reason for doing any of this, and it
+   works. Lock screen and home screen, configured on the widget itself, and the whole
+   evening computed from one request. See §12.
 7. **Paid token, attribution, submit.**
 
 ---
@@ -577,11 +577,13 @@ matter far more nationally than it ever did in Essex.
   the rate limits, so it cannot answer a volume requirement — see §3.** What is left
   is whether £348/year is worth it for this app, which is a decision rather than a
   question.
-- **What upstream volume actually scales with.** Not users and not widget refreshes —
-  the app is a client of our API, which caches line-ups by `station:date`, so a
-  refresh onto a warm cache costs RTT nothing. The cost is *distinct station-days ×
-  cache miss rate*, which makes the server-side TTL the lever rather than the
-  widget's refresh cadence. Worth measuring over a real week before committing.
+- ~~**What upstream volume actually scales with.**~~ **Settled 5 August 2026, and it
+  is better than this expected.** The worry was that widget refreshes would drive
+  volume. They cannot: the widget fetches **once** and computes the rest of the night
+  from what it already holds — see §12. What costs a request is a service day running
+  out, roughly once a night per configured widget, onto a cache keyed by station and
+  date that the web app shares. Still worth measuring over a real week, but the lever
+  is the server-side TTL and nothing on the device.
 - ~~Two-direction vs four-direction control~~ **Answered 4 August 2026: chevron
   quadrants.** The compass did not earn its space, and keeping the slider for
   two-direction stations does not work because two directions are usually
@@ -648,6 +650,66 @@ it hands over complete control.
    with this — the Tilbury/Basildon ambiguity is this feature's motivating example.
    If Fast Train ever ships, either `via` comes back or the arrival time does its job
    better. Do not delete the reasoning behind it, only the code.
+
+---
+
+## 12. The widget
+
+**Built 5 August 2026.** `ios/App/Widget`, an app extension embedded in the app, plus
+`Glance.swift` in `LastTrainCore` with 12 tests. Four families: `accessoryRectangular`
+and `accessoryInline` on the lock screen, `systemSmall` and `systemMedium` on the home
+screen.
+
+### The last train, not the next one
+
+The whole design turns on which departure the widget leads with, and the answer is
+**the last train**, held still for the entire evening. A next-train widget is a
+different product; this one exists because the interesting departure is the one after
+which you are walking. At 19:00, at 22:00 and at 23:52 the widget reads 00:42, even
+though a train left in between. **That stillness is the feature** — a number that does
+not move is a number you can trust at a glance from a pub table.
+
+It changes exactly twice a night. Once the last train has gone the answer becomes the
+first one back; and inside the pre-service window, when nothing has run yet and the
+day's last train is twenty hours out, it leads with the first train instead. Both
+follow the arrangement the server already chose, so no rule is restated here.
+
+### One request buys the whole night
+
+A `normal` board carries the last trains *and* the first one back together — which is
+exactly the pair the widget switches between. So `Glance.changePoints` turns one
+response into a timeline entry per remaining departure, WidgetKit is handed a schedule
+rather than a reason to wake up, and the reload waits until the board has genuinely run
+out. That is what settles the volume question in §10: refresh cadence is not a cost.
+
+### Configured, not mirrored
+
+The cheap build reads whatever the app was last looking at. It is wrong for the
+surface: a lock screen widget is set once and trusted for months, so if it followed the
+app, checking a friend's line on a Tuesday would silently replace your own last train
+home and you would not find out until the night you needed it. The widget therefore
+holds its own station and direction, chosen through an `AppIntent` with the same
+ranking the in-app picker uses. An App Group supplies the *default* for a widget that
+has never been configured, and stops mattering the moment one is.
+
+### Two things fell out of the design already being right
+
+- **The lock screen strips colour.** Accessory families render vibrant, so
+  `#E4002B` does not survive there at all. It did not need to: `DESIGN.md` never let
+  red be the only signal, and the literal `LAST TRAIN` label was already carrying it.
+- **No `accessoryCircular`.** A circle fits a time and nothing else, and a bare `00:42`
+  with no station, no direction and no word for what it is reads as the *next* train as
+  often as the last one. A widget that can be misread on a platform at midnight is
+  worse than no widget.
+
+### Verified
+
+The simulator's widget gallery will not accept synthetic taps, so the widget was proved
+by rendering all four families against a live `/api/v2/trains` response and walking the
+real timeline: Upminster east held 00:42 through the departure of 23:51, turned blue at
+`first train back 05:00` once it had gone, and ended at an empty board. The deep link
+(`lasttrain://board?from=…&direction=…`) was driven separately and lands on the right
+station and direction.
 
 ---
 

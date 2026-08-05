@@ -1,20 +1,9 @@
 import Foundation
 import SwiftUI
 
-import LastTrainCore
+import WidgetKit
 
-/// Where the API lives. Set per build configuration in `project.yml`.
-enum AppConfig {
-    static let apiBaseURL: URL = {
-        guard
-            let raw = Bundle.main.object(forInfoDictionaryKey: "BoardAPIBaseURL") as? String,
-            let url = URL(string: raw)
-        else {
-            preconditionFailure("BoardAPIBaseURL missing or malformed in Info.plist")
-        }
-        return url
-    }()
-}
+import LastTrainCore
 
 /**
  What is on screen, and how it got there.
@@ -64,18 +53,31 @@ final class BoardModel {
     private let client: BoardClient
     private var inFlight: Task<Void, Never>?
 
-    private enum Key {
-        static let crs = "lastTrain.station"
-        static let direction = "lastTrain.direction"
-    }
-
     init(client: BoardClient = BoardClient(baseURL: AppConfig.apiBaseURL)) {
         self.client = client
+        self.direction = SharedSelection.direction
+        self.station = SharedSelection.station
+    }
 
-        let defaults = UserDefaults.standard
-        self.direction = defaults.string(forKey: Key.direction)
-            .flatMap(Compass.init(rawValue:)) ?? .west
-        self.station = defaults.string(forKey: Key.crs).flatMap(Stations.find)
+    /**
+     Open on what the widget was showing.
+
+     `lasttrain://board?from=UPM&direction=east`, written by the widget itself, so the
+     tap lands on the same board rather than on whatever the app happened to be left on.
+     Ignored unless both halves parse — a URL from outside the app is not to be trusted
+     into a network request.
+     */
+    func open(_ url: URL) {
+        guard url.scheme == AppConfig.urlScheme,
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let crs = components.queryItems?.first(where: { $0.name == "from" })?.value,
+              let target = Stations.find(crs),
+              let raw = components.queryItems?.first(where: { $0.name == "direction" })?.value,
+              let heading = Compass(rawValue: raw)
+        else { return }
+
+        direction = heading
+        station = target
     }
 
     /**
@@ -164,8 +166,9 @@ final class BoardModel {
     }
 
     private func persist() {
-        let defaults = UserDefaults.standard
-        defaults.set(station?.crs, forKey: Key.crs)
-        defaults.set(direction.rawValue, forKey: Key.direction)
+        SharedSelection.store(station: station, direction: direction)
+        // Only reaches a widget that has never been configured, which reads this as its
+        // default. A configured one keeps its own station and is deliberately untouched.
+        WidgetCenter.shared.reloadAllTimelines()
     }
 }

@@ -43,6 +43,8 @@ struct BoardView: View {
         .background(Theme.surface)
         .refreshable { await model.load(refresh: true) }
         .task { await model.load() }
+        // Tapping the widget lands here, on the board it was showing.
+        .onOpenURL { model.open($0) }
         .sheet(isPresented: $pickingStation) {
             StationPicker(selection: $model.station)
         }
