@@ -52,6 +52,12 @@ next-env.d.ts
 # per-machine editor state. All of it regenerates from `swift run`.
 ios/.build/
 ios/.swiftpm/
+
+# Generated from ios/project.yml by `xcodegen generate`, both of them. Committing the
+# project would mean committing hand-unreadable XML full of UUIDs, and every change to
+# it would be a merge conflict. The spec is the source of truth for both.
+ios/LastTrain.xcodeproj/
+ios/App/LastTrain/Info.plist
 *.xcuserdatad
 xcuserdata/
 DerivedData/

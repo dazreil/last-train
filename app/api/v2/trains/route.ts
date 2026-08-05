@@ -38,7 +38,7 @@ import {
 } from '@/lib/rtt';
 import { sortedDepartures, destinationNames, destinationCodes, type Departure } from '@/lib/journeys';
 import { boardHasExpired, boardMode, selectBoard } from '@/lib/board';
-import { classify, isCompass, tally, type Compass } from '@/lib/compass';
+import { classify, COMPASS_POINTS, isCompass, tally, type Compass } from '@/lib/compass';
 import { coordinateFor, findStationByCrs } from '@/lib/nationalStations';
 import {
   currentServiceDate,
@@ -61,9 +61,13 @@ import type { Diagnostics, NationalBoard, NationalService } from '@/lib/national
 
 export const runtime = 'nodejs';
 
-/** Namespaced so it cannot collide with `/api/trains` in the same answer store. */
-const answerKey = (crs: string, direction: string, date: IsoDate) =>
-  `v2:${crs}:${direction}:${date}`;
+/**
+ * Namespaced so it cannot collide with `/api/trains` in the same answer store, and
+ * keyed on `advanced` because the same day answers differently depending on whether
+ * the reader has stepped on to it or is browsing ahead to it.
+ */
+const answerKey = (crs: string, direction: string, date: IsoDate, advanced: boolean) =>
+  `v2:${crs}:${direction}:${date}${advanced ? ':advanced' : ''}`;
 
 const json = (body: unknown, init?: ResponseInit) =>
   new Response(JSON.stringify(body), {
@@ -134,8 +138,21 @@ export async function GET(request: Request) {
   }
 
   const refresh = params.get('refresh') === '1';
+
+  /**
+   * "I have stepped on to this day because the last one is spent."
+   *
+   * Between a service day's last train and 03:00 the current day is still today's, but
+   * everything on it has gone. The client moves to the next day and says so with this,
+   * because only the client knows the board is being read *now* rather than browsed.
+   *
+   * Without it the server sees a future date and answers with that day's last trains,
+   * which is right for someone planning Saturday and wrong for someone standing on a
+   * platform at half past midnight having just missed the last one.
+   */
+  const advanced = params.get('advanced') === '1' && date === addDays(today, 1);
   const diagnosticsOn = process.env.DEBUG_DIAGNOSTICS === '1';
-  const key = answerKey(from.crs, direction, date);
+  const key = answerKey(from.crs, direction, date, advanced);
   const ttl = ttlSecondsFor(date);
 
   if (!refresh) {
@@ -209,7 +226,8 @@ export async function GET(request: Request) {
     const day = await loadDay(date);
 
     const mode = boardMode({
-      isLiveServiceDay: date === today,
+      // A day stepped on to counts as live: it is the one with trains still ahead.
+      isLiveServiceDay: date === today || advanced,
       firstDeparture: day.candidates[0]?.depInstant ?? null,
     });
 
@@ -245,6 +263,28 @@ export async function GET(request: Request) {
     // Availability, free with the query that was being made anyway.
     const counts = tally(origin, day.classified.map((entry) => entry.destination));
 
+    /**
+     * Where each direction goes, not just the one asked for.
+     *
+     * The control names a destination on every block it offers — "east" only means
+     * something once you know where east goes from here — so a board that described
+     * only the selected direction would leave the other three bare. Same pass, no
+     * extra request.
+     */
+    const namesByDirection: Record<Compass, string[]> = {
+      north: [],
+      east: [],
+      south: [],
+      west: [],
+    };
+    for (const entry of day.classified) {
+      const bucket = classify(origin, entry.destination);
+      if (bucket) namesByDirection[bucket].push(describeDestination(entry.departure));
+    }
+    const towardsByDirection = Object.fromEntries(
+      COMPASS_POINTS.map((point) => [point, summariseDestinations(namesByDirection[point])])
+    ) as Record<Compass, string[]>;
+
     const body: NationalBoard = {
       from: { crs: from.crs, name: from.name, locality: from.locality },
       direction,
@@ -256,7 +296,8 @@ export async function GET(request: Request) {
       available: counts.available,
       unclassified: counts.unclassified,
       totalServices: day.candidates.length,
-      towards: summariseDestinations(services.map((service) => service.destination)),
+      towards: towardsByDirection[direction],
+      towardsByDirection,
       systemStatus: day.lineUp?.systemStatus,
       apiVersion: API_VERSION,
     };

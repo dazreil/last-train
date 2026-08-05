@@ -84,6 +84,27 @@ public enum ServiceDay {
     /// and the offset in the string wins over this formatter's own timezone.
     private static let londonOffset = formatter("yyyy-MM-dd'T'HH:mm:ssXXXXX", utc)
 
+    /**
+     The same, with fractional seconds.
+
+     **This is the shape our own API actually sends.** `depInstant` is produced by
+     JavaScript's `toISOString()`, which always writes milliseconds —
+     `2026-08-04T21:29:00.000Z`, never `2026-08-04T21:29:00Z`. A formatter without
+     `.SSS` returns nil for every one of them, and nil propagates as "no time" rather
+     than as an error, so the failure is silent.
+
+     It hid a whole feature: the board could not tell that a service day was spent,
+     because the comparison it needed always had nothing to compare. The tests missed
+     it for the same reason the original production bug survived — the fixtures used a
+     shape the wire does not.
+     */
+    private static let londonOffsetFractional =
+        formatter("yyyy-MM-dd'T'HH:mm:ss.SSSXXXXX", utc)
+
+    /// Naive, with fractional seconds. Not seen from the API, accepted for symmetry.
+    private static let londonNaiveFractional =
+        formatter("yyyy-MM-dd'T'HH:mm:ss.SSS", londonTimeZone)
+
     private static let utcCalendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = utc
@@ -190,8 +211,12 @@ public enum ServiceDay {
      */
     public static func instant(from value: String) -> Date? {
         let trimmed = value.trimmingCharacters(in: .whitespaces)
-        if hasTimeZone(trimmed) { return londonOffset.date(from: trimmed) }
+        if hasTimeZone(trimmed) {
+            return londonOffset.date(from: trimmed)
+                ?? londonOffsetFractional.date(from: trimmed)
+        }
         return londonNaive.date(from: trimmed)
+            ?? londonNaiveFractional.date(from: trimmed)
     }
 
     /// `23:52`, in London local time.

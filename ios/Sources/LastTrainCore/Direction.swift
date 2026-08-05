@@ -150,6 +150,11 @@ public enum Direction {
         /// Services whose direction could not be established. Never silently folded in.
         public let unclassified: Int
 
+        public init(counts: [Compass: Int], unclassified: Int = 0) {
+            self.counts = counts
+            self.unclassified = unclassified
+        }
+
         /// Directions with at least one service, in compass order.
         public var available: [Compass] {
             Compass.allCases.filter { (counts[$0] ?? 0) > 0 }

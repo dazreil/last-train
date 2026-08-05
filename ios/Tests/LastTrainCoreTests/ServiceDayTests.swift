@@ -206,6 +206,35 @@ struct ServiceDayTests {
 
     // MARK: - Hazards the JavaScript port cannot have
 
+    /**
+     The exact shape our own API sends.
+
+     `depInstant` comes from JavaScript's `toISOString()`, which always writes
+     milliseconds. A parser that only accepts whole seconds returns nil for every
+     departure the app ever receives — and nil reads as "no time" rather than as an
+     error, so nothing complains and a feature silently does nothing.
+
+     That is what happened: the board could not detect a spent service day because the
+     instant it compared was always nil. These fixtures are copied from a real response
+     so the suite cannot drift from the wire again.
+     */
+    @Test("the instants our own API sends are parsed, milliseconds and all")
+    func apiInstantsWithMillisecondsParse() {
+        #expect(utcString(ServiceDay.instant(from: "2026-08-04T21:29:00.000Z"))
+                == "2026-08-04T21:29:00Z")
+        #expect(ServiceDay.formatLondonTime("2026-08-04T21:29:00.000Z") == "22:29")
+        #expect(ServiceDay.londonDate(of: "2026-08-04T21:29:00.000Z") == "2026-08-04")
+
+        // Whole seconds must keep working alongside it.
+        #expect(utcString(ServiceDay.instant(from: "2026-08-04T21:29:00Z"))
+                == "2026-08-04T21:29:00Z")
+
+        // And the comparison that was silently failing.
+        #expect(ServiceDay.minutesBetween(
+            "2026-08-04T21:29:00.000Z", "2026-08-04T22:29:00.000Z"
+        ) == 60)
+    }
+
     @Test("a bad datetime is nil rather than a wrong time")
     func badInputIsNil() {
         // JavaScript produced NaN here and carried on. Optionals make the failure

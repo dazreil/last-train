@@ -82,6 +82,12 @@ export interface NationalBoard {
   totalServices: number;
   /** Where the trains in this direction actually go, most frequent first. */
   towards: string[];
+  /**
+   * The same, for every direction — because the control names a destination on each
+   * block it offers, not only the selected one. Free: it comes out of the same pass
+   * that produced `directions`.
+   */
+  towardsByDirection: Record<Compass, string[]>;
   systemStatus?: SystemStatusView;
   apiVersion: string;
   diagnostics?: Diagnostics;

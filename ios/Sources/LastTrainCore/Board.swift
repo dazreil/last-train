@@ -31,7 +31,9 @@ import Foundation
  */
 public enum BoardMode: String, Sendable, Codable {
     case normal
-    case preService
+    /// Hyphenated to match what `lib/board.ts` puts on the wire. Swift's default
+    /// raw value would be `preService`, which decodes to nothing.
+    case preService = "pre-service"
 }
 
 /// Which part of the answer a service is: a first train, or a last one.

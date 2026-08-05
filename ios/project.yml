@@ -1,0 +1,76 @@
+# The Xcode project is generated from this file, never hand-edited.
+#
+# `xcodegen generate` writes LastTrain.xcodeproj, which is gitignored. That keeps the
+# project consistent with everything else here — the station list, the geo table and
+# the compass are all generated too, and the rule this project has held since the
+# start is that identifiers are resolved, not typed. A .pbxproj is several hundred
+# lines of hand-written UUIDs, which is exactly that failure waiting to happen.
+#
+# Adding the widget extension later (IOS.md §9 step 6, the reason for going native at
+# all) is a few lines here rather than surgery on generated XML.
+
+name: LastTrain
+
+options:
+  bundleIdPrefix: com.dazreil
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+packages:
+  LastTrainCore:
+    # The domain logic, already complete and tested: service day, compass direction,
+    # board arrangement, nearest station, bundled stations.
+    path: .
+
+targets:
+  LastTrain:
+    type: application
+    platform: iOS
+    sources:
+      - path: App/LastTrain
+    dependencies:
+      - package: LastTrainCore
+        product: LastTrainCore
+    info:
+      path: App/LastTrain/Info.plist
+      properties:
+        CFBundleDisplayName: Last Train
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        # Portrait only. The governing scene is one hand, outdoors, after dark — there
+        # is no landscape reading of a departure board worth supporting.
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        # DESIGN.md is a dark system. The board is flat colour blocks on near-black;
+        # a light rendering of it would be a different design, not a variant.
+        UIUserInterfaceStyle: Dark
+        ITSAppUsesNonExemptEncryption: false
+        # Which API to talk to. Never RTT directly — the token stays server-side, so
+        # this is always our own deployment. See IOS.md §3 and §5.
+        BoardAPIBaseURL: $(BOARD_API_BASE_URL)
+        NSAppTransportSecurity:
+          # Debug points at a dev server on http://localhost. The exception is scoped
+          # to localhost alone, so it cannot weaken anything in a shipped build.
+          NSExceptionDomains:
+            localhost:
+              NSExceptionAllowsInsecureHTTPLoads: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dazreil.lasttrain
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "6.0"
+        # iPhone only.
+        TARGETED_DEVICE_FAMILY: "1"
+        ENABLE_USER_SCRIPT_SANDBOXING: YES
+        SWIFT_STRICT_CONCURRENCY: complete
+      configs:
+        # `npm run dev` on the machine running the simulator.
+        Debug:
+          BOARD_API_BASE_URL: http:/$()/localhost:3000
+        # The deployment. If this starts returning a Vercel login page, Deployment
+        # Protection has come back on — see STATUS.md.
+        Release:
+          BOARD_API_BASE_URL: https:/$()/last-train-dazreils-projects.vercel.app
