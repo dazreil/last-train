@@ -51,18 +51,37 @@ struct BoardView: View {
     // MARK: - Chrome
 
     private var masthead: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text("Last Train").labelStyle()
-            Spacer()
-            Text(ServiceDay.formatServiceDate(model.board?.date ?? ServiceDay.currentServiceDate()) ?? "")
-                .font(Theme.Font.label)
-                .tracking(Theme.tracking)
-                .textCase(.uppercase)
-                .foregroundStyle(Theme.textDim)
+        // Side by side while they fit, stacked when they do not. At accessibility text
+        // sizes the row has no room and the date wraps mid-phrase -- "LAST TRAIN WED /
+        // 5 AUG" -- which reads as two broken labels rather than one line.
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline) {
+                mastheadWordmark
+                Spacer()
+                mastheadDate
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                mastheadWordmark
+                mastheadDate
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Theme.Space.gutter)
         .padding(.top, 14)
         .padding(.bottom, 10)
+    }
+
+    private var mastheadWordmark: some View {
+        Text("Last Train").labelStyle().fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var mastheadDate: some View {
+        Text(ServiceDay.formatServiceDate(model.board?.date ?? ServiceDay.currentServiceDate()) ?? "")
+            .font(Theme.Font.label)
+            .tracking(Theme.tracking)
+            .textCase(.uppercase)
+            .foregroundStyle(Theme.textDim)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var stationField: some View {

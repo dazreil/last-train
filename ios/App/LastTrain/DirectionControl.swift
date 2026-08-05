@@ -31,10 +31,26 @@ struct DirectionControl: View {
     let towards: [Compass: String]
     @Binding var selection: Compass
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 3),
-        GridItem(.flexible(), spacing: 3),
-    ]
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    /**
+     Two columns normally, one at accessibility text sizes.
+
+     A 2×2 grid holds its columns at half the screen whatever the text does, so at the
+     largest accessibility sizes each block is about 180pt wide and the destination
+     hyphenates into `to-/wards Shoe-/bury-/ness`. That grows rather than clips, so it
+     satisfies the letter of the Grow-Never-Clip Rule while being unreadable — and
+     breaking a station name across hyphens is barely different from the truncation the
+     Real Length Rule forbids.
+
+     Collapsing to one column gives each block the full width back, so the names fit
+     again. The control gets tall, which is correct: the layout grows downward.
+     */
+    private var columns: [GridItem] {
+        typeSize.isAccessibilitySize
+            ? [GridItem(.flexible(), spacing: 3)]
+            : [GridItem(.flexible(), spacing: 3), GridItem(.flexible(), spacing: 3)]
+    }
 
     var body: some View {
         LazyVGrid(columns: columns, spacing: 3) {
@@ -43,6 +59,10 @@ struct DirectionControl: View {
                     direction: direction,
                     towards: towards[direction],
                     state: state(for: direction),
+                    // Reserving a second line keeps four side-by-side blocks the same
+                    // height. Stacked in one column there is nothing to match, and the
+                    // reserve would only add empty rows to an already tall control.
+                    reservesSecondLine: !typeSize.isAccessibilitySize,
                     action: { selection = direction }
                 )
             }
@@ -67,7 +87,11 @@ struct DirectionBlock: View {
     let direction: Compass
     let towards: String?
     let state: State
+    var reservesSecondLine = true
     let action: () -> Void
+
+    /// Visible thickness of the lit edge. Doubled and clipped, so this is what shows.
+    private let edgeWidth: CGFloat = 4
 
     var body: some View {
         Button(action: action) {
@@ -87,13 +111,30 @@ struct DirectionBlock: View {
                     Text("towards \(towards.withoutLondonPrefix)")
                         .font(Theme.Font.meta)
                         .fixedSize(horizontal: false, vertical: true)
+                        // Two lines of space, always, whether or not this name needs
+                        // them. Otherwise a block whose destination happens to wrap is
+                        // taller than the one beside it, and four blocks that are meant
+                        // to read as a set stop looking like one.
+                        //
+                        // A range rather than a limit: `lineLimit(2)` would *truncate* a
+                        // third line, and the Real Length Rule forbids that. This
+                        // reserves two and still grows.
+                        .lineLimit(reservesSecondLine ? 2... : 1...)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             // The label must clear the notch. Without this the chevron eats the first
             // letter -- "EAST" renders as "AST" -- which is the Real Length Rule broken
             // by geometry rather than by an ellipsis, and just as wrong.
-            .padding(.leading, 12 + (direction == .east ? ChevronBlock.horizontalNotch : 0))
+            //
+            // East and west take the same leading inset even though only east needs it
+            // for clearance. They sit one above the other in the right-hand column, and
+            // text that starts 14pt further left on one of them reads as a mistake
+            // rather than as a consequence of which way the chevron points.
+            .padding(
+                .leading,
+                12 + (direction == .east || direction == .west ? ChevronBlock.horizontalNotch : 0)
+            )
             .padding(.trailing, 12 + (direction == .west ? ChevronBlock.horizontalNotch : 0))
             .padding(.top, 10 + (direction == .south ? ChevronBlock.verticalNotch : 0))
             .padding(.bottom, 10 + (direction == .north ? ChevronBlock.verticalNotch : 0))
@@ -101,6 +142,23 @@ struct DirectionBlock: View {
             .background(background)
             .foregroundStyle(foreground)
             .clipShape(ChevronBlock(direction: direction))
+            .overlay {
+                // Only where something runs. A blacked-out block is a hole in the
+                // control, and lighting its edge would draw the eye to a direction
+                // with no trains in it.
+                if state != .empty {
+                    PointingEdge(direction: direction)
+                        .stroke(
+                            Theme.paper.opacity(state == .selected ? 1 : 0.55),
+                            style: StrokeStyle(lineWidth: edgeWidth * 2, lineJoin: .miter)
+                        )
+                        // Clipped to the same chevron, so the stroke is centred on the
+                        // boundary and only its inner half shows. That leaves a crisp
+                        // line flush with the block edge rather than one bleeding into
+                        // the gap between blocks.
+                        .clipShape(ChevronBlock(direction: direction))
+                }
+            }
             .contentShape(ChevronBlock(direction: direction))
         }
         .buttonStyle(.plain)
@@ -219,6 +277,41 @@ struct ChevronBlock: Shape {
 
         path.addLines(points)
         path.closeSubpath()
+        return path
+    }
+}
+
+/**
+ The two segments that make the point, as an open path.
+
+ Not the whole outline — only the leading edge, so the block reads as travelling that
+ way rather than as a box with a border. The notch on the trailing edge stays dark,
+ which is what keeps the arrow legible: one lit edge, one bitten one.
+
+ Uses the same per-axis notch depth as `ChevronBlock`, or the line would sit off the
+ shape on the north and south blocks.
+ */
+struct PointingEdge: Shape {
+    let direction: Compass
+
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width
+        let h = rect.height
+        let n = min(ChevronBlock.notch(for: direction), min(w, h) / 3)
+
+        let points: [CGPoint] = switch direction {
+        case .north:
+            [CGPoint(x: 0, y: n), CGPoint(x: w / 2, y: 0), CGPoint(x: w, y: n)]
+        case .south:
+            [CGPoint(x: 0, y: h - n), CGPoint(x: w / 2, y: h), CGPoint(x: w, y: h - n)]
+        case .east:
+            [CGPoint(x: w - n, y: 0), CGPoint(x: w, y: h / 2), CGPoint(x: w - n, y: h)]
+        case .west:
+            [CGPoint(x: n, y: 0), CGPoint(x: 0, y: h / 2), CGPoint(x: n, y: h)]
+        }
+
+        var path = Path()
+        path.addLines(points)
         return path
     }
 }
