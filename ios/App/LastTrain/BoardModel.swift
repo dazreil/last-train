@@ -39,6 +39,18 @@ final class BoardModel {
     private(set) var errorMessage: String?
 
     /**
+     What is around you, after the nearest-station button.
+
+     Kept rather than discarded once the field is filled, because the nearest station by
+     straight line is not always the one you are standing on — at Barking or Stratford
+     the platforms of two are within a few hundred metres of each other. The web app
+     leaves the alternatives on screen for exactly this reason and so does this.
+     */
+    private(set) var nearby: [Nearby<Station>] = []
+    private(set) var isLocating = false
+    private(set) var locateError: String?
+
+    /**
      The service day being asked for, or nil for whichever one is running.
 
      Normally nil — the server resolves the current service day, which keeps the 03:00
@@ -158,6 +170,45 @@ final class BoardModel {
         advancedFor = stamp
         requestedDate = ServiceDay.addDays(board.date, 1)
         await load()
+    }
+
+    /**
+     Fill the station from where you are.
+
+     One fix, the nearest station, and the alternatives kept. Failure is shown next to
+     the button rather than as a board error: not knowing where you are says nothing
+     about the trains, and the field can always be typed into instead.
+     */
+    func locate() async {
+        isLocating = true
+        locateError = nil
+        defer { isLocating = false }
+
+        do {
+            let position = try await LocationFinder.currentPosition()
+            let found = Stations.nearest(to: position, limit: 4)
+
+            guard let closest = found.first else {
+                // Only reachable outside Great Britain, where the honest answer is that
+                // this app has nothing to say.
+                locateError = "No station found near you."
+                return
+            }
+
+            nearby = found
+            // Setting this loads the board, through `station`'s observer.
+            station = closest.station
+        } catch {
+            nearby = []
+            locateError = (error as? LocationFinder.Failure)?.errorDescription
+                ?? error.localizedDescription
+        }
+    }
+
+    /// Dismiss the alternatives once one has been taken, or the picker used.
+    func clearNearby() {
+        nearby = []
+        locateError = nil
     }
 
     private func resetDay() {

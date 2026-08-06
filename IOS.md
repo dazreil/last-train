@@ -560,7 +560,10 @@ matter far more nationally than it ever did in Essex.
      `Bundle.module`. `npm run national:data` writes that copy and the API's from the
      same run, so neither is hand-maintained.
 
-   **`LastTrainCore` is complete: 81 tests, no SwiftUI, no UIKit.**
+   **`LastTrainCore` is complete: 81 tests, no SwiftUI, no UIKit.** The views are done
+   too, including the nearest-station button — `Nearest.swift` had been built and tested
+   in this step and then left unwired for a while, which is the kind of gap a test suite
+   cannot catch.
 6. ~~**Widget.**~~ **Done, 5 August 2026.** The reason for doing any of this, and it
    works. Lock screen and home screen, configured on the widget itself, and the whole
    evening computed from one request. See §12.
@@ -682,15 +685,23 @@ response into a timeline entry per remaining departure, WidgetKit is handed a sc
 rather than a reason to wake up, and the reload waits until the board has genuinely run
 out. That is what settles the volume question in §10: refresh cadence is not a cost.
 
-### Configured, not mirrored
+### It follows the app until you tell it not to
 
-The cheap build reads whatever the app was last looking at. It is wrong for the
-surface: a lock screen widget is set once and trusted for months, so if it followed the
-app, checking a friend's line on a Tuesday would silently replace your own last train
-home and you would not find out until the night you needed it. The widget therefore
-holds its own station and direction, chosen through an `AppIntent` with the same
-ranking the in-app picker uses. An App Group supplies the *default* for a widget that
-has never been configured, and stops mattering the moment one is.
+Leave a field blank and the widget tracks whatever the app is showing, live, through an
+App Group. Choose a station or a direction in Edit Widget and that choice wins from then
+on — which is what a lock screen widget needs, because it is set once and trusted for
+months, and a Tuesday spent checking a friend's line should not silently replace your
+own last train home.
+
+**`defaultResult` is a trap, and using it was a bug.** It looks like the way to start a
+widget on the station you were last looking at. AppIntents does not treat it as a
+fallback: it fills the parameter in and stores the answer, so the widget freezes
+whichever station happened to be current when WidgetKit first indexed the extension.
+Observed on device — a widget stuck on Upminster while the app had been on Manchester
+Piccadilly for some time, which is neither following the app nor a choice anyone made.
+Leaving it unimplemented keeps the parameter nil and `resolved` re-reads the App Group
+on every render. `suggestedEntities` still puts that station at the top of the picker,
+which was the part actually wanted.
 
 ### Two things fell out of the design already being right
 

@@ -87,24 +87,118 @@ struct BoardView: View {
     }
 
     private var stationField: some View {
-        Button {
-            pickingStation = true
-        } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("From").labelStyle()
-                Text(model.station?.name ?? "Choose a station")
-                    .font(Theme.Font.heading)
-                    .foregroundStyle(model.station == nil ? Theme.textFaint : Theme.text)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 0) {
+                Button {
+                    model.clearNearby()
+                    pickingStation = true
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("From").labelStyle()
+                        Text(model.station?.name ?? "Choose a station")
+                            .font(Theme.Font.heading)
+                            .foregroundStyle(model.station == nil ? Theme.textFaint : Theme.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.vertical, 10)
+                    .padding(.leading, 13)
+                    .padding(.trailing, 8)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                locateButton
             }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 13)
             .background(Theme.raised)
             .overlay(Rectangle().strokeBorder(Theme.hairline, lineWidth: 1))
+
+            if let locateError = model.locateError {
+                Text(locateError)
+                    .font(Theme.Font.meta)
+                    .foregroundStyle(Theme.textDim)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            nearbyAlternatives
+        }
+        .padding(.horizontal, Theme.Space.gutter)
+    }
+
+    /**
+     Fill the field from where you are.
+
+     Beside the station rather than inside the picker: on a platform the station you
+     want is the one you are standing in, and that should not cost a search. It is the
+     one control here that saves a whole interaction rather than a tap.
+     */
+    private var locateButton: some View {
+        Button {
+            Task { await model.locate() }
+        } label: {
+            Group {
+                if model.isLocating {
+                    ProgressView().tint(Theme.textDim)
+                } else {
+                    Image(systemName: "location.fill")
+                        .font(.system(size: 17, weight: .semibold))
+                }
+            }
+            .foregroundStyle(Theme.textDim)
+            // A full-height target, so it can be hit one-handed without looking.
+            .frame(width: 52)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, Theme.Space.gutter)
+        .disabled(model.isLocating)
+        .accessibilityLabel("Use nearest station")
+    }
+
+    /**
+     The other stations near you, kept after the field is filled.
+
+     Straight-line distance is not the same as which platform you are on: at Barking,
+     Stratford or any of the London termini clusters, two stations sit within a few
+     hundred metres and the closer one is regularly the wrong one. Naming the
+     alternatives costs a line and removes the need to start a search over.
+     */
+    @ViewBuilder
+    private var nearbyAlternatives: some View {
+        if model.nearby.count > 1 {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Near you").labelStyle()
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(model.nearby, id: \.station.crs) { candidate in
+                            Button {
+                                model.station = candidate.station
+                            } label: {
+                                HStack(spacing: 5) {
+                                    Text(candidate.station.name.withoutLondonPrefix)
+                                        .font(Theme.Font.meta)
+                                    Text(candidate.distanceLabel)
+                                        .font(Theme.Font.meta)
+                                        .foregroundStyle(Theme.textFaint)
+                                }
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 6)
+                                .background(
+                                    candidate.station.crs == model.station?.crs
+                                        ? Theme.control : Theme.raised
+                                )
+                                .foregroundStyle(Theme.textDim)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                // The row is full-bleed inside the gutter, so a scrolled item is not
+                // clipped mid-word against the screen edge.
+                .scrollClipDisabled()
+            }
+        }
     }
 
     // MARK: - Results

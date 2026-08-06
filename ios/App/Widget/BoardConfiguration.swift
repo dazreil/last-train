@@ -5,15 +5,17 @@ import LastTrainCore
 /**
  What the widget is set to: a station and a direction, chosen on the widget itself.
 
- **Configured, not mirrored.** The obvious cheap build reads whatever the app was last
- looking at, and it is wrong for the surface it is on. A lock screen widget is set once
- and then trusted for months; if it followed the app, checking a friend's line on a
- Tuesday would silently replace your own last train home and you would not find out
- until the night you needed it. So the widget holds its own answer.
+ **It follows the app until you tell it not to.** Leave a field blank and it tracks
+ whatever the app is showing, so a freshly-added widget is immediately right without
+ being configured at all. Choose a station or a direction and that choice wins from then
+ on — which is what a lock screen widget needs, because it is set once and trusted for
+ months, and a Tuesday spent checking a friend's line should not silently replace your
+ own last train home.
 
- The app is still the default. An unconfigured widget resolves to the station you were
- last looking at (`SharedSelection`), which makes adding one a single gesture, and it
- stops following the moment you choose something.
+ Both halves matter, and the difference between them is exactly whether the parameter is
+ nil. Nothing here caches: `resolved` re-reads `SharedSelection` on every render, so a
+ blank field follows the app *live* rather than remembering where it was when the widget
+ was added.
  */
 struct BoardConfiguration: WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Last Train"
@@ -21,6 +23,7 @@ struct BoardConfiguration: WidgetConfigurationIntent {
         "The last train out of a station, in one direction."
     )
 
+    /// Optional, and deliberately given no default — see `StationQuery.defaultResult`.
     @Parameter(title: "Station")
     var station: StationEntity?
 
@@ -118,7 +121,20 @@ struct StationQuery: EntityStringQuery {
         SharedSelection.station.map { [StationEntity($0)] } ?? []
     }
 
-    func defaultResult() async -> StationEntity? {
-        SharedSelection.station.map(StationEntity.init)
-    }
+    /**
+     Deliberately absent.
+
+     `defaultResult` looks like the right way to start a widget on the station you were
+     last looking at, and it is a trap. AppIntents does not treat it as a fallback — it
+     *fills the parameter in* and stores the result, so the widget freezes whichever
+     station happened to be current when WidgetKit first indexed the extension. Observed:
+     a widget stuck on Upminster while the app had been on Manchester Piccadilly for
+     some time. Neither followed the app nor reflected a choice anyone made.
+
+     Leaving it unimplemented keeps the parameter nil, and `BoardConfiguration.resolved`
+     reads `SharedSelection` fresh on every render instead. So a new widget genuinely
+     follows the app, and stops the moment a station is picked here. `suggestedEntities`
+     above still puts that station at the top of the list, which is the part of this that
+     was actually wanted.
+     */
 }

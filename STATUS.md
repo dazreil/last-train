@@ -310,6 +310,25 @@ OS grid reference instead. All of this lives in `scripts/lib/naptan.mjs`.
   deliberate choice, confirmed: you lose "you just missed the 00:22" in exchange for a
   board with trains on it. Tapping back to Today is respected, not undone.
 
+### Core Location has two traps, and both fail silently
+
+Both found by pressing the button rather than by reading the code.
+
+**A `CLLocationUpdate.liveUpdates` sequence started before the permission dialog is
+answered simply ends.** No location, no error, no resumption when the answer arrives.
+A single pass over it therefore left the first press after granting doing *nothing* —
+no station, no message, a button that looked ignored — and the second press worked.
+`LocationFinder.firstFix` restarts the stream until a fix arrives for this reason.
+
+**`CLLocationManager.authorizationStatus` can report the previous answer while a prompt
+is on screen.** Reproducible right after `simctl privacy reset location`: the prompt is
+visible and the manager still says `authorizedWhenInUse`. So it cannot be trusted to
+tell you the dialog is up, and any timeout that assumes it can will fire underneath an
+unanswered prompt — "could not get your location in time", on the very first press.
+The fix budget is 30s rather than the web app's 8s for exactly this reason; the
+`authorizationDenied` flag that would settle it properly is iOS 18 and the deployment
+target is 17.
+
 ### The simulator's widget gallery will not take synthetic taps
 
 Adding a widget needs long-press → Edit → Add Widget, and the tap on **Edit** is
@@ -401,7 +420,8 @@ distributed app gets revoked.
 5. ~~The widget. It is the actual reason for going native~~ — **done, 5 August 2026.**
    Lock screen and home screen; it leads with the *last* train and holds it still all
    evening, and the whole night is computed from one request. Written up in `IOS.md`
-   §12
+   §12. The nearest-station button landed at the same time — `Nearest.swift` had been
+   sitting built and tested but unwired since step 4
 6. Paid token, attribution, submit
 
 ### Parked, not scheduled
