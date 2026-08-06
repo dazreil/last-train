@@ -724,6 +724,63 @@ station and direction.
 
 ---
 
+## 13. Direction is a property of the route, not the destination
+
+**Found 6 August 2026, at Upminster.** The board classified a service by the bearing
+from the station to its final destination. That is right for a straight line and wrong
+for any route that turns, and c2c turns:
+
+```
+00:33 -> Shoeburyness   UPM OCK CFH GRY TIL ETL SFO   (the Ockendon branch)
+00:57 -> Shoeburyness   UPM WHR LAI BSO PSE BEF LES   (the main line)
+```
+
+Same origin, same destination, opposite first legs. The board therefore reported the
+last train south from Upminster as **18:34**, when the last train that reaches Grays is
+**00:33** — nearly six hours wrong, on the one number this app exists to give.
+
+### Nothing computed from the line-up could have fixed it
+
+The line-up carries an origin, a destination and a time. The route appears only in each
+service's calling pattern, which costs a request per train shown — the budget §3 and §5
+rest on. Baking `destination -> direction` fails for the same reason the live rule does:
+those two trains share a destination.
+
+### A waypoint pins it
+
+For each station and sector, find a station that **every** service leaving that way calls
+at and **no** service leaving another way calls at. `filterTo=<waypoint>` then partitions
+the line-up exactly. At Upminster southbound the waypoint is Ockendon, and the query
+returns 42 services, first 05:00, last 00:33 — matching Ockendon's own board, which had
+been showing 35 of those services as "east" all along.
+
+The waypoints are computed offline by `npm run national:adjacency`, walking calling
+patterns once and reducing them to `data/adjacency.json`. Resumable across days, because
+Great Britain is thousands of requests against a tier that allows 100 an hour.
+
+**`null` is a legitimate answer and frequently the right one.** Upminster westbound has
+no waypoint: the Fenchurch Street main line and the Romford branch share no station, so
+nothing selects one without the other. A sector sampled fewer than three times gets none
+either — a waypoint a fast service skips would silently drop trains, which is worse than
+the known wrongness it replaces. Both cases fall back to the destination bearing.
+
+### What it costs
+
+The unfiltered line-up is still fetched, still shared across all four directions and with
+the web app, and still what the availability counts come from. The filtered query is
+**additional and direction-specific**, so a station with a waypoint costs one request per
+direction looked at rather than one per station-day. Paid only where the cheap answer was
+wrong.
+
+### It also fixed the label
+
+"Towards" now names where the *route* goes rather than where today's destinations
+happen to be. Upminster southbound reads `towards Pitsea`, not `towards Grays` — the
+branch carries on through Tilbury Town, East Tilbury and Stanford-le-Hope before
+rejoining the main line.
+
+---
+
 ## Reference
 
 - [Realtime Trains API portal](https://api-portal.rtt.io) — plans and tokens

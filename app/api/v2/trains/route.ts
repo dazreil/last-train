@@ -39,6 +39,7 @@ import {
 import { sortedDepartures, destinationNames, destinationCodes, type Departure } from '@/lib/journeys';
 import { boardHasExpired, boardMode, selectBoard } from '@/lib/board';
 import { classify, COMPASS_POINTS, isCompass, tally, type Compass } from '@/lib/compass';
+import { routesFrom, waypointFor } from '@/lib/adjacency';
 import { coordinateFor, findStationByCrs } from '@/lib/nationalStations';
 import {
   currentServiceDate,
@@ -174,6 +175,22 @@ export async function GET(request: Request) {
     let requestsSpent = 0;
 
     /**
+     * A station that pins the direction being asked for, if one is known.
+     *
+     * The bearing to a destination cannot tell the Ockendon branch from the Basildon
+     * main line, because both end at Shoeburyness — so the board reported the last train
+     * south from Upminster as 18:34 when the last one that reaches Grays is 00:33. A
+     * waypoint separates them exactly: every branch service calls at Ockendon and no
+     * main-line service does.
+     *
+     * Undefined for most stations until the offline walk reaches them, and permanently
+     * undefined where no such station exists — Upminster westbound, where the main line
+     * and the Romford branch share nothing. Both cases fall through to the old rule,
+     * which is wrong only where a route turns.
+     */
+    const waypoint = waypointFor(from.crs, direction);
+
+    /**
      * One service day: the whole line-up, then every boardable departure classified
      * by the bearing to where it is going.
      *
@@ -200,6 +217,34 @@ export async function GET(request: Request) {
         setCachedLineUp(rawKey, lineUp, ttlSecondsFor(forDate));
       }
 
+      /**
+       * The services actually going this way.
+       *
+       * A second query, and the only one in this route that is direction-specific — so
+       * it costs a request per direction looked at, where the unfiltered line-up above
+       * is shared by all four and by the web app. Paid only where a waypoint exists,
+       * which is to say only where the cheap answer was wrong.
+       */
+      let directional: LocationLineUpResponse | null = null;
+      if (waypoint) {
+        const filteredKey = `${rawKey}:${waypoint}`;
+        const cachedFiltered = refresh
+          ? null
+          : getCachedLineUp<LocationLineUpResponse | null>(filteredKey);
+
+        if (cachedFiltered) {
+          directional = cachedFiltered.value;
+        } else {
+          directional = await locationLineUp({
+            code: from.crs,
+            filterTo: waypoint,
+            ...serviceDayWindow(forDate),
+          });
+          requestsSpent += 1;
+          setCachedLineUp(filteredKey, directional, ttlSecondsFor(forDate));
+        }
+      }
+
       const boardable = sortedDepartures(lineUp);
 
       // Bucketed once, and read twice: the counts for all four directions and the
@@ -217,9 +262,13 @@ export async function GET(request: Request) {
         fromCache,
         boardable,
         classified,
-        candidates: classified
-          .filter((entry) => classify(origin, entry.destination) === direction)
-          .map((entry) => entry.departure),
+        // Where a waypoint answered, the filter *is* the classification and nothing is
+        // inferred. Otherwise the destination bearing, as before.
+        candidates: directional
+          ? sortedDepartures(directional)
+          : classified
+              .filter((entry) => classify(origin, entry.destination) === direction)
+              .map((entry) => entry.departure),
       };
     };
 
@@ -281,8 +330,26 @@ export async function GET(request: Request) {
       const bucket = classify(origin, entry.destination);
       if (bucket) namesByDirection[bucket].push(describeDestination(entry.departure));
     }
+    /**
+     * Prefer where the *route* goes over where today's destinations happen to be.
+     *
+     * The two disagree exactly where the classification did. Upminster southbound was
+     * labelled "towards Grays" because the services the bearing rule put in that bucket
+     * were the ones terminating there — while the branch itself carries on through
+     * Tilbury and Stanford-le-Hope to Pitsea and Southend. The walked route knows that;
+     * a day's destination list does not.
+     *
+     * Falls back to the destinations seen today wherever the walk has not reached.
+     */
+    const routes = routesFrom(from.crs);
     const towardsByDirection = Object.fromEntries(
-      COMPASS_POINTS.map((point) => [point, summariseDestinations(namesByDirection[point])])
+      COMPASS_POINTS.map((point) => {
+        const walked = routes?.[point]?.destinations ?? [];
+        const named = walked
+          .map((crs) => findStationByCrs(crs)?.name)
+          .filter((name): name is string => Boolean(name));
+        return [point, named.length ? named : summariseDestinations(namesByDirection[point])];
+      })
     ) as Record<Compass, string[]>;
 
     const body: NationalBoard = {

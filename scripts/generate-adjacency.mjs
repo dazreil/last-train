@@ -149,11 +149,53 @@ const callingPattern = (detail) =>
 
 // ------------------------------------------------------------------ collecting
 
+/** crs -> sector -> how many sampled routes leave that way. Rebuilt each run. */
+const coverageIndex = (() => {
+  const index = new Map();
+  for (const stops of Object.values(state.patterns)) {
+    for (let i = 0; i < stops.length - 1; i++) {
+      const a = byCrs.get(stops[i]);
+      const b = byCrs.get(stops[i + 1]);
+      if (!a || !b) continue;
+      const sector = compassOf(bearingDegrees(a, b));
+      if (!sector) continue;
+      if (!index.has(stops[i])) index.set(stops[i], new Map());
+      const sectors = index.get(stops[i]);
+      sectors.set(sector, (sectors.get(sector) ?? 0) + 1);
+    }
+  }
+  return index;
+})();
+
 let spentAtStart = requestsSpent();
 const overBudget = () => requestsSpent() - spentAtStart >= BUDGET;
 
+/**
+ * Coverage already gathered for a station, without asking for anything.
+ *
+ * A calling pattern fetched anywhere covers every station along it, so most stations are
+ * described by their neighbours' work before the walk ever reaches them. Sampling them
+ * again buys nothing and the quota is the scarce thing here — 12 stations sampled put
+ * 149 in the table, so skipping the ones already answered is most of the saving
+ * available.
+ */
+function sectorsAlreadyCovered(crs) {
+  let good = 0;
+  const sectors = coverageIndex.get(crs);
+  if (!sectors) return 0;
+  for (const count of sectors.values()) if (count >= MIN_SAMPLES_FOR_WAYPOINT) good++;
+  return good;
+}
+
 async function sampleStation(crs) {
   if (state.sampled[crs]) return;
+
+  // Two well-sampled sectors is a through station fully described. A junction has more
+  // and will still have a thin one, so it stays in the queue.
+  if (sectorsAlreadyCovered(crs) >= 2) {
+    state.sampled[crs] = 'covered-by-neighbours';
+    return;
+  }
 
   const window = {
     timeFrom: `${referenceDate}T03:00:00`,
@@ -269,9 +311,25 @@ function derive() {
           haversineKm(byCrs.get(crs), byCrs.get(x)) - haversineKm(byCrs.get(crs), byCrs.get(y))
       );
 
+      // Where this way goes, for the direction control's `towards` line.
+      //
+      // Baked rather than read from the line-up, because a filtered query only
+      // describes the direction it was asked about and the control names a destination
+      // on all four blocks. Sampled from a reference Tuesday, so these are labels
+      // rather than facts about today -- which is all the block ever claimed.
+      const endpoints = new Map();
+      for (const onward of bucket.onward) {
+        const last = onward[onward.length - 1];
+        if (last) endpoints.set(last, (endpoints.get(last) ?? 0) + 1);
+      }
+
       entry[point] = {
         waypoint: bucket.onward.length >= MIN_SAMPLES_FOR_WAYPOINT ? (candidates[0] ?? null) : null,
         firstCalls: [...bucket.firstCalls].sort(),
+        destinations: [...endpoints.entries()]
+          .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+          .slice(0, 3)
+          .map(([crs]) => crs),
         samples: bucket.onward.length,
       };
     }
@@ -324,7 +382,17 @@ async function main() {
         break;
       }
       if (!byCrs.has(crs)) continue;
-      await sampleStation(crs);
+      try {
+        await sampleStation(crs);
+      } catch (error) {
+        // The free tier caps by hour as well as by day, and the hour is what bites
+        // first. Hitting it is expected on a walk this size, not a failure.
+        if (/Rate limited/.test(String(error?.message))) {
+          console.log(`\n${error.message.replace('Rate limited; retry', 'Rate limited. Retry')}`);
+          break;
+        }
+        throw error;
+      }
       done++;
       if (done % 10 === 0) {
         console.log(`  ${done}/${outstanding.length}  (${requestsSpent() - spentAtStart} requests)`);
