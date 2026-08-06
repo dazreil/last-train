@@ -186,12 +186,17 @@ final class BoardModel {
 
         do {
             let position = try await LocationFinder.currentPosition()
-            let found = Stations.nearest(to: position, limit: 4)
+            let found = Stations.nearest(
+                to: position,
+                limit: 4,
+                within: Stations.plausibleRadiusMetres
+            )
 
             guard let closest = found.first else {
-                // Only reachable outside Great Britain, where the honest answer is that
-                // this app has nothing to say.
-                locateError = "No station found near you."
+                // Outside Great Britain, where the honest answer is that this app has
+                // nothing to say -- rather than naming the nearest railhead on the
+                // island regardless of which continent you are on.
+                locateError = "No station near you."
                 return
             }
 

@@ -248,3 +248,93 @@ struct NearestTests {
                 == SpatialIndex.scan(Self.stations, to: position, limit: 4).map(\.station.crs))
     }
 }
+
+/**
+ There is always a nearest station, which is exactly the problem.
+
+ Found by running the app from Xcode, whose default simulated location is San Francisco:
+ the field filled in with Thurso, confidently and without qualification. The index was
+ correct — Thurso really is the closest British station to California — so the fix
+ belongs to the caller, and this is the test that says so.
+ */
+@Suite("Nearest — plausibility")
+struct NearestPlausibilityTests {
+
+    @Test("somewhere in Britain still answers")
+    func britainAnswers() throws {
+        let found = Stations.nearest(
+            to: Coordinate(lat: 51.5590, lon: 0.2510), // Upminster
+            within: Stations.plausibleRadiusMetres
+        )
+        #expect(try #require(found.first).station.crs == "UPM")
+    }
+
+    @Test("California does not put you in Thurso")
+    func californiaAnswersNothing() {
+        let position = Coordinate(lat: 37.7749, lon: -122.4194) // San Francisco
+
+        // Unbounded, the answer is Thurso and it is not wrong, merely useless.
+        let unbounded = Stations.nearest(to: position)
+        #expect(unbounded.first?.station.name == "Thurso")
+        #expect((unbounded.first?.distanceMetres ?? 0) > 7_000_000)
+
+        #expect(Stations.nearest(to: position, within: Stations.plausibleRadiusMetres).isEmpty)
+    }
+
+    /// Far enough out that no railhead is a sane answer.
+    @Test("places with no British railhead within reach answer nothing")
+    func farPlacesAnswerNothing() {
+        for (place, lat, lon) in [
+            ("Dublin", 53.3498, -6.2603),
+            ("Londonderry", 54.9966, -7.3086),
+            ("Guernsey", 49.4657, -2.5853),
+        ] {
+            let found = Stations.nearest(
+                to: Coordinate(lat: lat, lon: lon),
+                within: Stations.plausibleRadiusMetres
+            )
+            #expect(found.isEmpty, "\(place) should not name a station")
+        }
+    }
+
+    /**
+     The bound cannot be a border, and this is the measurement that proves it.
+
+     Cape Wrath is further from a station than Belfast is. Any threshold tight enough to
+     put Northern Ireland outside would put the north-west Highlands outside with it, so
+     the bound rules out the absurd and nothing more. If someone ever "tightens" it, this
+     test is what should stop them.
+     */
+    @Test("the emptiest parts of Britain are further from a station than Belfast is")
+    func remoteBritainOutrangesBelfast() throws {
+        let capeWrath = try #require(
+            Stations.nearest(to: Coordinate(lat: 58.6255, lon: -4.9995)).first
+        )
+        let belfast = try #require(
+            Stations.nearest(to: Coordinate(lat: 54.5973, lon: -5.9301)).first
+        )
+
+        #expect(capeWrath.distanceMetres > belfast.distanceMetres)
+        // Both inside the bound, necessarily: the first cannot be excluded, so nor can
+        // the second.
+        #expect(capeWrath.distanceMetres < Stations.plausibleRadiusMetres)
+        #expect(belfast.distanceMetres < Stations.plausibleRadiusMetres)
+    }
+
+    /// The remotest inhabited corners still have to work, or the bound is too tight.
+    @Test("remote Britain is still inside the bound")
+    func remoteBritainStillAnswers() {
+        for (place, lat, lon) in [
+            ("Cape Wrath", 58.6255, -4.9995),
+            ("Kinlochbervie", 58.4570, -5.0500),
+            ("Lizard Point", 49.9595, -5.2044),
+            ("Aberdaron", 52.8030, -4.7120),
+        ] {
+            let found = Stations.nearest(
+                to: Coordinate(lat: lat, lon: lon),
+                within: Stations.plausibleRadiusMetres
+            )
+            #expect(!found.isEmpty, "\(place) should reach a station")
+        }
+    }
+}

@@ -154,12 +154,31 @@ export interface NearbyStation {
  * rather than one result, because at Stratford or Barking the nearest station by
  * straight-line distance is not always the one you are stood on.
  */
+/**
+ * How far away a station can be and still answer "where am I?".
+ *
+ * There is always a nearest station, which is the problem. Without a bound, standing
+ * in San Francisco fills the field with **Thurso** — 7,907km away, and genuinely the
+ * closest British station to California. The index is right and the answer is absurd.
+ *
+ * **It is not a test of which country you are in, and does not try to be.** Cape Wrath
+ * is 70.7km from the nearest railhead and Kinlochbervie 63.3km, while Belfast is 67.7km
+ * from Stranraer and Douglas 68.2km from Nethertown: remote Great Britain is *further
+ * from a station* than Northern Ireland or the Isle of Man are. No threshold separates
+ * them, so this rules out the absurd and nothing more.
+ *
+ * Mirrors `Stations.plausibleRadiusMetres` in `LastTrainCore`. The two must agree.
+ */
+export const PLAUSIBLE_RADIUS_KM = 100;
+
 export function nearestStations(
   position: { lat: number; lon: number },
-  limit = 4
+  limit = 4,
+  withinKm = PLAUSIBLE_RADIUS_KM
 ): NearbyStation[] {
   return data.stations
     .map((station) => ({ station, distanceKm: distanceKm(position, station) }))
     .sort((a, b) => a.distanceKm - b.distanceKm)
+    .filter((candidate) => candidate.distanceKm <= withinKm)
     .slice(0, limit);
 }

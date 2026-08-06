@@ -310,6 +310,22 @@ OS grid reference instead. All of this lives in `scripts/lib/naptan.mjs`.
   deliberate choice, confirmed: you lose "you just missed the 00:22" in exchange for a
   board with trains on it. Tapping back to Today is respected, not undone.
 
+### There is always a nearest station, and that is the problem
+
+Run from Xcode, whose default simulated location is San Francisco, the nearest-station
+button confidently filled the field with **Thurso**. Nothing was broken: Thurso really
+is the closest British station to California, 7,907km away. The index was right and the
+answer was absurd, which is a shape of bug no correctness test catches.
+
+`Stations.plausibleRadiusMetres` (100km) bounds it, mirrored by `PLAUSIBLE_RADIUS_KM` in
+`lib/stations.ts`. **It is not a test of which country you are in, and must not be
+turned into one.** Measured: Cape Wrath is 70.7km from a railhead and Kinlochbervie
+63.3km, while Belfast is 67.7km from Stranraer and Douglas 68.2km from Nethertown —
+remote Great Britain is *further from a station* than Northern Ireland or the Isle of
+Man. No threshold separates them. A test in `NearestTests.swift` asserts that inequality
+directly, so anyone "tightening" the bound to exclude Belfast finds out it would take
+the north-west Highlands with it.
+
 ### Core Location has two traps, and both fail silently
 
 Both found by pressing the button rather than by reading the code.

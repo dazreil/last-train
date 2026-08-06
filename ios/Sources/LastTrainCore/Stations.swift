@@ -110,7 +110,44 @@ public enum Stations {
     /// Built once. Rebuilding per location update would cost more than the scan it replaces.
     public static let index = SpatialIndex(all)
 
-    public static func nearest(to position: Coordinate, limit: Int = 4) -> [Nearby<Station>] {
+    /**
+     How far away a station can be and still be an answer to "where am I?".
+
+     There is always a nearest station. Without a bound, standing in San Francisco fills
+     the field with **Thurso**, 7,907km away, because Thurso genuinely is the closest
+     British station to California — the index is right and the answer is absurd. It is
+     not a hypothetical: Xcode's default simulated location is San Francisco, which is
+     how this was found.
+
+     **It cannot be a test of which country you are in, and it does not try to be.**
+     Measured against the station list: Cape Wrath is 70.7km from the nearest railhead
+     (Forsinard) and Kinlochbervie 63.3km, while Belfast is 67.7km from Stranraer and
+     Douglas 68.2km from Nethertown. Remote Great Britain is *further from a station*
+     than Northern Ireland and the Isle of Man are. Any bound tight enough to exclude
+     Belfast excludes Cape Wrath with it, so no threshold separates them and picking one
+     that appeared to would just be fitting a number to one city.
+
+     So the job here is narrower: rule out the absurd, not police a border. 100km clears
+     the whole of Great Britain including its emptiest corners, and rules out Dublin
+     (108km), Londonderry (146km) and the Channel Islands (128km). Belfast, the Isle of
+     Man and Calais fall inside it and get a real railhead 40–70km away — which the
+     `Near you` row shows the distance for, so it reads as what it is.
+     */
+    public static let plausibleRadiusMetres: Double = 100_000
+
+    /**
+     The stations around a position, nearest first.
+
+     `within` defaults to unbounded, because "which is nearest" and "is anything near
+     enough to matter" are different questions and only the caller knows it is being
+     asked about a person standing somewhere.
+     */
+    public static func nearest(
+        to position: Coordinate,
+        limit: Int = 4,
+        within maxMetres: Double = .infinity
+    ) -> [Nearby<Station>] {
         index.nearest(to: position, limit: limit)
+            .filter { $0.distanceMetres <= maxMetres }
     }
 }
