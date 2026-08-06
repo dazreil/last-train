@@ -48,6 +48,11 @@ next-env.d.ts
 # Generator response cache (see scripts/generate-stations.mjs). Safe to delete.
 .rtt-cache/
 
+# Progress and raw calling patterns for the adjacency walk. Large, rebuildable, and
+# only meaningful alongside .rtt-cache/. The published artifact, data/adjacency.json,
+# is committed; this is the scaffolding that produced it.
+data/.adjacency-state.json
+
 # Swift. `.build` is ~100MB of object files; `.swiftpm` and xcuserdata are
 # per-machine editor state. All of it regenerates from `swift run`.
 ios/.build/

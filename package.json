@@ -13,7 +13,8 @@
     "national": "node scripts/national.mjs",
     "national:data": "node scripts/generate-national.mjs",
     "stations": "node scripts/generate-stations.mjs",
-    "test": "TZ=UTC node --test lib/*.test.ts"
+    "test": "TZ=UTC node --test lib/*.test.ts",
+    "national:adjacency": "node scripts/generate-adjacency.mjs --all --budget 900"
   },
   "dependencies": {
     "next": "16.2.12",
