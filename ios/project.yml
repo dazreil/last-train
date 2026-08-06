@@ -41,6 +41,16 @@ targets:
       # targets rather than pushed down into LastTrainCore, which imports Foundation
       # and nothing else and is meant to keep it that way.
       - path: App/Shared
+      # The icon, authored in Icon Composer: three SVG layers plus icon.json, which
+      # actool composites into every appearance iOS 26 asks for. Declared as a file so
+      # XcodeGen treats the bundle as one thing rather than recursing into its parts.
+      - path: App/Resources/AppIcon.icon
+        type: file
+      # LaunchBackground, and nothing else so far. UILaunchScreen has referenced this
+      # colour since the app target was written and it has never existed -- the launch
+      # screen was falling back to the system default, which is white, in front of a
+      # deliberately near-black app.
+      - path: App/Resources/Assets.xcassets
     dependencies:
       - package: LastTrainCore
         product: LastTrainCore
@@ -94,6 +104,7 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         ENABLE_USER_SCRIPT_SANDBOXING: YES
         SWIFT_STRICT_CONCURRENCY: complete
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
       configs:
         # `npm run dev` on the machine running the simulator.
         Debug:
