@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Last Train — iOS app icon.
+
+  1024x1024, opaque, square, no alpha and no corner rounding: iOS applies the
+  squircle mask itself, and baking one in leaves a visible seam against it. All
+  ink stays inside a centred ~800px box so nothing is clipped by that mask.
+
+  Everything here is a path. There is no <text>, so the wordmark renders the same
+  on a machine that has never heard of the typeface — the same reason DESIGN.md
+  forbids a glyph standing in for an icon.
+
+  Colours are the poster's, not Theme.swift's: the navy sits a little bluer than
+  Theme.ink (#0b0d10) and the red a little warmer than Theme.lastTrainRed
+  (#e4002b). That is deliberate. An icon is seen next to other icons on a home
+  screen, never next to the board, so it has no ground to hold contrast against
+  and no LAST TRAIN block to agree with.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Last Train</title>
+
+  <defs>
+    <!--
+      Heavy extended caps on a 200-unit cap height, baseline y=200, stems 62.
+      Drawn upright and narrow-ish here; each line below applies the width and
+      the slant in one transform, so the two words cannot drift apart.
+    -->
+    <path id="g-L" d="M0 0 H62 V144 H140 V200 H0 Z"/>
+    <path id="g-A" fill-rule="evenodd" d="M0 200 L60 0 H112 L172 200 H116 L104 150 H66 L54 200 Z M84 30 L101 112 H69 Z"/>
+    <path id="g-S" d="M156 56 C156 22 122 0 82 0 C36 0 8 26 8 62 C8 92 26 110 66 122 L94 130 C110 136 116 142 116 152 C116 164 104 172 86 172 C62 172 46 160 44 140 L2 148 C6 182 40 200 84 200 C132 200 162 176 162 140 C162 108 144 92 104 80 L76 72 C60 67 54 61 54 52 C54 41 64 33 82 33 C100 33 114 44 116 60 Z"/>
+    <path id="g-T" d="M0 0 H156 V56 H109 V200 H47 V56 H0 Z"/>
+    <path id="g-R" fill-rule="evenodd" d="M0 0 H92 C136 0 164 24 164 62 C164 90 150 108 126 116 L172 200 H108 L72 126 H62 V200 H0 Z M62 46 V86 H88 C100 86 108 78 108 66 C108 54 100 46 88 46 Z"/>
+    <path id="g-I" d="M0 0 H62 V200 H0 Z"/>
+    <path id="g-N" d="M0 0 H60 L116 120 V0 H176 V200 H116 L60 80 V200 H0 Z"/>
+  </defs>
+
+  <rect width="1024" height="1024" fill="#101d2e"/>
+
+  <!--
+    The mark, drawn in its own 1000x382 space so the paths stay legible and the
+    placement is one number. Nose right, so it reads as leaving rather than
+    arriving.
+  -->
+  <g transform="translate(112 184) scale(0.80)" fill="#ffffff">
+    <!-- Body: cab hump, then the crescent where the roof separates from the nose. -->
+    <path d="M132 140
+             C280 108 400 66 500 52
+             C592 40 640 54 668 84
+             C614 68 546 84 486 126
+             C578 114 690 140 786 188
+             C874 232 936 264 962 284
+             C972 292 966 300 946 300
+             L300 294
+             L96 288 Z"/>
+
+    <!--
+      Three blades running off the back of the body. Each is wide where it meets
+      the body and sharp at the left, which is what makes the left end read as
+      motion rather than as a cut-off.
+    -->
+    <path d="M8 148 C110 124 236 96 344 78 L364 104 C252 120 122 152 16 162 Z"/>
+    <path d="M26 208 C122 194 232 180 328 174 L342 198 C240 208 116 224 38 224 Z"/>
+    <path d="M52 254 C140 246 224 240 292 238 L302 258 C222 262 122 270 62 268 Z"/>
+
+    <!--
+      Speed streaks. Held clear of the underside rather than tucked against it:
+      at 40pt the gaps are what stop the whole mark filling in to one blob.
+    -->
+    <path d="M4 322 C200 316 420 312 600 310 L604 328 C424 330 202 338 8 332 Z"/>
+    <path d="M58 348 C220 342 380 336 520 334 L524 350 C384 354 224 362 62 358 Z"/>
+    <path d="M168 370 C260 366 360 363 430 363 L434 376 C362 378 262 382 172 378 Z"/>
+
+    <!-- Glazing: background showing through, so it needs no second dark value. -->
+    <g fill="#101d2e">
+      <path d="M222 190 L258 146 L286 142 L272 196 Z"/>
+      <path d="M302 138 L472 116 C496 113 504 124 492 140 L458 184 C450 194 442 198 430 198 L294 196 Z"/>
+    </g>
+  </g>
+
+  <!--
+    The wordmark. The non-uniform scale is the extended weight and the skew is
+    the italic; together they land the slant at about 13 degrees off vertical.
+    LAST is tracked wider than TRAIN so the two lines set to roughly equal width
+    and the block reads as one shape rather than two.
+  -->
+  <g fill="#e63329">
+    <g transform="translate(180 541) scale(0.95 0.645) skewX(-8.92)">
+      <use href="#g-L" xlink:href="#g-L" x="0"/>
+      <use href="#g-A" xlink:href="#g-A" x="173"/>
+      <use href="#g-S" xlink:href="#g-S" x="378"/>
+      <use href="#g-T" xlink:href="#g-T" x="575"/>
+    </g>
+    <g transform="translate(152 711) scale(0.95 0.645) skewX(-8.92)">
+      <use href="#g-T" xlink:href="#g-T" x="0"/>
+      <use href="#g-R" xlink:href="#g-R" x="168"/>
+      <use href="#g-A" xlink:href="#g-A" x="348"/>
+      <use href="#g-I" xlink:href="#g-I" x="532"/>
+      <use href="#g-N" xlink:href="#g-N" x="614"/>
+    </g>
+  </g>
+</svg>
