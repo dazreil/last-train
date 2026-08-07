@@ -453,7 +453,8 @@ distributed app gets revoked.
    evening, and the whole night is computed from one request. Written up in `IOS.md`
    §12. The nearest-station button landed at the same time — `Nearest.swift` had been
    sitting built and tested but unwired since step 4
-6. Paid token, attribution, submit
+6. Paid token, attribution, submit — and the two decisions in *Exposure* below, which
+   are cheap now and awkward once the app is public
 
 ### Parked, not scheduled
 
@@ -495,6 +496,61 @@ is exactly what it exists to solve.
 
 ---
 
+## Exposure — decide before submission
+
+Neither of these is a leak of the RTT token, which has never left the server. Both are
+about **quota and staleness**, and both are consequences of choices that were right at
+the time.
+
+### Every deployment URL is public, not only the production one
+
+Deployment Protection had to be turned off for the phone to reach the API at all — a
+simulator cannot log in to Vercel. But that switch is not scoped to production: Vercel
+mints a permanent URL for **every** deployment, and with protection off each one serves
+`/api/v2/trains` exactly as production does. They do not expire when a newer deploy
+supersedes them.
+
+Two consequences worth naming:
+
+- **Old URLs serve old builds, forever.** A deployment from before `be2910f` still
+  answers, and still says the last train south from Upminster is 18:34. There is no
+  version marker in the response for a client to notice with.
+- **Anything ever deployed is reachable**, including a build where
+  `DEBUG_DIAGNOSTICS=1` was set.
+
+The fix is to protect preview deployments while leaving production open, which keeps the
+app working and closes the stale-build surface. The control is on the same Deployment
+Protection page the switch was thrown on — **read the options there rather than trusting
+a description of them**, including this one. That page did not match its own
+documentation last time and cost an hour.
+
+### The API is unauthenticated, and sized for one person
+
+`/api/v2/trains` has no key, no origin check and no rate limit. Upstream cost is
+*distinct station-days that miss the cache*, so hammering one station is free and
+walking the country is not — and `data/national.json` ships inside the app, so the list
+of every station to walk is public by construction.
+
+Against the sustainable ceilings in the table above:
+
+| | Free | Team |
+|---|---|---|
+| Sustainable per day | 1000 | 3571 |
+| One pass over all 2,619 stations | **2.6× a day's budget** | **73% of a day's budget** |
+
+One enumeration of the station list costs most of a day on the paid tier. At Team's
+40/min a script reaches that in about an hour, and the app is throttled for everyone
+until the window rolls.
+
+Nothing has been done about this. The cheap options, in increasing order of nuisance:
+a per-IP rate limit at the edge; a shared secret the app carries, which stops casual use
+without pretending to be security; or requiring an App Attest token, which is the only
+one that actually holds and is a real piece of work. **This wants a decision before the
+app is public, not after** — the bill arrives either way, but a limit added afterwards
+is a limit added during an incident.
+
+---
+
 ## Known and deliberately unfixed
 
 - The From field clips a long station name at phone width. Ordinary input behaviour,
@@ -503,4 +559,5 @@ is exactly what it exists to solve.
   rather than exact.
 - Vercel **Deployment Protection** was enabled and had to be turned off for the
   phone to reach the app. If a future deploy starts returning a Vercel login page,
-  that setting has come back on.
+  that setting has come back on. Turning it off exposed every preview deployment as
+  well — see *Exposure* above, which is a decision rather than a fixed thing.
