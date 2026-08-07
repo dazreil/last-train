@@ -502,27 +502,33 @@ Neither of these is a leak of the RTT token, which has never left the server. Bo
 about **quota and staleness**, and both are consequences of choices that were right at
 the time.
 
-### Every deployment URL is public, not only the production one
+### Old deployment URLs served old answers — closed 7 August 2026
 
-Deployment Protection had to be turned off for the phone to reach the API at all — a
-simulator cannot log in to Vercel. But that switch is not scoped to production: Vercel
-mints a permanent URL for **every** deployment, and with protection off each one serves
-`/api/v2/trains` exactly as production does. They do not expire when a newer deploy
-supersedes them.
+Deployment Protection had to be turned off for the phone to reach the API, and that
+switch is not scoped. Vercel mints a permanent URL for **every** deployment, and each one
+keeps serving its own build. Measured: three of them — one preview and **two
+production** — all answering HTTP 200 with the last train south from Upminster at
+**18:34**, when the right answer that evening was 00:33.
 
-Two consequences worth naming:
+Note the two production ones. Every push to `main` mints a hashed URL and only the newest
+is aliased, so this was never a preview-only problem, and protecting previews alone would
+have fixed the smaller half of it.
 
-- **Old URLs serve old builds, forever.** A deployment from before `be2910f` still
-  answers, and still says the last train south from Upminster is 18:34. There is no
-  version marker in the response for a client to notice with.
-- **Anything ever deployed is reachable**, including a build where
-  `DEBUG_DIAGNOSTICS=1` was set.
+**The Vercel-side fix does not exist on Hobby.** The Deployment Protection page offers a
+single `Require Log In` toggle covering every deployment including the alias the app is
+built against — that toggle is what broke the phone originally. Password Protection is
+Pro plus Advanced Deployment Protection at $150/month. There is no scope selector to set.
 
-The fix is to protect preview deployments while leaving production open, which keeps the
-app working and closes the stale-build surface. The control is on the same Deployment
-Protection page the switch was thrown on — **read the options there rather than trusting
-a description of them**, including this one. That page did not match its own
-documentation last time and cost an hour.
+So the line is drawn in our own code: `middleware.ts` refuses `/api/*` on any host that
+is not `lib/liveHost.ts`'s `CANONICAL_HOST` or loopback, answering `410 Gone` with the
+live URL in the usual `{ error }` shape. Pages are left alone — a stale page is a
+curiosity, a stale board is an answer someone acts on — which also keeps previews useful
+for looking at the web app.
+
+**It cannot retire deployments that already exist.** They carry their own copy of the old
+code and will answer until they are deleted in the dashboard, under the project's
+Deployments list. Doing that once clears the backlog; the middleware stops it building up
+again.
 
 ### The API is unauthenticated, and sized for one person
 
