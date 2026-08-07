@@ -526,9 +526,22 @@ curiosity, a stale board is an answer someone acts on — which also keeps previ
 for looking at the web app.
 
 **It cannot retire deployments that already exist.** They carry their own copy of the old
-code and will answer until they are deleted in the dashboard, under the project's
-Deployments list. Doing that once clears the backlog; the middleware stops it building up
-again.
+code and will answer until they are deleted. Doing that once clears the backlog; the
+middleware stops it building up again.
+
+Not through the dashboard — that is one triple-dot menu per deployment, and there were
+**35**. The CLI does the lot:
+
+```bash
+npx vercel login
+npx vercel remove last-train --safe    # lists what it will remove, asks once
+npx vercel remove last-train --safe --yes
+```
+
+`--safe` skips deployments with an active alias, so the live production one survives and
+the rest go. Flags read from `vercel remove --help` on CLI 58.8.0 rather than recalled —
+this is the third Vercel control in this project whose behaviour did not match its
+description, so check the help output before trusting any of it, including this.
 
 ### The API is unauthenticated, and sized for one person
 
