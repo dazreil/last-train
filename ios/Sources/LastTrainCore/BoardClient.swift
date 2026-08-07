@@ -123,6 +123,15 @@ public enum BoardClientError: Error, LocalizedError, Equatable {
     case api(String, retryAfterSeconds: Int?)
     case badStatus(Int)
     case unreachable
+    /**
+     Unreachable, but the address was this machine.
+
+     Only a Debug build can be in this state: `project.yml` points Debug at a dev server
+     on localhost and Release at the deployment. Reported separately because "are you
+     online?" is a wrong and slow answer to "you have not run `npm run dev`" -- which is
+     the actual cause every time, and one the message can simply name.
+     */
+    case devServerDown(String)
     case undecodable(String)
 
     public var errorDescription: String? {
@@ -131,6 +140,9 @@ public enum BoardClientError: Error, LocalizedError, Equatable {
         case .badStatus(let code): "The server returned an error (\(code))."
         // Never dressed as a fault in the app: no signal on a platform is ordinary.
         case .unreachable: "Could not reach the server. Are you online?"
+        case .devServerDown(let host):
+            "No dev server at \(host). Run `npm run dev`, or switch the scheme to "
+                + "Release to use the deployment."
         case .undecodable: "The server sent something this version cannot read."
         }
     }
@@ -190,7 +202,7 @@ public struct BoardClient: Sendable {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            throw BoardClientError.unreachable
+            throw isLoopback ? BoardClientError.devServerDown(hostLabel) : .unreachable
         }
 
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
@@ -209,6 +221,17 @@ public struct BoardClient: Sendable {
         } catch {
             throw BoardClientError.undecodable("\(error)")
         }
+    }
+
+    /// Whether this client is pointed at the machine it is running on.
+    private var isLoopback: Bool {
+        let host = baseURL.host()
+        return host == "localhost" || host == "127.0.0.1" || host == "::1"
+    }
+
+    private var hostLabel: String {
+        guard let host = baseURL.host() else { return "localhost" }
+        return baseURL.port.map { "\(host):\($0)" } ?? host
     }
 
     private struct APIError: Decodable {

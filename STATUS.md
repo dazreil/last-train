@@ -310,6 +310,21 @@ OS grid reference instead. All of this lives in `scripts/lib/naptan.mjs`.
   deliberate choice, confirmed: you lose "you just missed the 00:22" in exchange for a
   board with trains on it. Tapping back to Today is respected, not undone.
 
+### Xcode's Run button builds Debug, and Debug points at localhost
+
+`project.yml` sets `BOARD_API_BASE_URL` per configuration: Debug to
+`http://localhost:3000`, Release to the deployment. Xcode runs Debug by default, so
+pressing Run without `npm run dev` gives an app that cannot reach anything — and it used
+to say "Could not reach the server. Are you online?", which sends you looking at the
+wrong thing entirely.
+
+`BoardClientError.devServerDown` now names it: *"No dev server at localhost:3000. Run
+`npm run dev`, or switch the scheme to Release to use the deployment."* Only a loopback
+address can produce it, so a shipped build can never show it.
+
+Either fix works — start the dev server, or Product ▸ Scheme ▸ Edit Scheme ▸ Run ▸ Build
+Configuration ▸ Release.
+
 ### There is always a nearest station, and that is the problem
 
 Run from Xcode, whose default simulated location is San Francisco, the nearest-station
