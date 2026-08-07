@@ -129,6 +129,19 @@ public enum ServiceDay {
         return bareDate.string(from: moved)
     }
 
+    /**
+     Whole days from one bare date to another, negative when the second is earlier.
+
+     In UTC, like `addDays`, so the count is unaffected by a clock change falling
+     between the two — a day either side of the October change is still one day.
+     */
+    public static func daysBetween(_ from: IsoDate, _ to: IsoDate) -> Int? {
+        guard let start = bareDate.date(from: from), let end = bareDate.date(from: to) else {
+            return nil
+        }
+        return utcCalendar.dateComponents([.day], from: start, to: end).day
+    }
+
     public static func isValidIsoDate(_ value: String) -> Bool {
         // Shape first: the formatter alone would accept `2026-7-9`, which the API
         // will not, and a lenient parse of `2026-13-01` would roll into next year.

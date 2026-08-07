@@ -264,3 +264,41 @@ struct ServiceDayTests {
         #expect(ServiceDay.londonDate(of: "2026-07-30T23:12:00Z") == "2026-07-31")
     }
 }
+
+/// Counting days apart, for the masthead's step-forward limit.
+@Suite("ServiceDay — daysBetween")
+struct DaysBetweenTests {
+
+    @Test("counts forward, backward and zero")
+    func countsBothWays() {
+        #expect(ServiceDay.daysBetween("2026-08-07", "2026-08-08") == 1)
+        #expect(ServiceDay.daysBetween("2026-08-07", "2026-08-14") == 7)
+        #expect(ServiceDay.daysBetween("2026-08-07", "2026-08-07") == 0)
+        #expect(ServiceDay.daysBetween("2026-08-08", "2026-08-07") == -1)
+    }
+
+    /**
+     The reason this is done in UTC rather than in London.
+
+     25 October 2026 is the night the clocks go back, so that day is 25 hours long in
+     London. Counting calendar days across it in a zone that observes the change can
+     round to zero; in UTC every day is exactly 24 hours and the answer is one.
+     */
+    @Test("a clock change does not shorten a day")
+    func clockChangeDoesNotCount() {
+        #expect(ServiceDay.daysBetween("2026-10-24", "2026-10-25") == 1)
+        #expect(ServiceDay.daysBetween("2026-10-25", "2026-10-26") == 1)
+        #expect(ServiceDay.daysBetween("2026-03-28", "2026-03-29") == 1)
+    }
+
+    @Test("month and year boundaries are ordinary")
+    func boundariesAreOrdinary() {
+        #expect(ServiceDay.daysBetween("2026-08-31", "2026-09-01") == 1)
+        #expect(ServiceDay.daysBetween("2026-12-31", "2027-01-01") == 1)
+    }
+
+    @Test("nonsense in, nil out")
+    func nonsenseIsNil() {
+        #expect(ServiceDay.daysBetween("not-a-date", "2026-08-07") == nil)
+    }
+}

@@ -772,6 +772,19 @@ the web app, and still what the availability counts come from. The filtered quer
 direction looked at rather than one per station-day. Paid only where the cheap answer was
 wrong.
 
+### Availability had to move with it
+
+The control decides whether a direction is a hole from `available`, and that was
+computed by the same destination bearing. So the two disagreed the moment they could:
+on a Saturday every Ockendon branch service from Upminster ends at Shoeburyness, the
+bearing pass counted nought southbound, and the control drew south as a black block
+directly above the forty southbound departures it had just listed.
+
+`available` is now the union of the bearing pass and the sectors the walk found, because
+track exists on every day of the week and a service pattern does not. The per-direction
+*counts* are left alone and are no longer read by the app — they are what the bearing
+pass saw, which §13 exists to stop trusting.
+
 ### It also fixed the label
 
 "Towards" now names where the *route* goes rather than where today's destinations

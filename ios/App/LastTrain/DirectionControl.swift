@@ -26,7 +26,15 @@ import LastTrainCore
    last train and nothing else.
  */
 struct DirectionControl: View {
-    let tally: Direction.Tally
+    /**
+     Which directions have track, from the board's `available`.
+
+     Not a count. The service *count* per direction is whatever the destination-bearing
+     pass saw, which is the rule §13 replaced — on a Saturday it reads nought southbound
+     at Upminster while the board lists forty southbound trains, and the control drew a
+     hole above them. Availability is topology, so it comes from the walked routes.
+     */
+    let available: Set<Compass>
     /// Where each direction's trains go, for the `towards` line.
     let towards: [Compass: String]
     @Binding var selection: Compass
@@ -71,7 +79,7 @@ struct DirectionControl: View {
     }
 
     private func state(for direction: Compass) -> DirectionBlock.State {
-        guard tally.count(direction) > 0 else { return .empty }
+        guard available.contains(direction) else { return .empty }
         return direction == selection ? .selected : .available
     }
 }
@@ -342,7 +350,7 @@ private struct DirectionControlPreview: View {
 
     var body: some View {
         DirectionControl(
-            tally: Direction.Tally(counts: counts, unclassified: 0),
+            available: Set(counts.filter { $0.value > 0 }.keys),
             towards: towards,
             selection: $selection
         )

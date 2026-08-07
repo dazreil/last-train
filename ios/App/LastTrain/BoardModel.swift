@@ -62,6 +62,21 @@ final class BoardModel {
     /// Set once per station and direction, so a spent day is stepped over exactly once.
     private var advancedFor: String?
 
+    /**
+     True once the date has been stepped by hand rather than by the app.
+
+     Kept apart from `requestedDate`, which is also set when a spent service day is
+     stepped over automatically. The difference is only visible in the masthead — a way
+     back to today is offered when *you* moved, and not when the board moved itself,
+     because in that case today is the day whose trains have all gone.
+     */
+    private(set) var isBrowsing = false
+
+    /// How far ahead the date can be stepped. A week covers "next Saturday", which is
+    /// the furthest anyone plans a last train home, and keeps the walk off dates the
+    /// timetable does not cover yet.
+    static let maximumDaysAhead = 7
+
     private let client: BoardClient
     private var inFlight: Task<Void, Never>?
 
@@ -99,8 +114,8 @@ final class BoardModel {
      directions it knew about while a new board loads. The alternative is four blocks
      flickering to empty and back on every refresh.
      */
-    var tally: Direction.Tally {
-        board?.tally ?? Direction.Tally(counts: [:])
+    var available: Set<Compass> {
+        Set(board?.available ?? [])
     }
 
     /// Where each direction goes. Every block names its own destination, not just the
@@ -216,9 +231,42 @@ final class BoardModel {
         locateError = nil
     }
 
+    /// The service day on screen, before the board has loaded as well as after.
+    var shownDate: String {
+        board?.date ?? requestedDate ?? ServiceDay.currentServiceDate()
+    }
+
+    /// How many days ahead of the live service day the board is.
+    var daysAhead: Int {
+        ServiceDay.daysBetween(ServiceDay.currentServiceDate(), shownDate) ?? 0
+    }
+
+    var canStepForward: Bool { daysAhead < Self.maximumDaysAhead }
+
+    /**
+     Step the board on a day.
+
+     The automatic advance in `advancePastSpentDay` cannot fire once this has happened —
+     it only runs while the board is showing the live service day — so the two cannot
+     fight over the date.
+     */
+    func stepForward() {
+        guard canStepForward, let next = ServiceDay.addDays(shownDate, 1) else { return }
+        isBrowsing = true
+        requestedDate = next
+        Task { await load() }
+    }
+
+    /// Back to wherever the app would put you if you had just opened it.
+    func returnToToday() {
+        resetDay()
+        Task { await load() }
+    }
+
     private func resetDay() {
         requestedDate = nil
         advancedFor = nil
+        isBrowsing = false
     }
 
     private func persist() {

@@ -313,6 +313,23 @@ export async function GET(request: Request) {
     const counts = tally(origin, day.classified.map((entry) => entry.destination));
 
     /**
+     * Which directions exist here, from the track rather than from today's destinations.
+     *
+     * The destination bearing is exactly as wrong for this as it was for the board, and
+     * in the same place: on a Saturday every Ockendon branch service from Upminster ends
+     * at Shoeburyness, so the bearing pass counts nought southbound and the control drew
+     * south as a hole — above forty southbound departures it had itself just listed.
+     *
+     * A walked sector means there is track that way, on every day of the week. Unioned
+     * rather than substituted, because the table covers a few hundred stations so far
+     * and the bearing pass is still the only answer everywhere else.
+     */
+    const walkedSectors = COMPASS_POINTS.filter((point) => routesFrom(from.crs)?.[point]);
+    const available = [...new Set([...counts.available, ...walkedSectors])].sort(
+      (a, b) => COMPASS_POINTS.indexOf(a) - COMPASS_POINTS.indexOf(b)
+    );
+
+    /**
      * Where each direction goes, not just the one asked for.
      *
      * The control names a destination on every block it offers — "east" only means
@@ -360,7 +377,7 @@ export async function GET(request: Request) {
       firstDate,
       services,
       directions: counts.counts,
-      available: counts.available,
+      available,
       unclassified: counts.unclassified,
       totalServices: day.candidates.length,
       towards: towardsByDirection[direction],

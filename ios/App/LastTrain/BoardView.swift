@@ -25,7 +25,7 @@ struct BoardView: View {
 
                 if model.station != nil {
                     DirectionControl(
-                        tally: model.tally,
+                        available: model.available,
                         towards: model.towards,
                         selection: $model.direction
                     )
@@ -60,11 +60,15 @@ struct BoardView: View {
             HStack(alignment: .firstTextBaseline) {
                 mastheadWordmark
                 Spacer()
+                todayButton
                 mastheadDate
             }
             VStack(alignment: .leading, spacing: 4) {
                 mastheadWordmark
-                mastheadDate
+                HStack(alignment: .firstTextBaseline) {
+                    todayButton
+                    mastheadDate
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -77,13 +81,63 @@ struct BoardView: View {
         Text("Last Train").labelStyle().fixedSize(horizontal: false, vertical: true)
     }
 
+    /**
+     The date, and the way forward.
+
+     A tap is a whole day, because that is the only step this board has: it answers about
+     a service day, so there is nothing between one and the next to land on. Forward
+     only — yesterday's last train is not a question anyone asks — and stopped after a
+     week, which covers "next Saturday" and keeps it off dates the timetable does not
+     reach.
+     */
     private var mastheadDate: some View {
-        Text(ServiceDay.formatServiceDate(model.board?.date ?? ServiceDay.currentServiceDate()) ?? "")
+        Button {
+            model.stepForward()
+        } label: {
+            HStack(spacing: 5) {
+                Text(ServiceDay.formatServiceDate(model.shownDate) ?? "")
+                    .fixedSize(horizontal: false, vertical: true)
+                // Only where there is a next day to go to. Drawn rather than left in
+                // place and dimmed, so the control never looks pressable when it is not.
+                if model.canStepForward {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .bold))
+                }
+            }
             .font(Theme.Font.label)
             .tracking(Theme.tracking)
             .textCase(.uppercase)
-            .foregroundStyle(Theme.textDim)
-            .fixedSize(horizontal: false, vertical: true)
+            .foregroundStyle(model.canStepForward ? Theme.textDim : Theme.textFaint)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!model.canStepForward)
+        .accessibilityLabel("Show the next day")
+        .accessibilityValue(ServiceDay.formatServiceDate(model.shownDate) ?? "")
+    }
+
+    /**
+     Back to tonight, offered only once you have stepped away by hand.
+
+     Deliberately absent when the board moved itself past a spent service day: today is
+     then the day whose trains have all gone, and offering to return to it would be
+     offering to go back to nothing.
+     */
+    @ViewBuilder
+    private var todayButton: some View {
+        if model.isBrowsing {
+            Button {
+                model.returnToToday()
+            } label: {
+                Text("Today")
+                    .labelStyle(Theme.text)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Theme.raised)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     private var stationField: some View {
