@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Empty on purpose. See STATUS.md: a free personal team cannot provision an App
+	  Group, so a device build signed by one has to go without. Overriding
+	  CODE_SIGN_ENTITLEMENTS on the command line points both targets here and leaves
+	  project.yml — which is what a paid build uses — untouched.
+
+	  The cost is confined to the widget: it can no longer read which station the app
+	  was last on, so a freshly added widget starts blank instead of following the app.
+	  Pick a station in Edit Widget and it behaves normally. The app itself is unaffected.
+	-->
+</dict>
+</plist>

@@ -360,6 +360,54 @@ The fix budget is 30s rather than the web app's 8s for exactly this reason; the
 `authorizationDenied` flag that would settle it properly is iOS 18 and the deployment
 target is 17.
 
+### Getting it onto a real iPhone: four blockers, none of them self-explaining
+
+Done 9 August 2026, on a **free personal team** (`6G9H3H7HTP`). Each failure below
+reported something other than its cause, so this is the order they surface in.
+
+1. **`security find-identity` shows 0 identities, and that is normal.** Signing in to
+   Xcode does not create a development certificate — the first device build does. Do not
+   go hunting for a missing certificate.
+2. **Developer Mode is off on the phone.** Symptom: `devicectl` lists the device as
+   `connected (no DDI)` and every build says *"Unable to find a device matching the
+   provided destination specifier"*, which sounds like the wrong id. It is not.
+   Settings ▸ Privacy & Security ▸ Developer Mode, on, restart, confirm.
+3. **`devicectl`'s identifier is not `xcodebuild`'s.** `devicectl list devices` prints a
+   CoreDevice UUID; `-destination id=` wants the hardware UDID. Get the right one from
+   `xcodebuild -showdestinations`, never by copying the one you can already see.
+4. **A free team cannot provision an App Group.** This is the real wall, and it is the
+   last to appear because a profile has to exist before it can mismatch: *"Provisioning
+   profile … doesn't match the entitlements file's value for the
+   com.apple.security.application-groups entitlement"*. Overriding
+   `CODE_SIGN_ENTITLEMENTS` to `App/Resources/PersonalTeam.entitlements`, which is empty,
+   signs both targets without it and leaves `project.yml` — what a paid build uses —
+   untouched.
+
+Then trust the certificate **on the phone**: Settings ▸ General ▸ VPN & Device Management
+▸ Developer App ▸ Trust. Until that is done the app installs and refuses to launch, with
+`FBSOpenApplicationErrorDomain error 3`.
+
+```bash
+cd ios
+xcodebuild -project LastTrain.xcodeproj -scheme LastTrain -configuration Release \
+  -destination "id=$(xcodebuild -project LastTrain.xcodeproj -scheme LastTrain \
+    -showdestinations 2>/dev/null | grep 'platform:iOS, arch' | \
+    sed -E 's/.*id:([^,]+).*/\1/')" \
+  -allowProvisioningUpdates DEVELOPMENT_TEAM=6G9H3H7HTP CODE_SIGN_STYLE=Automatic \
+  CODE_SIGN_ENTITLEMENTS='App/Resources/PersonalTeam.entitlements' build
+
+xcrun devicectl device install app --device <hardware-udid> \
+  ~/Library/Developer/Xcode/DerivedData/LastTrain-*/Build/Products/Release-iphoneos/LastTrain.app
+```
+
+**Release, so the phone talks to the deployment** rather than a dev server it cannot
+reach. **A free team signs for 7 days**; after that the app stops launching until it is
+rebuilt and reinstalled.
+
+The widget works on device without the App Group, as expected: it cannot read which
+station the app was last on, so it starts blank instead of following the app, and
+behaves normally once a station is picked in Edit Widget.
+
 ### The simulator's widget gallery will not take synthetic taps
 
 Adding a widget needs long-press → Edit → Add Widget, and the tap on **Edit** is
