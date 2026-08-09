@@ -31,6 +31,30 @@ packages:
     # board arrangement, nearest station, bundled stations.
     path: .
 
+# Declared here rather than left to Xcode.
+#
+# Xcode auto-creates a scheme the first time the project is opened and writes it into
+# `xcuserdata`, which is gitignored -- so `xcodegen generate` wipes it and the next
+# `xcodebuild -scheme LastTrain` fails with "does not contain a scheme named LastTrain"
+# until somebody opens Xcode again. A shared scheme is written into the project itself
+# and regenerates with everything else, which is the rule this file exists to keep.
+schemes:
+  LastTrain:
+    build:
+      targets:
+        LastTrain: all
+    run:
+      # `npm run dev` on this machine; see BOARD_API_BASE_URL below.
+      config: Debug
+    test:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+
 targets:
   LastTrain:
     type: application

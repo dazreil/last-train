@@ -6,63 +6,13 @@
     {
       "layers" : [
         {
-          "glass" : false,
-          "image-name" : "lticontext.svg",
-          "name" : "lticontext",
+          "image-name" : "lticon2 2.svg",
+          "name" : "lticon2 2",
           "position" : {
             "scale" : 0.51,
             "translation-in-points" : [
-              0.25366171333485,
-              110
-            ]
-          }
-        },
-        {
-          "fill-specializations" : [
-            {
-              "value" : "none"
-            },
-            {
-              "appearance" : "dark",
-              "value" : {
-                "linear-gradient" : [
-                  "display-p3:1.00000,1.00000,1.00000,1.00000",
-                  "srgb:0.00482,0.12893,0.41281,1.00000"
-                ],
-                "orientation" : {
-                  "start" : {
-                    "x" : 0.49999999999999994,
-                    "y" : 0.5994834432628887
-                  },
-                  "stop" : {
-                    "x" : 0.03530364828257787,
-                    "y" : 0.7767168080046666
-                  }
-                }
-              }
-            }
-          ],
-          "glass" : false,
-          "hidden" : false,
-          "image-name" : "lticontrain.svg",
-          "name" : "lticontrain",
-          "position" : {
-            "scale" : 0.51,
-            "translation-in-points" : [
-              -24,
-              -120.3125
-            ]
-          }
-        },
-        {
-          "fill" : "none",
-          "image-name" : "lticonback.svg",
-          "name" : "lticonback",
-          "position" : {
-            "scale" : 1,
-            "translation-in-points" : [
-              0.1808236809099526,
-              134.5
+              0,
+              0
             ]
           }
         }
