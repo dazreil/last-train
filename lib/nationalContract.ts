@@ -97,3 +97,30 @@ export interface NationalError {
   error: string;
   retryAfterSeconds?: number;
 }
+
+/**
+ * One stop on a train's route, for the calling-points sheet.
+ *
+ * A *call*, not a location: the service response omits passes entirely, so everything
+ * here is somewhere you can actually get off. See `lib/rtt.ts`'s note on `serviceDetail`.
+ */
+export interface ServiceCall {
+  /** Null for the handful of stops with no CRS, which are still worth naming. */
+  crs: string | null;
+  name: string;
+  /** London wall-clock. The departure where there is one, the arrival at the far end. */
+  time: string | null;
+  isCancelled: boolean;
+}
+
+/** Where a train goes, end to end. */
+export interface ServiceCalls {
+  serviceId: string;
+  /** `2D88`. Stable day to day, unlike `serviceId`, which carries its date. */
+  headcode: string | null;
+  toc: string;
+  tocName: string;
+  origin: string;
+  destination: string;
+  calls: ServiceCall[];
+}
