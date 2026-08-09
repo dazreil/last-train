@@ -101,12 +101,19 @@ struct BoardProvider: AppIntentTimelineProvider {
         // the same board -- no further requests, and no guessing at a refresh interval.
         let moments = [now] + Glance.changePoints(board: board, now: now)
 
+        // Read once, for this board's own station and direction. A pin made elsewhere
+        // does not apply here and `pinnedHeadcode` returns nil for it.
+        let pinned = SharedSelection.pinnedHeadcode(for: station.crs, direction: direction)
+
         return moments.map { moment in
             BoardEntry(
                 date: moment,
                 station: station,
                 direction: direction,
-                glance: Glance.of(board: board, now: moment),
+                // The handover is free: the pinned train leads while it is still on
+                // `remaining`, and the entry timed a second past its departure computes
+                // the ordinary answer instead. No extra request, no second timeline.
+                glance: Glance.of(board: board, now: moment, pinned: pinned),
                 failure: nil
             )
         }

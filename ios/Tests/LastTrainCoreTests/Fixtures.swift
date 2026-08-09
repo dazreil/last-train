@@ -77,7 +77,7 @@ func board(
           "destination": "\(service.destination)",
           "platform": "2",
           "isReplacementBus": false,
-          "headcode": "2K85",
+          "headcode": "\(service.dep.replacingOccurrences(of: ":", with: ""))",
           "serviceId": "gb-nr:\(service.dep):\(date)",
           "role": "\(service.role)"
         }

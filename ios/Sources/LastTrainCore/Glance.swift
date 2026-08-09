@@ -42,6 +42,14 @@ public struct Glance: Sendable, Equatable {
         case firstBack
         /// The first train out of a service day that has not started running yet.
         case firstOut
+        /**
+         A train you chose, while it can still be caught.
+
+         Never red, and never called the last train — it usually is not one, and saying
+         so is the one lie that strands somebody. It is *yours*, on blue, and the moment
+         it departs the board goes back to answering the question it was built for.
+         */
+        case pinned
     }
 
     public let label: Label
@@ -61,7 +69,18 @@ public struct Glance: Sendable, Equatable {
      is genuinely nothing further in hand. The widget says so plainly, the same way the
      app does — `PRODUCT.md` is explicit that a blank result has to be trustworthy.
      */
-    public static func of(board: DepartureBoard, now: Date = Date()) -> Glance? {
+    public static func of(
+        board: DepartureBoard,
+        now: Date = Date(),
+        /**
+         A headcode to lead with, while its train is still to come.
+
+         Keyed on the headcode rather than the service id because `serviceId` carries its
+         date — `gb-nr:F20585:2026-08-05` — so pinning one would mean nothing tomorrow.
+         `2D88` is the same train every day it runs, which is what a pin has to be.
+         */
+        pinned: String? = nil
+    ) -> Glance? {
         let remaining = board.services.filter { service in
             guard let instant = ServiceDay.instant(from: service.depInstant) else {
                 // Unparseable is treated as gone rather than as still to come. A time
@@ -72,6 +91,21 @@ public struct Glance: Sendable, Equatable {
         }
 
         guard let leader = remaining.first else { return nil }
+
+        /*
+         Your train wins while it is still catchable, in either arrangement — unless it
+         happens to *be* the last train, in which case it is labelled as one and stays
+         red. Pinning the last train should not quietly disarm the warning.
+         */
+        if let pinned, !pinned.isEmpty,
+           let mine = remaining.first(where: { $0.headcode == pinned }) {
+            let isLast = board.lastTrain.map { $0.id == mine.id } ?? false
+            return Glance(
+                label: isLast ? .lastTrain : .pinned,
+                departure: mine,
+                remaining: remaining
+            )
+        }
 
         // Nothing has run yet today, so the day's last train is most of a day away and
         // the first one out is the answer. The board still carries that last train, and

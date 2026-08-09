@@ -185,3 +185,93 @@ struct GlanceTests {
         #expect(reload == now.addingTimeInterval(1800))
     }
 }
+
+/**
+ Pinning a train, and giving it up again.
+
+ The whole point is the handover: your train leads while it can be caught, and the
+ instant it goes the widget is back to answering the question the app exists for. A pin
+ that outlives its train would be a widget quietly showing a departure that has gone.
+ */
+@Suite("Glance — pinned")
+struct GlancePinnedTests {
+
+    @Test("a pinned train leads while it is still to come")
+    func pinnedLeads() throws {
+        let glance = try #require(
+            Glance.of(
+                board: upminsterEastEvening(),
+                now: utcInstant("2026-08-05T18:00:00Z"), // 19:00 London
+                pinned: "2351"                            // the 23:51, not the last train
+            )
+        )
+
+        #expect(glance.label == .pinned)
+        #expect(glance.departure.dep == "23:51")
+        // Never red. It is not the last train and must not be dressed as one.
+        #expect(!glance.isLastTrain)
+    }
+
+    @Test("once it has gone, the board answers for itself again")
+    func handsBackAfterDeparture() throws {
+        let glance = try #require(
+            Glance.of(
+                board: upminsterEastEvening(),
+                now: utcInstant("2026-08-05T23:00:00Z"), // 00:00 London, 23:51 has gone
+                pinned: "2351"
+            )
+        )
+
+        #expect(glance.label == .lastTrain)
+        #expect(glance.departure.dep == "00:42")
+        #expect(glance.isLastTrain)
+    }
+
+    /**
+     Pinning the last train must not disarm it.
+
+     The pin wins the headline either way; what must not happen is the label softening
+     to `pinned`, because that is what takes the red off the block and the word off the
+     lock screen. Choosing your last train should not quietly downgrade the warning.
+     */
+    @Test("pinning the last train keeps it red")
+    func pinningTheLastTrainKeepsItRed() throws {
+        let glance = try #require(
+            Glance.of(
+                board: upminsterEastEvening(),
+                now: utcInstant("2026-08-05T18:00:00Z"), // 19:00 London
+                pinned: "0042"
+            )
+        )
+
+        #expect(glance.departure.dep == "00:42")
+        #expect(glance.label == .lastTrain, "the last train stays the last train")
+        #expect(glance.isLastTrain)
+    }
+
+    @Test("a pin for a train that is not on this board is ignored")
+    func unknownPinIsIgnored() throws {
+        let glance = try #require(
+            Glance.of(
+                board: upminsterEastEvening(),
+                now: utcInstant("2026-08-05T18:00:00Z"),
+                pinned: "9Z99"
+            )
+        )
+        #expect(glance.label == .lastTrain)
+    }
+
+    @Test("no pin behaves exactly as before")
+    func emptyPinIsNoPin() throws {
+        for pin in [nil, ""] as [String?] {
+            let glance = try #require(
+                Glance.of(
+                    board: upminsterEastEvening(),
+                    now: utcInstant("2026-08-05T18:00:00Z"),
+                    pinned: pin
+                )
+            )
+            #expect(glance.label == .lastTrain)
+        }
+    }
+}

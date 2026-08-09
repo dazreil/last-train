@@ -16,6 +16,8 @@ import LastTrainCore
 struct BoardView: View {
     @State private var model = BoardModel()
     @State private var pickingStation = false
+    /// The block whose route is open. Nil when the sheet is closed.
+    @State private var inspecting: BoardDeparture?
 
     var body: some View {
         ScrollView {
@@ -47,6 +49,20 @@ struct BoardView: View {
         .onOpenURL { model.open($0) }
         .sheet(isPresented: $pickingStation) {
             StationPicker(selection: $model.station)
+        }
+        .sheet(item: $inspecting) { service in
+            if let station = model.station {
+                ServiceSheet(
+                    service: service,
+                    station: station,
+                    direction: model.direction,
+                    isPinned: model.isPinned(service),
+                    onPin: { following in
+                        model.setPin(service, following: following)
+                        inspecting = nil
+                    }
+                )
+            }
         }
     }
 
@@ -293,8 +309,13 @@ struct BoardView: View {
                 }
                 ServiceRow(
                     service: service,
-                    isLastTrain: service.serviceId == board.lastTrain?.serviceId
+                    isLastTrain: service.serviceId == board.lastTrain?.serviceId,
+                    isPinned: model.isPinned(service)
                 )
+                // The whole block, because at night on a platform the target is the
+                // thing you can see, not a chevron somewhere inside it.
+                .contentShape(Rectangle())
+                .onTapGesture { inspecting = service }
             }
         }
         .padding(.top, 6)

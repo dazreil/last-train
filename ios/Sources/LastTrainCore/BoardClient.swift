@@ -150,7 +150,8 @@ public enum BoardClientError: Error, LocalizedError, Equatable {
 
 public struct BoardClient: Sendable {
     public let baseURL: URL
-    private let session: URLSession
+    /// Internal rather than private so the calling-points extension can reuse it.
+    let session: URLSession
 
     public init(baseURL: URL, session: URLSession = .shared) {
         self.baseURL = baseURL
@@ -224,12 +225,12 @@ public struct BoardClient: Sendable {
     }
 
     /// Whether this client is pointed at the machine it is running on.
-    private var isLoopback: Bool {
+    var isLoopback: Bool {
         let host = baseURL.host()
         return host == "localhost" || host == "127.0.0.1" || host == "::1"
     }
 
-    private var hostLabel: String {
+    var hostLabel: String {
         guard let host = baseURL.host() else { return "localhost" }
         return baseURL.port.map { "\(host):\($0)" } ?? host
     }
@@ -238,4 +239,83 @@ public struct BoardClient: Sendable {
         let error: String
         let retryAfterSeconds: Int?
     }
+}
+
+// MARK: - Where one train goes
+
+/// One stop on a train's route.
+public struct ServiceCall: Decodable, Sendable, Equatable, Identifiable {
+    /// Null for the few stops with no CRS, which are still worth naming.
+    public let crs: String?
+    public let name: String
+    /// London wall-clock. The departure, or the arrival at the far end.
+    public let time: String?
+    public let isCancelled: Bool
+
+    /// Stable enough for a list: a train calls at a place once.
+    public var id: String { crs ?? name }
+}
+
+/// A train's whole route, as the sheet behind a tap shows it.
+public struct ServiceCalls: Decodable, Sendable, Equatable {
+    public let serviceId: String
+    /// `2D88`. Stable day to day, unlike `serviceId`, which carries its date — so this
+    /// is what a pin is keyed on.
+    public let headcode: String?
+    public let toc: String
+    public let tocName: String
+    public let origin: String
+    public let destination: String
+    public let calls: [ServiceCall]
+}
+
+extension BoardClient {
+    /**
+     Where one train goes.
+
+     One request, made only when somebody taps, and cached by the server under the
+     service id. Nothing calls this on behalf of a board.
+     */
+    public func calls(for serviceId: String) async throws -> ServiceCalls {
+        guard var components = URLComponents(
+            url: baseURL.appendingPathComponent("api/v2/service"),
+            resolvingAgainstBaseURL: false
+        ) else { throw BoardClientError.unreachable }
+
+        components.queryItems = [URLQueryItem(name: "id", value: serviceId)]
+        guard let url = components.url else { throw BoardClientError.unreachable }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 12
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw isLoopback ? BoardClientError.devServerDown(hostLabel) : .unreachable
+        }
+
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if status != 200 {
+            if let failure = try? JSONDecoder().decode(APIErrorBody.self, from: data) {
+                throw BoardClientError.api(failure.error, retryAfterSeconds: nil)
+            }
+            throw BoardClientError.badStatus(status)
+        }
+
+        do {
+            return try JSONDecoder().decode(ServiceCalls.self, from: data)
+        } catch {
+            throw BoardClientError.undecodable("\(error)")
+        }
+    }
+}
+
+/// The error shape every route uses. Mirrors the private one above, which cannot be
+/// reached from an extension.
+struct APIErrorBody: Decodable {
+    let error: String
+    let retryAfterSeconds: Int?
 }

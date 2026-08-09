@@ -16,9 +16,20 @@ struct ServiceRow: View {
     let service: BoardDeparture
     /// The genuine last train of the service day, not merely the last row.
     let isLastTrain: Bool
+    /// The train the widget is following. Marked, never recoloured — the colours here
+    /// mean last train and ordinary departure, and nothing may be added to that.
+    var isPinned = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
+            if isPinned {
+                HStack(spacing: 5) {
+                    Image(systemName: "pin.fill").font(.system(size: 9, weight: .bold))
+                    Text("In the widget")
+                }
+                .labelStyle(Theme.paper.opacity(0.85))
+            }
+
             if isLastTrain {
                 // Stated in words as well as in colour. Red carries it at a glance, but
                 // red against blue is a hue difference more than a brightness one, so

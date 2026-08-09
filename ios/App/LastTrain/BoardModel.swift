@@ -225,6 +225,33 @@ final class BoardModel {
         }
     }
 
+    /**
+     The headcode the widget is following on this board, if any.
+
+     Scoped to the station and direction, so a pin made at Upminster southbound does not
+     reappear at Barking — headcodes are only unique within a route.
+     */
+    var pinnedHeadcode: String? {
+        guard let station else { return nil }
+        return SharedSelection.pinnedHeadcode(for: station.crs, direction: direction)
+    }
+
+    func isPinned(_ service: BoardDeparture) -> Bool {
+        guard let headcode = service.headcode else { return false }
+        return headcode == pinnedHeadcode
+    }
+
+    /// Follow this train, or stop following it. The widget is told either way.
+    func setPin(_ service: BoardDeparture, following: Bool) {
+        guard let station else { return }
+        SharedSelection.setPin(
+            following ? service.headcode : nil,
+            crs: station.crs,
+            direction: direction
+        )
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
     /// Dismiss the alternatives once one has been taken, or the picker used.
     func clearNearby() {
         nearby = []

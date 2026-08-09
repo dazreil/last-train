@@ -146,8 +146,22 @@ struct BoardWidgetView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Spacer(minLength: 4)
-            Text(caption).labelStyle(Theme.paper.opacity(0.7))
+            /*
+             No `Spacer` here, deliberately.
+
+             Pinning the caption to the bottom left a hole between the countdown and it,
+             while the caption itself ran out of width and wrapped -- putting "· WEST" on
+             a line of its own, so the one gap that meant something (station, then
+             direction) was the one that had none. Flowing from the top instead gives one
+             rhythm down the block, and any slack collects at the bottom where it reads as
+             margin rather than as a missing line.
+             */
+            Text(caption)
+                .labelStyle(Theme.paper.opacity(0.7))
+                // One line, shrunk if it must be. A wrapped caption is two half-labels.
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .padding(.top, 10)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .foregroundStyle(Theme.paper)
@@ -221,6 +235,8 @@ struct BoardWidgetView: View {
         // — the same wording the board uses.
         case .firstBack: "First train back"
         case .firstOut: "First train"
+        // Yours, and said so. Never "last train", which it usually is not.
+        case .pinned: "Your train"
         }
     }
 }

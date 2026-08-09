@@ -40,6 +40,20 @@ enum SharedSelection {
     private enum Key {
         static let crs = "lastTrain.station"
         static let direction = "lastTrain.direction"
+        static let pinHeadcode = "lastTrain.pin.headcode"
+        static let pinScope = "lastTrain.pin.scope"
+    }
+
+    /**
+     A pin belongs to one station and one direction, never to the app.
+
+     `2D88` is a headcode, and headcodes are only unique within a route — pinning the
+     00:33 out of Upminster must not silently become the answer at Barking. Storing the
+     scope alongside means a pin simply does not apply anywhere else, rather than
+     applying wrongly.
+     */
+    private static func scope(_ crs: String, _ direction: Compass) -> String {
+        "\(crs):\(direction.rawValue)"
     }
 
     static var defaults: UserDefaults {
@@ -63,5 +77,30 @@ enum SharedSelection {
     static func store(station: Station?, direction: Compass) {
         defaults.set(station?.crs, forKey: Key.crs)
         defaults.set(direction.rawValue, forKey: Key.direction)
+    }
+
+    /**
+     The headcode pinned for this board, if any.
+
+     Keyed on the headcode rather than the service id: `serviceId` carries its date, so a
+     pin made tonight would mean nothing tomorrow, while `2D88` is the same train every
+     day it runs.
+     */
+    static func pinnedHeadcode(for crs: String, direction: Compass) -> String? {
+        guard defaults.string(forKey: Key.pinScope) == scope(crs, direction) else { return nil }
+        let headcode = defaults.string(forKey: Key.pinHeadcode)
+        return (headcode?.isEmpty ?? true) ? nil : headcode
+    }
+
+    /// Pass `nil` to unpin. Only one train is pinned at a time, deliberately: a widget
+    /// showing a choice between two trains is not a glance.
+    static func setPin(_ headcode: String?, crs: String, direction: Compass) {
+        guard let headcode, !headcode.isEmpty else {
+            defaults.removeObject(forKey: Key.pinHeadcode)
+            defaults.removeObject(forKey: Key.pinScope)
+            return
+        }
+        defaults.set(headcode, forKey: Key.pinHeadcode)
+        defaults.set(scope(crs, direction), forKey: Key.pinScope)
     }
 }
