@@ -85,8 +85,17 @@ async function throttle(log) {
 
 async function getBearer(log) {
   if (bearer) return bearer;
-  if (process.env.RTT_ACCESS_TOKEN) return (bearer = process.env.RTT_ACCESS_TOKEN);
+
+  /*
+   The refresh token first, deliberately.
+
+   `RTT_ACCESS_TOKEN` is short-lived and the copy sitting in `.env.local` is almost
+   always stale. Preferring it meant every script 401'd, and the 401 body is empty, so
+   the failure surfaced as "Unexpected end of JSON input" from a line nowhere near the
+   cause. It is only used when there is no refresh token to exchange.
+  */
   if (!process.env.RTT_REFRESH_TOKEN) {
+    if (process.env.RTT_ACCESS_TOKEN) return (bearer = process.env.RTT_ACCESS_TOKEN);
     throw new Error('No credentials. Put RTT_REFRESH_TOKEN=... in .env.local');
   }
 
@@ -100,7 +109,15 @@ async function getBearer(log) {
     },
   });
   if (!res.ok) throw new Error(`Token exchange failed: HTTP ${res.status}`);
-  return (bearer = (await res.json()).token);
+
+  const body = await res.text();
+  let parsed;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    throw new Error(`Token exchange returned no JSON (HTTP ${res.status}): ${body.slice(0, 80)}`);
+  }
+  return (bearer = parsed.token);
 }
 
 let lastLimits = '';
@@ -146,7 +163,23 @@ export async function rtt(path, params = {}, { cache = false, log = console.log 
   if (res.status === 429) {
     throw new Error(`Rate limited; retry after ${res.headers.get('Retry-After')}s`);
   }
-  const body = res.status === 204 ? null : await res.json();
+  /*
+   Read as text first.
+
+   Not every failure comes back as JSON -- a 401 body is empty -- and `res.json()` on
+   one of those throws inside the parser, so the error names a line in undici rather
+   than the status that caused it. Losing the status is what made this expensive to
+   diagnose twice.
+  */
+  const text = res.status === 204 ? '' : await res.text();
+  let body = null;
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      throw new Error(`HTTP ${res.status} with a non-JSON body: ${text.slice(0, 200) || '(empty)'}`);
+    }
+  }
   if (!res.ok && res.status !== 204) {
     throw new Error(`HTTP ${res.status}: ${JSON.stringify(body).slice(0, 300)}`);
   }
