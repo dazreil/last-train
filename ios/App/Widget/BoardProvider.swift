@@ -51,33 +51,51 @@ struct BoardProvider: AppIntentTimelineProvider {
     }
 
     func snapshot(for configuration: BoardConfiguration, in context: Context) async -> BoardEntry {
-        await entries(for: configuration).first ?? placeholder(in: context)
+        await plan(for: configuration).entries.first ?? placeholder(in: context)
     }
 
     func timeline(
         for configuration: BoardConfiguration,
         in context: Context
     ) async -> Timeline<BoardEntry> {
-        let entries = await entries(for: configuration)
-        guard let last = entries.last else {
-            return Timeline(entries: [placeholder(in: context)], policy: .after(soon()))
-        }
+        let plan = await plan(for: configuration)
 
-        // The final entry is the moment the board runs out, which is exactly when a new
-        // one is needed. Reloading then rather than on a fixed interval is what keeps
-        // this to roughly one request a night.
-        return Timeline(entries: entries, policy: .after(last.date))
+        // A plan always carries at least one entry, but WidgetKit is handed a placeholder
+        // rather than an empty timeline if that ever stops being true -- an empty one is
+        // undefined behaviour, and the reload policy is the part that must survive.
+        return Timeline(
+            entries: plan.entries.isEmpty ? [placeholder(in: context)] : plan.entries,
+            policy: .after(plan.reload)
+        )
+    }
+
+    /**
+     Entries, and the one thing that must never be derived from them: when to ask again.
+
+     Taking the reload from the last entry's date was correct for a healthy board — the
+     final entry *is* the moment it runs out — and a request loop for every other state.
+     A failure, an unconfigured widget and a board with nothing ahead all produce a single
+     entry dated now, so `.after(last.date)` asked to reload immediately and kept asking.
+     The three states are now answered separately.
+     */
+    private struct Plan {
+        let entries: [BoardEntry]
+        let reload: Date
     }
 
     // MARK: - Building the entries
 
-    private func entries(for configuration: BoardConfiguration) async -> [BoardEntry] {
+    private func plan(for configuration: BoardConfiguration) async -> Plan {
         let now = Date()
 
         guard let (station, direction) = configuration.resolved else {
-            // No station chosen and none remembered: the widget says so and asks again
-            // in a while, in case the app has been opened since.
-            return [BoardEntry(date: now, station: nil, direction: .west, glance: nil, failure: nil)]
+            // Nothing to look up and nothing that will change on its own. Waiting is the
+            // whole behaviour here: only opening the app or editing the widget can help,
+            // and both of those reload it directly.
+            return Plan(
+                entries: [BoardEntry(date: now, station: nil, direction: .west, glance: nil, failure: nil)],
+                reload: soon()
+            )
         }
 
         let client = BoardClient(baseURL: AppConfig.apiBaseURL)
@@ -85,17 +103,30 @@ struct BoardProvider: AppIntentTimelineProvider {
         do {
             board = try await client.board(from: station.crs, direction: direction)
         } catch {
-            return [
-                BoardEntry(
-                    date: now,
-                    station: station,
-                    direction: direction,
-                    glance: nil,
-                    failure: (error as? BoardClientError)?.errorDescription
-                        ?? error.localizedDescription
+            // Counted across processes, because a provider has no memory of the last
+            // attempt -- without the count every failure looks like the first and the
+            // wait never grows.
+            SharedSelection.recordWidgetFailure()
+
+            return Plan(
+                entries: [
+                    BoardEntry(
+                        date: now,
+                        station: station,
+                        direction: direction,
+                        glance: nil,
+                        failure: (error as? BoardClientError)?.errorDescription
+                            ?? error.localizedDescription
+                    )
+                ],
+                reload: WidgetRetry.nextAttempt(
+                    afterConsecutiveFailures: SharedSelection.widgetFailures,
+                    from: now
                 )
-            ]
+            )
         }
+
+        SharedSelection.clearWidgetFailures()
 
         // `now`, then a moment past each departure still to come. Each one is drawn from
         // the same board -- no further requests, and no guessing at a refresh interval.
@@ -105,7 +136,7 @@ struct BoardProvider: AppIntentTimelineProvider {
         // does not apply here and `pinnedHeadcode` returns nil for it.
         let pinned = SharedSelection.pinnedHeadcode(for: station.crs, direction: direction)
 
-        return moments.map { moment in
+        let entries = moments.map { moment in
             BoardEntry(
                 date: moment,
                 station: station,
@@ -117,6 +148,11 @@ struct BoardProvider: AppIntentTimelineProvider {
                 failure: nil
             )
         }
+
+        // `reloadDate` is the moment the board runs out -- and it carries the fallback
+        // for a board that never had a future departure in it, which is the third state
+        // that used to reload immediately.
+        return Plan(entries: entries, reload: Glance.reloadDate(board: board, now: now))
     }
 
     /// A short wait, for the cases where there was nothing to compute a schedule from.

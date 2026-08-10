@@ -42,6 +42,7 @@ enum SharedSelection {
         static let direction = "lastTrain.direction"
         static let pinHeadcode = "lastTrain.pin.headcode"
         static let pinScope = "lastTrain.pin.scope"
+        static let widgetFailures = "lastTrain.widget.failures"
     }
 
     /**
@@ -90,6 +91,25 @@ enum SharedSelection {
         guard defaults.string(forKey: Key.pinScope) == scope(crs, direction) else { return nil }
         let headcode = defaults.string(forKey: Key.pinHeadcode)
         return (headcode?.isEmpty ?? true) ? nil : headcode
+    }
+
+    /**
+     Consecutive failed widget lookups, for the reload backoff.
+
+     Persisted because a timeline provider is a fresh process every time — it has no
+     memory of the last attempt, so without this every failure would look like the first
+     and the wait would never grow.
+     */
+    static var widgetFailures: Int {
+        defaults.integer(forKey: Key.widgetFailures)
+    }
+
+    static func recordWidgetFailure() {
+        defaults.set(widgetFailures + 1, forKey: Key.widgetFailures)
+    }
+
+    static func clearWidgetFailures() {
+        defaults.removeObject(forKey: Key.widgetFailures)
     }
 
     /// Pass `nil` to unpin. Only one train is pinned at a time, deliberately: a widget
