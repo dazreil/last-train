@@ -21,7 +21,7 @@ import { NextResponse } from 'next/server';
 
 import { serviceDetail } from '@/lib/rtt';
 import { formatLondonTime } from '@/lib/serviceDay';
-import { getCachedPattern, setCachedPattern } from '@/lib/cache';
+import { getCachedCalls, setCachedCalls } from '@/lib/cache';
 import type { ServiceCall, ServiceCalls } from '@/lib/nationalContract';
 
 export const runtime = 'nodejs';
@@ -49,7 +49,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'A service id is required.' }, { status: 400 });
   }
 
-  const cached = getCachedPattern<ServiceCalls>(id);
+  const cached = getCachedCalls<ServiceCalls>(id);
   if (cached) {
     return NextResponse.json(cached.value, {
       headers: { 'x-cache': 'HIT', 'cache-control': `public, max-age=${TTL_SECONDS}` },
@@ -93,7 +93,7 @@ export async function GET(request: Request) {
     calls,
   };
 
-  setCachedPattern(id, body, TTL_SECONDS);
+  setCachedCalls(id, body, TTL_SECONDS);
 
   return NextResponse.json(body, {
     headers: { 'x-cache': 'MISS', 'cache-control': `public, max-age=${TTL_SECONDS}` },

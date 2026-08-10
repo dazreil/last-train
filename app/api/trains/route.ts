@@ -55,8 +55,8 @@ import {
   setCached,
   getCachedLineUp,
   setCachedLineUp,
-  getCachedPattern,
-  setCachedPattern,
+  getCachedLocations,
+  setCachedLocations,
   ttlSecondsFor,
 } from '@/lib/cache';
 import { findStation, isKnownStation, isKnownStationName, routeMarkers } from '@/lib/stations';
@@ -205,7 +205,7 @@ export async function GET(request: Request) {
     const fetchPattern = async (id: string) => {
       if (patterns.has(id)) return;
 
-      const cached = getCachedPattern<ServiceLocation[] | null>(id);
+      const cached = getCachedLocations<ServiceLocation[] | null>(id);
       if (cached) {
         patterns.set(id, cached.value);
         return;
@@ -218,7 +218,7 @@ export async function GET(request: Request) {
         const detail = await serviceDetail(id);
         const locations = detail?.service?.locations ?? null;
         patterns.set(id, locations);
-        if (locations) setCachedPattern(id, locations, ttl);
+        if (locations) setCachedLocations(id, locations, ttl);
       } catch {
         // Not cached: a transient failure should not persist as a missing route.
         patterns.set(id, null);

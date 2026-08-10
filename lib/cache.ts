@@ -124,7 +124,35 @@ export const setCachedLineUp = <T>(key: string, value: T, ttlSeconds: number): v
   lineUps.set(key, value, ttlSeconds);
 export const invalidateLineUp = (key: string): void => lineUps.delete(key);
 
-export const getCachedPattern = <T>(serviceId: string): CacheHit<T> | null =>
-  patterns.get<T>(serviceId);
-export const setCachedPattern = <T>(serviceId: string, value: T, ttlSeconds: number): void =>
-  patterns.set(serviceId, value, ttlSeconds);
+/**
+ * Two things are cached per service, and they are **not** the same shape.
+ *
+ * `/api/trains` stores the raw RTT `locations` array, which it reads to work out route
+ * labels. `/api/v2/service` stores a rendered `ServiceCalls` body, which it returns
+ * verbatim. Both are keyed by `scheduleMetadata.uniqueIdentity` — the same
+ * `gb-nr:Y65292:2026-08-09` string — so a single shared namespace let whichever route
+ * wrote first hand its shape to the other.
+ *
+ * Nothing caught it: the accessor was generic over an unconstrained `T`, so the cast
+ * was unchecked and the wrong object came back typed as the right one. Observed as the
+ * app reporting "the server sent something this version cannot read" after the web app
+ * had been used against the same process — a failure that looked transient, because it
+ * depended on which route ran first.
+ *
+ * Namespacing the keys is the fix. Keeping one store keeps one eviction pool, and the
+ * two accessors below are typed so a caller cannot ask for the wrong shape by accident.
+ */
+const LOCATIONS = 'locations:';
+const CALLS = 'calls:';
+
+/** Raw RTT calling-pattern locations, for `/api/trains`'s route labelling. */
+export const getCachedLocations = <T>(serviceId: string): CacheHit<T> | null =>
+  patterns.get<T>(LOCATIONS + serviceId);
+export const setCachedLocations = <T>(serviceId: string, value: T, ttlSeconds: number): void =>
+  patterns.set(LOCATIONS + serviceId, value, ttlSeconds);
+
+/** The rendered calling-points body `/api/v2/service` returns. */
+export const getCachedCalls = <T>(serviceId: string): CacheHit<T> | null =>
+  patterns.get<T>(CALLS + serviceId);
+export const setCachedCalls = <T>(serviceId: string, value: T, ttlSeconds: number): void =>
+  patterns.set(CALLS + serviceId, value, ttlSeconds);

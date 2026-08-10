@@ -140,7 +140,13 @@ final class BoardModel {
                     from: station.crs,
                     direction: direction,
                     date: requestedDate,
-                    advanced: requestedDate != nil,
+                    // Only the *automatic* step past a spent day counts as advanced.
+                    // `requestedDate` is also set by `stepForward`, and conflating the
+                    // two told the server a day you had chosen to look at was the live
+                    // one -- so browsing to tomorrow came back in the pre-service
+                    // arrangement, first-three-then-last, instead of the last trains you
+                    // opened it to see.
+                    advanced: requestedDate != nil && !isBrowsing,
                     refresh: refresh
                 )
                 guard !Task.isCancelled else { return }
