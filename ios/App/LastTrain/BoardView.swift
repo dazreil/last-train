@@ -400,6 +400,10 @@ struct BoardView: View {
                 "Timetabled departures for the service day, which runs to 03:00 the next "
                     + "morning — so trains after midnight are tonight’s, not tomorrow’s."
             )
+            // The promise, stated once. A replacement bus leaving *this* station is a
+            // departure and appears, badged. A bus from further down the line is a
+            // connection, and the app does not plan journeys -- see PRODUCT.md.
+            Text("Direct services only. The app never suggests a change.")
             Text("Data from Realtime Trains.")
         }
         .font(Theme.Font.meta)

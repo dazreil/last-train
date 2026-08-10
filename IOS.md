@@ -876,6 +876,37 @@ minutes; that was measured to Southend Central, which every train serves, and it
 wrong pair to measure. At a minor station the question is not which train is fastest but
 which trains are any use, and `filterTo` answers it for one request.
 
+### Measured: which lines actually need this
+
+The mode was nearly justified on the wrong evidence twice, so the numbers are recorded.
+
+**Upminster east, c2c, a normal Tuesday.** Last train to Laindon, Pitsea, Southend Central
+and Shoeburyness: **00:32 in every case**. One train serves the whole line. There is no
+gap, and Fast Train wins nothing here on the last train.
+
+An earlier reading of this pair gave eighty minutes. That was the night c2c terminated at
+Laindon for engineering works and ran buses onward. A disrupted sample, presented as a
+timetable fact.
+
+**Harold Wood west, Elizabeth line, the same normal Tuesday:**
+
+| going to | last train |
+|---|---|
+| Liverpool Street (surface) | 00:04 |
+| the core, and Paddington | 23:49 |
+| Heathrow Terminal 5 | 21:19 |
+
+Three western endings, and two hours forty-five minutes between the first and the last.
+That is the timetable, not disruption.
+
+**So the ambiguity is real but narrow.** It lives on lines with several endings, and the
+Elizabeth line core is the clearest case in the country. It does not live on c2c.
+
+**Decided 11 August 2026: Fast Train covers it, and the Last Train board is left alone.**
+The board is correct for the lines it is used on, and its block already names where the
+train terminates. Rebuilding it for a case Fast Train answers anyway would cost the
+two-second promise for nothing.
+
 ### What is still open
 
 **The empty answer.** Most station pairs have no direct train, so Fast Train will often

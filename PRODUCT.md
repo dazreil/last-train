@@ -48,6 +48,19 @@ app degenerates into at national scale.
 Journey planners answer "how do I get from A to B". Nothing answers "I am here, it
 is 23:40, what have I got left". That gap is the whole product.
 
+### Direct services only
+
+**Decided 11 August 2026.** Every time the app shows is a direct service from the station
+you are standing at. It never joins two services together, and it never suggests a change.
+
+This is why a replacement bus from *your* station appears, badged as one, while a bus from
+somewhere down the line does not. The first is a departure. The second is a connection,
+and a connection is journey planning.
+
+Say it plainly on the board: **the last direct train**. Not the last way home. The
+difference matters on a night when the line is closed and buses run from further along —
+the app is not hiding that service, it is declining to plan a journey around it.
+
 ### The Fast Train exception
 
 **Approved 10 August 2026.** Fast Train asks where you are going. It is a separate mode,
