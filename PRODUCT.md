@@ -48,6 +48,23 @@ app degenerates into at national scale.
 Journey planners answer "how do I get from A to B". Nothing answers "I am here, it
 is 23:40, what have I got left". That gap is the whole product.
 
+### The Fast Train exception
+
+**Approved 10 August 2026.** Fast Train asks where you are going. It is a separate mode,
+and you reach it by a deliberate tap on the title.
+
+The rule above still holds for the default surface. The board you see when you open the
+app has no destination field, and it will not get one. That surface must answer in two
+seconds, and a second field would cost more than it returns.
+
+This is a change to the positioning, written down as one rather than slipped in. `IOS.md`
+§11 required that.
+
+**The dead end does not go away.** Most station pairs in Great Britain have no direct
+train. Fast Train is direct-only, so it will often have nothing to show. "Nothing runs
+between these two" must be believable on its own, in the same way an empty board is.
+Principle 2 applies to the new mode without change.
+
 ## Operating Context
 
 - Opened repeatedly for the same station and direction; the common case is a repeat

@@ -599,10 +599,10 @@ matter far more nationally than it ever did in Essex.
 
 ---
 
-## 11. Parked for a future update — Fast Train
+## 11. Fast Train — the design
 
-**Not part of this build.** Recorded so it is neither lost nor quietly reinvented as
-something smaller. Nothing in §9 changes.
+**No longer parked. Started 10 August 2026 — the build plan is §14.** This section
+records the design. §14 records what it costs and how it gets built.
 
 ### The gesture
 
@@ -791,6 +791,65 @@ pass saw, which §13 exists to stop trusting.
 happen to be. Upminster southbound reads `towards Pitsea`, not `towards Grays` — the
 branch carries on through Tilbury Town, East Tilbury and Stanford-le-Hope before
 rejoining the main line.
+
+---
+
+## 14. Fast Train — the build plan
+
+§11 said: **size it before designing it.** This is the measurement, and it changed the
+answer.
+
+### What one request gives you
+
+Upminster to Southend Central, 17:00 to 19:00, through `/gb-nr/location` with
+`filterTo=SOC`:
+
+- **8 candidate services, from one request.** `filterTo` returns only the trains that
+  call at the destination. You get the candidate set free.
+- **No arrival time at the destination.** The payload holds no trace of the filter
+  station. The `temporalData` belongs to the station you asked from.
+
+So the first half of Fast Train is free and the second half is not. To rank by arrival,
+each train needs its calling pattern. That is one request per train.
+
+### The plan: cache by headcode
+
+| Plan | Cold | Warm |
+|---|---|---|
+| Fetch every pattern, every lookup | ~9 requests | ~1 |
+| **Cache patterns by headcode** | ~9 on day one | **~1 after** |
+| Journey times from the offline walk | 1 | 1 |
+
+**The middle one.** A service id carries its date, so a pattern cached tonight is a miss
+tomorrow. A headcode does not: `2D62` is the same train each day it runs. Cache on the
+headcode and a corridor costs its ~9 requests once, then nothing.
+
+The third plan is better still and stays out of reach. It needs journey times from the
+adjacency walk, and the walk is parked until the Team tier. Build the middle plan so the
+third one is an optimisation later, not a rewrite.
+
+### The positioning changed, and it is written down
+
+Fast Train asks where you are going. `PRODUCT.md` now records this as an exception:
+the mode is separate, reached by a deliberate tap, and the default board never gains a
+destination field. Approved 10 August 2026.
+
+### What is still open
+
+**The empty answer.** Most station pairs have no direct train, so Fast Train will often
+show nothing. That answer must be believable on its own. `filterTo` returning zero
+services is a clean signal, which helps — the app can say "no direct train" and mean it.
+
+**`via` is closed.** §13 answered it. Direction comes from a walked waypoint now, so the
+Tilbury and Basildon routes are already told apart without a label.
+
+### Phases
+
+1. **Core.** The ranking rule and a `FastBoard` type, with tests. No network.
+2. **API.** `GET /api/v2/fast?from=&to=&date=` — one filtered line-up, then patterns.
+3. **iOS.** The mode behind the title tap. From and to fields.
+4. **Last Fast Train.** The third mode from §11.
+5. **Cost.** The headcode cache, once the shape is settled.
 
 ---
 
