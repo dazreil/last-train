@@ -834,6 +834,48 @@ Fast Train asks where you are going. `PRODUCT.md` now records this as an excepti
 the mode is separate, reached by a deliberate tap, and the default board never gains a
 destination field. Approved 10 August 2026.
 
+### The destination is chosen from a list, not typed
+
+**Decided 10 August 2026.** You pick the station, then the direction, then a destination
+from the places that direction actually goes. Then the mode shows the next three fastest.
+
+This is disclosure, not a query. Every destination offered is reachable by a direct
+train, because the list is built from direct trains — so the "no direct service" dead end
+`PRODUCT.md` §1 warns about cannot occur. No destination field, and no keyboard.
+
+### A destination belongs to the direction that reaches it fastest
+
+The Tilbury loop is the **south** direction from Upminster, not a second route east. So
+south offers Ockendon through Stanford-le-Hope and stops there. Pitsea is quicker by the
+main line, so Pitsea belongs to east, and so does everything past it.
+
+The rule is computed, never typed: **a destination is listed under the direction that
+gets you there fastest.** The south list ends at Stanford-le-Hope on its own, because
+that is the last station the loop wins.
+
+It needs journey times for both directions, and a live lookup only fetches one — so this
+belongs in `generate-adjacency`, which already holds the full stop sequences. Until the
+walk reaches a station, the list falls back to everything that direction reaches, which is
+correct but longer than it should be.
+
+### The real value is filtering, not ranking
+
+Measured at Upminster eastbound, Tuesday 17:00 to 18:00:
+
+| destination | trains |
+|---|---|
+| Southend Central | 7 |
+| West Horndon | 4 |
+| Pitsea | 4 |
+
+Three of the seven do not stop at West Horndon or Pitsea. At 17:20, heading for West
+Horndon, a departure board shows you a train in two minutes that will not stop for you.
+
+**That is the case the mode answers.** An earlier note here put the benefit at four
+minutes; that was measured to Southend Central, which every train serves, and it was the
+wrong pair to measure. At a minor station the question is not which train is fastest but
+which trains are any use, and `filterTo` answers it for one request.
+
 ### What is still open
 
 **The empty answer.** Most station pairs have no direct train, so Fast Train will often
