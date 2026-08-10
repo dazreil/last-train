@@ -13,7 +13,7 @@ import Foundation
  This file holds the rule and nothing else. No network, no formatting, no view. What it
  needs is a calling pattern per train, which is the expensive part and lives in the API.
  */
-public struct FastService: Sendable, Equatable, Identifiable {
+public struct FastService: Sendable, Equatable, Identifiable, Decodable {
     public let serviceId: String
     /// Stable day to day, unlike `serviceId`. What the pattern cache keys on.
     public let headcode: String?
@@ -54,6 +54,62 @@ public struct FastService: Sendable, Equatable, Identifiable {
         self.departsAt = departsAt
         self.arrivesAt = arrivesAt
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case serviceId, headcode, toc, destination
+        case departure, departureInstant, arrival, arrivalInstant
+    }
+
+    /**
+     Decoded from the wire, with both instants resolved as London.
+
+     Throws rather than falling back when an instant will not parse. A journey with no
+     order cannot be ranked, and a silent default would put a train somewhere it has not
+     earned — which is the failure mode this whole file exists to avoid.
+     */
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        serviceId = try container.decode(String.self, forKey: .serviceId)
+        headcode = try container.decodeIfPresent(String.self, forKey: .headcode)
+        toc = try container.decode(String.self, forKey: .toc)
+        destination = try container.decode(String.self, forKey: .destination)
+        departure = try container.decode(String.self, forKey: .departure)
+        arrival = try container.decode(String.self, forKey: .arrival)
+
+        let departureInstant = try container.decode(String.self, forKey: .departureInstant)
+        let arrivalInstant = try container.decode(String.self, forKey: .arrivalInstant)
+
+        guard let departsAt = ServiceDay.instant(from: departureInstant),
+              let arrivesAt = ServiceDay.instant(from: arrivalInstant)
+        else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .departureInstant,
+                in: container,
+                debugDescription: "Unreadable departure or arrival instant."
+            )
+        }
+
+        self.departsAt = departsAt
+        self.arrivesAt = arrivesAt
+    }
+}
+
+/// A whole Fast Train answer, as the API sends it.
+public struct FastBoardResponse: Decodable, Sendable, Equatable {
+    public let from: BoardStation
+    public let to: BoardStation
+    public let date: String
+    /// In departure order. `FastBoard.rank` puts them in the order that matters.
+    public let services: [FastService]
+    /// How many direct trains the window holds, before the pattern budget.
+    public let candidates: Int
+    /**
+     True when the budget stopped the server pricing every candidate.
+
+     The four shown are still correct, but they are not provably the fastest four. A
+     board that might be beaten has to admit it.
+     */
+    public let truncated: Bool
 }
 
 public enum FastBoard {

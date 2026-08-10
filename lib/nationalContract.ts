@@ -110,6 +110,13 @@ export interface ServiceCall {
   name: string;
   /** London wall-clock. The departure where there is one, the arrival at the far end. */
   time: string | null;
+  /**
+   * The same moment, in the API's timezone-less London form, for ordering.
+   *
+   * `time` cannot be ordered: 00:15 sorts before 23:50 as a string and the two belong to
+   * one night. Fast Train ranks by arrival, so it needs this.
+   */
+  timeInstant: string | null;
   isCancelled: boolean;
 }
 
@@ -123,4 +130,48 @@ export interface ServiceCalls {
   origin: string;
   destination: string;
   calls: ServiceCall[];
+}
+
+/**
+ * One way of getting from A to B, with the arrival that decides its place.
+ *
+ * The server works out the arrival, because that costs a calling pattern per train. The
+ * *ranking* is left to the client, so the rule lives in one place — `FastBoard` in
+ * `LastTrainCore` — rather than in two that must be kept in step. `lib/compass.ts` and
+ * `Direction.swift` are already a pair like that, and one is enough.
+ */
+export interface FastService {
+  serviceId: string;
+  /** Stable day to day, unlike `serviceId`. What a pattern cache keys on. */
+  headcode: string | null;
+  toc: string;
+  tocName: string;
+  /** Where the train finishes, which is often past where you get off. */
+  destination: string;
+  /** London clock at the origin, for reading. */
+  departure: string;
+  /** The same, orderable. */
+  departureInstant: string;
+  /** London clock at the chosen destination. */
+  arrival: string;
+  arrivalInstant: string;
+}
+
+/** Every direct train from A to B in the window, with arrivals worked out. */
+export interface FastBoard {
+  from: { crs: string; name: string; locality: string | null };
+  to: { crs: string; name: string; locality: string | null };
+  /** `YYYY-MM-DD`, the service day the window belongs to. */
+  date: string;
+  /** In departure order. The client ranks by arrival. */
+  services: FastService[];
+  /** How many trains call at the destination in the window, before any budget. */
+  candidates: number;
+  /**
+   * True when the pattern budget stopped us pricing every candidate.
+   *
+   * The answer is still correct for what it shows, but it is not provably the fastest
+   * four — and a board that might be wrong has to say so.
+   */
+  truncated: boolean;
 }

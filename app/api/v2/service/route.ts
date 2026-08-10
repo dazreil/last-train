@@ -79,6 +79,8 @@ export async function GET(request: Request) {
       crs: stop.location?.shortCodes?.[0] ?? null,
       name: stop.location?.description ?? 'Unknown',
       time: when ? (formatLondonTime(when) ?? null) : null,
+      // The raw London string, kept so a client can order these. See ServiceCall.
+      timeInstant: when ?? null,
       isCancelled: Boolean(departure?.isCancelled ?? arrival?.isCancelled),
     };
   });

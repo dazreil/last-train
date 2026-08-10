@@ -332,3 +332,59 @@ struct APIErrorBody: Decodable {
     let error: String
     let retryAfterSeconds: Int?
 }
+
+extension BoardClient {
+    /**
+     Every direct train from one station to another, with arrivals worked out.
+
+     The server does the expensive half. Rank what comes back with `FastBoard.rank`.
+     */
+    public func fast(
+        from origin: String,
+        to destination: String,
+        date: String? = nil,
+        refresh: Bool = false
+    ) async throws -> FastBoardResponse {
+        guard var components = URLComponents(
+            url: baseURL.appendingPathComponent("api/v2/fast"),
+            resolvingAgainstBaseURL: false
+        ) else { throw BoardClientError.unreachable }
+
+        var query = [
+            URLQueryItem(name: "from", value: origin),
+            URLQueryItem(name: "to", value: destination),
+        ]
+        if let date { query.append(URLQueryItem(name: "date", value: date)) }
+        if refresh { query.append(URLQueryItem(name: "refresh", value: "1")) }
+        components.queryItems = query
+
+        guard let url = components.url else { throw BoardClientError.unreachable }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 20
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.cachePolicy = refresh ? .reloadIgnoringLocalCacheData : .useProtocolCachePolicy
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw isLoopback ? BoardClientError.devServerDown(hostLabel) : .unreachable
+        }
+
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if status != 200 {
+            if let failure = try? JSONDecoder().decode(APIErrorBody.self, from: data) {
+                throw BoardClientError.api(failure.error, retryAfterSeconds: failure.retryAfterSeconds)
+            }
+            throw BoardClientError.badStatus(status)
+        }
+
+        do {
+            return try JSONDecoder().decode(FastBoardResponse.self, from: data)
+        } catch {
+            throw BoardClientError.undecodable("\(error)")
+        }
+    }
+}
