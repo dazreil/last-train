@@ -175,3 +175,40 @@ export interface FastBoard {
    */
   truncated: boolean;
 }
+
+/** One place you can get to directly, and how long it takes. */
+export interface Destination {
+  crs: string;
+  name: string;
+  /** The shortest direct journey found, in minutes. Also the list's sort key. */
+  minutes: number;
+}
+
+/**
+ * Where one direction goes.
+ *
+ * Built from calling patterns, so every entry is reachable by a direct train. That is
+ * what lets Fast Train offer a list instead of a search box, and it is why
+ * `PRODUCT.md` §1's "no direct service" dead end cannot happen in the mode.
+ */
+export interface DestinationList {
+  from: { crs: string; name: string };
+  direction: string;
+  date: string;
+  /** Nearest first, by journey time. That is also route order along the line. */
+  destinations: Destination[];
+  /** True when the pattern budget stopped us reading every route this way. */
+  truncated: boolean;
+  /**
+   * Which other directions this list was checked against.
+   *
+   * §14's rule is that a destination belongs to the direction that reaches it fastest, so
+   * the check needs the other directions' times. Those are read from cache only — never
+   * fetched, because four directions would cost four line-ups and thirty-odd patterns.
+   *
+   * An empty array means nothing was compared, so the list may name places another
+   * direction reaches sooner. The client should say so rather than imply the list is
+   * settled.
+   */
+  comparedWith: string[];
+}
