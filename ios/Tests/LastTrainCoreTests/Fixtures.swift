@@ -151,3 +151,34 @@ func utcString(_ date: Date?) -> String? {
     formatter.timeZone = TimeZone(identifier: "UTC")
     return formatter.string(from: date)
 }
+
+/**
+ A calling pattern, decoded rather than constructed.
+
+ Same reason as `board` above: `ServiceCall` has no public initialiser, and building
+ fixtures through the decoder is the only way a test can be wrong in the way production
+ would be. `nil` in either time field is written as JSON `null`, which is what the route
+ sends for a stop with no time.
+ */
+func serviceCalls(_ stops: [(crs: String, time: String?)]) -> [ServiceCall] {
+    let rows = stops.map { stop in
+        // `HH:mm` sits after the `T`, not at the end -- the seconds are on the end, and
+        // taking the last five characters yields "27:00" for 17:27:00.
+        let clock = stop.time.map { String($0.split(separator: "T").last!.prefix(5)) }
+        let time = clock.map { "\"\($0)\"" } ?? "null"
+        let instant = stop.time.map { "\"\($0)\"" } ?? "null"
+        return """
+        { "crs": "\(stop.crs)", "name": "\(stop.crs)", "time": \(time),
+          "timeInstant": \(instant), "isCancelled": false }
+        """
+    }
+
+    do {
+        return try JSONDecoder().decode(
+            [ServiceCall].self,
+            from: Data("[\(rows.joined(separator: ","))]".utf8)
+        )
+    } catch {
+        preconditionFailure("bad calling-pattern fixture: \(error)")
+    }
+}

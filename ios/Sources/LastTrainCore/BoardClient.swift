@@ -250,10 +250,23 @@ public struct ServiceCall: Decodable, Sendable, Equatable, Identifiable {
     public let name: String
     /// London wall-clock. The departure, or the arrival at the far end.
     public let time: String?
+    /**
+     The same moment, as something you can compare.
+
+     `time` is for reading and cannot be ordered: 00:15 sorts before 23:50 as a string,
+     and the two belong to one night. Fast Train ranks by arrival, so it needs the
+     instant. Optional because a stop can have no time at all.
+     */
+    public let timeInstant: String?
     public let isCancelled: Bool
 
     /// Stable enough for a list: a train calls at a place once.
     public var id: String { crs ?? name }
+
+    /// The call as an absolute moment, or nil if it has no usable time.
+    public var instant: Date? {
+        timeInstant.flatMap(ServiceDay.instant(from:))
+    }
 }
 
 /// A train's whole route, as the sheet behind a tap shows it.
