@@ -179,9 +179,26 @@ export async function GET(request: Request) {
     truncated: candidates > priced.length,
   };
 
-  setCached(key, body, ttl);
+  /*
+   Never cache "found trains, priced none".
 
-  return NextResponse.json(body, { headers: { 'x-cache': 'MISS' } });
+   Every arrival costs a calling pattern, and a pattern fetch that throws drops its train
+   silently so the rest can still answer. When the upstream is rate limited *every* fetch
+   throws, so the board comes back with candidates and no services -- a failure wearing
+   the shape of an answer. Cached for the hour, it then replays as "nothing direct left"
+   at midday, and `refresh=1` is the only way out.
+
+   Observed on the deployment: Upminster to West Horndon, 25 candidates, none priced,
+   while a refresh returned the 13:26 immediately.
+
+   An empty board with no candidates is a real answer and is cached as one.
+  */
+  const pricedNothing = services.length === 0 && candidates > 0;
+  if (!pricedNothing) setCached(key, body, ttl);
+
+  return NextResponse.json(body, {
+    headers: { 'x-cache': pricedNothing ? 'SKIP' : 'MISS' },
+  });
 }
 
 /**
