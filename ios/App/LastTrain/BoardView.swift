@@ -15,6 +15,16 @@ import LastTrainCore
  */
 struct BoardView: View {
     @State private var model = BoardModel()
+    @State private var fast = FastModel()
+    /**
+     Which question the app is answering.
+
+     Always `.last` when the app opens. `PRODUCT.md` calls that the default surface: the
+     one that must answer in two seconds and never asks where you are going. Fast Train is
+     reached by a deliberate tap and is not remembered, so opening the app never lands you
+     somewhere that wants a destination.
+     */
+    @State private var mode: AppMode = .last
     @State private var pickingStation = false
     /// The block whose route is open. Nil when the sheet is closed.
     @State private var inspecting: BoardDeparture?
@@ -25,7 +35,7 @@ struct BoardView: View {
                 masthead
                 stationField
 
-                if model.station != nil {
+                if let station = model.station {
                     DirectionControl(
                         available: model.available,
                         towards: model.towards,
@@ -33,7 +43,12 @@ struct BoardView: View {
                     )
                     .padding(.top, 8)
 
-                    results
+                    switch mode {
+                    case .last:
+                        results
+                    case .fast:
+                        FastBoardView(station: station, direction: model.direction, model: fast)
+                    }
                 } else {
                     whereAreYou
                 }
@@ -45,6 +60,11 @@ struct BoardView: View {
         .background(Theme.surface)
         .refreshable { await model.load(refresh: true) }
         .task { await model.load() }
+        // Fast Train needs its own lookup, and only once there is somewhere to go.
+        .task(id: fastKey) {
+            guard mode == .fast, let station = model.station else { return }
+            await fast.load(at: station, direction: model.direction)
+        }
         // Tapping the widget lands here, on the board it was showing.
         .onOpenURL { model.open($0) }
         .sheet(isPresented: $pickingStation) {
@@ -66,6 +86,11 @@ struct BoardView: View {
         }
     }
 
+    /// Changes whenever Fast Train would be answering a different question.
+    private var fastKey: String {
+        "\(mode.rawValue):\(model.station?.crs ?? "-"):\(model.direction.rawValue):\(fast.destination?.crs ?? "-")"
+    }
+
     // MARK: - Chrome
 
     private var masthead: some View {
@@ -76,14 +101,18 @@ struct BoardView: View {
             HStack(alignment: .firstTextBaseline) {
                 mastheadWordmark
                 Spacer()
-                todayButton
-                mastheadDate
+                if mode == .last {
+                    todayButton
+                    mastheadDate
+                }
             }
             VStack(alignment: .leading, spacing: 4) {
                 mastheadWordmark
-                HStack(alignment: .firstTextBaseline) {
-                    todayButton
-                    mastheadDate
+                if mode == .last {
+                    HStack(alignment: .firstTextBaseline) {
+                        todayButton
+                        mastheadDate
+                    }
                 }
             }
         }
@@ -93,8 +122,28 @@ struct BoardView: View {
         .padding(.bottom, 10)
     }
 
+    /**
+     The wordmark, and the way into the other mode.
+
+     §11 chose this: two taps at opposite ends of the same bar, each turning one axis.
+     The date on the right changes *when*; the title on the left changes *what is being
+     asked*. The name is the description — Last Train becomes Fast Train.
+     */
     private var mastheadWordmark: some View {
-        Text("Last Train").labelStyle().fixedSize(horizontal: false, vertical: true)
+        Button {
+            mode = mode == .last ? .fast : .last
+        } label: {
+            HStack(spacing: 5) {
+                Text(mode.title)
+                Image(systemName: "arrow.left.arrow.right")
+                    .font(.system(size: 8, weight: .bold))
+            }
+            .labelStyle(mode == .fast ? Theme.text : Theme.textFaint)
+            .fixedSize(horizontal: false, vertical: true)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(mode == .last ? "Switch to Fast Train" : "Switch to Last Train")
     }
 
     /**

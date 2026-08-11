@@ -43,6 +43,8 @@ enum SharedSelection {
         static let pinHeadcode = "lastTrain.pin.headcode"
         static let pinScope = "lastTrain.pin.scope"
         static let widgetFailures = "lastTrain.widget.failures"
+        static let destination = "lastTrain.fast.destination"
+        static let destinationScope = "lastTrain.fast.scope"
     }
 
     /**
@@ -91,6 +93,30 @@ enum SharedSelection {
         guard defaults.string(forKey: Key.pinScope) == scope(crs, direction) else { return nil }
         let headcode = defaults.string(forKey: Key.pinHeadcode)
         return (headcode?.isEmpty ?? true) ? nil : headcode
+    }
+
+    /**
+     Where you are heading in Fast Train, scoped to a station and direction.
+
+     Remembered for the same reason the station and the direction are: the common case is
+     the journey you made yesterday. Remembering it is what keeps the mode to no taps at
+     all once it is set up, so nothing is asked at the moment it matters.
+     */
+    static func destination(for crs: String, direction: Compass) -> Station? {
+        guard defaults.string(forKey: Key.destinationScope) == scope(crs, direction) else {
+            return nil
+        }
+        return defaults.string(forKey: Key.destination).flatMap(Stations.find)
+    }
+
+    static func setDestination(_ station: Station?, crs: String, direction: Compass) {
+        guard let station else {
+            defaults.removeObject(forKey: Key.destination)
+            defaults.removeObject(forKey: Key.destinationScope)
+            return
+        }
+        defaults.set(station.crs, forKey: Key.destination)
+        defaults.set(scope(crs, direction), forKey: Key.destinationScope)
     }
 
     /**

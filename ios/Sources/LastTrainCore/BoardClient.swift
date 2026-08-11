@@ -388,3 +388,52 @@ extension BoardClient {
         }
     }
 }
+
+extension BoardClient {
+    /// The places one direction goes, nearest first.
+    public func destinations(
+        from origin: String,
+        direction: Compass,
+        refresh: Bool = false
+    ) async throws -> DestinationList {
+        guard var components = URLComponents(
+            url: baseURL.appendingPathComponent("api/v2/destinations"),
+            resolvingAgainstBaseURL: false
+        ) else { throw BoardClientError.unreachable }
+
+        var query = [
+            URLQueryItem(name: "from", value: origin),
+            URLQueryItem(name: "direction", value: direction.rawValue),
+        ]
+        if refresh { query.append(URLQueryItem(name: "refresh", value: "1")) }
+        components.queryItems = query
+
+        guard let url = components.url else { throw BoardClientError.unreachable }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 20
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw isLoopback ? BoardClientError.devServerDown(hostLabel) : .unreachable
+        }
+
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if status != 200 {
+            if let failure = try? JSONDecoder().decode(APIErrorBody.self, from: data) {
+                throw BoardClientError.api(failure.error, retryAfterSeconds: failure.retryAfterSeconds)
+            }
+            throw BoardClientError.badStatus(status)
+        }
+
+        do {
+            return try JSONDecoder().decode(DestinationList.self, from: data)
+        } catch {
+            throw BoardClientError.undecodable("\(error)")
+        }
+    }
+}

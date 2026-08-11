@@ -198,3 +198,35 @@ public enum FastBoard {
         services.filter { $0.departsAt > now }
     }
 }
+
+/// One place you can reach directly, and how long it takes.
+public struct Destination: Decodable, Sendable, Equatable, Identifiable {
+    public let crs: String
+    public let name: String
+    /// The shortest direct journey found. Also the list's order, which on a railway is
+    /// the order you pass through the stations.
+    public let minutes: Int
+
+    public var id: String { crs }
+}
+
+/// Where one direction goes, as the API sends it.
+public struct DestinationList: Decodable, Sendable, Equatable {
+    public let direction: Compass
+    public let date: String
+    /// Nearest first.
+    public let destinations: [Destination]
+    /// True when the pattern budget stopped the server reading every route this way.
+    public let truncated: Bool
+    /**
+     Which other directions this list was checked against.
+
+     A destination belongs to the direction that reaches it fastest, and that check needs
+     the other directions' times. The server reads those from cache only, so an empty
+     array means the list may name places another direction reaches sooner.
+     */
+    public let comparedWith: [String]
+
+    /// Whether the fastest-direction rule was applied at all.
+    public var isSettled: Bool { !comparedWith.isEmpty }
+}
