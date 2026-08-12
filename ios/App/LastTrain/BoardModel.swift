@@ -19,7 +19,7 @@ final class BoardModel {
     var station: Station? {
         didSet {
             guard station != oldValue else { return }
-            resetDay()
+            resetAutomaticDay()
             persist()
             Task { await load() }
         }
@@ -28,7 +28,7 @@ final class BoardModel {
     var direction: Compass {
         didSet {
             guard direction != oldValue else { return }
-            resetDay()
+            resetAutomaticDay()
             persist()
             Task { await load() }
         }
@@ -72,10 +72,11 @@ final class BoardModel {
      */
     private(set) var isBrowsing = false
 
-    /// How far ahead the date can be stepped. A week covers "next Saturday", which is
-    /// the furthest anyone plans a last train home, and keeps the walk off dates the
-    /// timetable does not cover yet.
-    static let maximumDaysAhead = 7
+    /// How far ahead the date can be stepped before the next tap comes back to today.
+    /// Five days covers "next Saturday" from a weekday, which is the furthest anyone
+    /// plans a last train home, and keeps the walk off dates the timetable does not
+    /// cover yet.
+    static let maximumDaysAhead = 5
 
     private let client: BoardClient
     private var inFlight: Task<Void, Never>?
@@ -274,17 +275,28 @@ final class BoardModel {
         ServiceDay.daysBetween(ServiceDay.currentServiceDate(), shownDate) ?? 0
     }
 
-    var canStepForward: Bool { daysAhead < Self.maximumDaysAhead }
+    /// True on the furthest day the board reaches, where the next tap comes back to today
+    /// rather than doing nothing.
+    var stepWrapsToToday: Bool { daysAhead >= Self.maximumDaysAhead }
 
     /**
-     Step the board on a day.
+     Step the board on a day, and round to today at the end.
+
+     The step used to stop dead on the last day, which left a control that looked
+     pressable and was not. Past the last day it wraps, so the only two ways back to
+     today are stepping off the end and the Today button — nothing else moves the date
+     you chose.
 
      The automatic advance in `advancePastSpentDay` cannot fire once this has happened —
      it only runs while the board is showing the live service day — so the two cannot
      fight over the date.
      */
     func stepForward() {
-        guard canStepForward, let next = ServiceDay.addDays(shownDate, 1) else { return }
+        if stepWrapsToToday {
+            returnToToday()
+            return
+        }
+        guard let next = ServiceDay.addDays(shownDate, 1) else { return }
         isBrowsing = true
         requestedDate = next
         Task { await load() }
@@ -300,6 +312,24 @@ final class BoardModel {
         requestedDate = nil
         advancedFor = nil
         isBrowsing = false
+    }
+
+    /**
+     Drop a day the *app* stepped on to, and keep one you chose.
+
+     Changing station or direction used to reset the date outright, so picking a
+     direction while looking at Saturday threw you back to tonight — a day you had asked
+     for, discarded by a tap that was about something else.
+
+     A day reached automatically is different, and must still be dropped: whether *this*
+     direction's service day is spent is a fresh question, and the answer at Upminster
+     going west is not the answer going east. Clearing it lets the server resolve the
+     live day again and `advancePastSpentDay` re-decide for the new pair.
+     */
+    private func resetAutomaticDay() {
+        guard !isBrowsing else { return }
+        requestedDate = nil
+        advancedFor = nil
     }
 
     private func persist() {

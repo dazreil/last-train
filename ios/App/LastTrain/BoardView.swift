@@ -151,9 +151,12 @@ struct BoardView: View {
 
      A tap is a whole day, because that is the only step this board has: it answers about
      a service day, so there is nothing between one and the next to land on. Forward
-     only — yesterday's last train is not a question anyone asks — and stopped after a
-     week, which covers "next Saturday" and keeps it off dates the timetable does not
-     reach.
+     only — yesterday's last train is not a question anyone asks — and five days, which
+     covers "next Saturday" and keeps it off dates the timetable does not reach.
+
+     Off the end it rounds to today rather than stopping. A control that stops dead is
+     one you press twice to find out it has, and the glyph turns from a chevron into a
+     return arrow to say so before you press it.
      */
     private var mastheadDate: some View {
         Button {
@@ -162,47 +165,52 @@ struct BoardView: View {
             HStack(spacing: 5) {
                 Text(ServiceDay.formatServiceDate(model.shownDate) ?? "")
                     .fixedSize(horizontal: false, vertical: true)
-                // Only where there is a next day to go to. Drawn rather than left in
-                // place and dimmed, so the control never looks pressable when it is not.
-                if model.canStepForward {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 9, weight: .bold))
-                }
+                Image(systemName: model.stepWrapsToToday ? "arrow.counterclockwise" : "chevron.right")
+                    .font(.system(size: 9, weight: .bold))
             }
             .font(Theme.Font.label)
             .tracking(Theme.tracking)
             .textCase(.uppercase)
-            .foregroundStyle(model.canStepForward ? Theme.textDim : Theme.textFaint)
+            .foregroundStyle(Theme.textDim)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(!model.canStepForward)
-        .accessibilityLabel("Show the next day")
+        .accessibilityLabel(model.stepWrapsToToday ? "Back to today" : "Show the next day")
         .accessibilityValue(ServiceDay.formatServiceDate(model.shownDate) ?? "")
     }
 
     /**
      Back to tonight, offered only once you have stepped away by hand.
 
-     Deliberately absent when the board moved itself past a spent service day: today is
-     then the day whose trains have all gone, and offering to return to it would be
-     offering to go back to nothing.
+     Not offered when the board moved itself past a spent service day: today is then the
+     day whose trains have all gone, and offering to return to it would be offering to go
+     back to nothing.
+
+     **It holds its place in the row even when it is not offered**, and that is the whole
+     fix for a bug that read as the date selector being broken. The date sits at the
+     trailing edge; inserting this button to its left on the first step shoved the date
+     leftwards, out from under the finger that had just tapped it. A second tap in the
+     same place landed on Today and came straight back — "tapping the date shows you
+     today". Reserving the space means the date never moves, so the second tap steps
+     again, which is what it looks like it will do.
      */
-    @ViewBuilder
     private var todayButton: some View {
-        if model.isBrowsing {
-            Button {
-                model.returnToToday()
-            } label: {
-                Text("Today")
-                    .labelStyle(Theme.text)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Theme.raised)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
+        Button {
+            model.returnToToday()
+        } label: {
+            Text("Today")
+                .labelStyle(Theme.text)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Theme.raised)
+                .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        // Laid out always, drawn and pressable only when it means something.
+        .opacity(model.isBrowsing ? 1 : 0)
+        .disabled(!model.isBrowsing)
+        .allowsHitTesting(model.isBrowsing)
+        .accessibilityHidden(!model.isBrowsing)
     }
 
     private var stationField: some View {
