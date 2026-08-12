@@ -152,17 +152,18 @@ both days are already cached, and a pre-service board never fetches the second d
 all. `DETAIL_BUDGET` in the route caps service queries per lookup so the worst case
 stays at eight requests, which is where it was before.
 
-### Xcode is installed; the iOS platform was still downloading
+### Xcode is installed; the iOS platform has landed
 
 As of 4 August 2026: **Xcode 26.3**, `xcode-select -p` already pointing at
 `/Applications/Xcode.app/Contents/Developer`, iOS SDK 26.2 present, `swift test`
 working with both `swift-testing` and XCTest.
 
-What was still missing at the time of writing is the **iOS 26.2 platform** — the
-simulator runtime, downloaded separately from Xcode ▸ Settings ▸ Components.
-`xcrun simctl list runtimes` was empty and `xcodebuild -destination` refused every
-iOS destination. Check that first if an iOS build fails; the error names the missing
-platform explicitly.
+The **iOS platform** — the simulator runtime, downloaded separately from Xcode ▸
+Settings ▸ Components — was missing at the time of writing and is now in: iOS 26.3
+(23D8133), confirmed 12 August 2026, with `xcodebuild -destination` accepting simulator
+destinations and a full app build succeeding. If a fresh machine ever fails an iOS build
+with an empty `xcrun simctl list runtimes`, this is the cause and the error names the
+missing platform explicitly.
 
 `swift build --triple arm64-apple-ios17.0-simulator` compiles `LastTrainCore` but
 warns `using sysroot for 'MacOSX' but targeting 'iPhone'`, so it is a smoke test
@@ -324,6 +325,27 @@ address can produce it, so a shipped build can never show it.
 
 Either fix works — start the dev server, or Product ▸ Scheme ▸ Edit Scheme ▸ Run ▸ Build
 Configuration ▸ Release.
+
+### A rate-limited Fast Train lookup reports itself as being offline
+
+Found 12 August 2026, while verifying the pager. Five date steps in a minute spend the
+free tier's 10/minute; the Fast Train lookup that followed queued behind the limiter,
+overran `BoardClient`'s **20-second** timeout, and the app said *"Could not reach the
+server. Are you online?"* — which sends you looking at the network, the base URL and the
+deployment, none of which were wrong. The same lookup answered in 1.2s once the window
+had rolled.
+
+It is the `devServerDown` lesson again in a second place: a transport-level failure is
+reported as one, and the *cause* was the quota. **Warm the pair with `curl` before
+driving the app**, and the app's request is an `x-cache` HIT that cannot time out.
+
+### An empty Fast Train board late at night is usually the right answer
+
+`Upminster → Southend Central` returns `candidates: 0` after about 23:40, and it is
+correct: the last eastbound trains terminate at **Laindon**, short of Southend. Anything
+picked as a test pair needs enough trains left in the evening to fill a second page —
+near end of service most pairs do not, and `Stratford → Liverpool Street` (Elizabeth line
+plus Greater Anglia, every few minutes past midnight) is the reliable one.
 
 ### There is always a nearest station, and that is the problem
 
