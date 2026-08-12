@@ -115,8 +115,11 @@ planned, out of scope permanently.
   hand-written list of a station's directions will be wrong, and wrong in the
   direction of hiding trains
 - Data source: Realtime Trains next-generation API. Darwin/LDBWS cannot serve this
-  product — its 2-hour window and 10-row cap structurally cannot answer "what is the
-  last train tonight" when asked in the afternoon
+  product — its **120-minute window** structurally cannot answer "what is the last train
+  tonight" when asked in the afternoon. The binding limit is the window, not the row
+  count: `numRows` reaches 149 on a plain board and is capped at 10 only with calling
+  points, and no row count reveals a 23:47 departure at 14:00. Darwin's *timetable
+  files* are a different matter and remain the fallback — see `IOS.md` §2
 - **The token must never reach the device.** The app talks to our API only
 - Terminology in use: CRS, TIPLOC, TOC, service day, calling pattern, headcode
 
@@ -140,6 +143,102 @@ Explicitly undecided, and not to be invented:
 
 - Whether the `via` route label survives nationally (it exists for one real
   ambiguity: c2c via Basildon versus the slower Tilbury loop)
+
+## Paying for it
+
+**Reviewed 12 August 2026. Decision: monetise nothing yet, and attack the cost instead
+of chasing revenue.** The options were priced first so that the deferral is a choice
+rather than a gap.
+
+The figure to clear is **£348/year** for RTT Team, plus **~£79/year** for the Apple
+Developer Program in any option needing in-app purchase — the current account is a free
+personal team. Call it **~£427/year** in that case.
+
+### Affiliate ticket sales — rejected for this app
+
+The programmes are real: Trainline pays roughly **3% on new customers and 1% on
+existing** through Partnerize, Omio quotes **2–8%** varying by market, and the
+split-ticketing sellers (TrainPal, TrainSplit) pay better per booking because their
+margin is a service fee rather than the fare.
+
+**The intent is wrong, and that is structural.** Someone checking the last train home
+already holds a ticket — a season, a Travelcard, or contactless, which is how c2c and
+the Elizabeth line are paid for. The last-train question is *post-purchase by
+definition*. At 1–3% of a £10 fare a conversion is worth 10–30p, and conversions will be
+close to none.
+
+It also costs positioning. A Buy Ticket button is the thin end of becoming a booking app,
+competing with Trainline using none of its inventory, and this document's first line is
+that the app never asks where you are going.
+
+### Banner advertising — rejected
+
+Permitted by the licence: Team is explicitly tip-jar and ad friendly. Rejected on
+arithmetic and on design.
+
+A UK iOS banner in a small utility returns roughly **£0.50–£2 eCPM**, lower once most
+users decline the tracking prompt. At £1 that is ~29,000 impressions a month to clear
+£29 — about **3,000 monthly active users** at one banner per open and ten opens a month.
+Against that: an ad SDK, an ATT prompt, a privacy manifest, and store privacy
+disclosures, on a surface whose whole design language is that one red block means one
+thing, and where required RTT attribution is already competing for the space.
+
+### A one-off unlock for Fast Train — held in reserve
+
+The only option that fits the product, and for a better reason than willingness to pay:
+**Fast Train is the mode that costs money.** Up to nine requests for a cold lookup
+against one or two for a board. Gating it bills the users who drive the API spend, which
+is coherent pricing rather than an arbitrary wall.
+
+Mechanically small: one non-consumable StoreKit 2 product, an entitlement check, and a
+Restore Purchases affordance that review requires. No server involvement — the gate is
+client-side, and the worst case is an unlock nobody paid for, which costs a few requests.
+At **£2.99** Apple takes 15% under the Small Business Program, netting ~£2.54, so
+break-even against £427 is about **170 purchases a year**.
+
+**Two honest objections, recorded so they are not rediscovered:**
+
+1. **The cost recurs and a one-off payment does not.** 170 buyers covers year one; year
+   two needs 170 new ones from a finite niche. One-off pricing front-loads revenue and
+   then decays while the bill keeps arriving. It cannot be the whole plan.
+2. **`IOS.md` §14 measured Fast Train's value as real but narrow** — it wins on lines
+   with several endings, and wins nothing on c2c's last train. Charging for a mode that
+   does nothing on the line the author uses daily is a hard sell. If it ships, price it
+   at £1.99 and treat it as a tip jar with a feature attached.
+
+### What is actually being done instead
+
+1. **Ship on RTT Team and monetise nothing.** A thing with no users cannot be priced.
+2. **A tip jar at submission** — permitted, one line in an About sheet, no ATT prompt and
+   no design compromise.
+3. **Run the Darwin spike** once Rail Data Marketplace access is approved. Darwin permits
+   commercial use, paid apps included, free below five million requests per four-week
+   railway period — a ceiling this app will never approach. If the timetable files can
+   reproduce a Fenchurch Street evening, the running cost goes to roughly **£0** and this
+   whole section becomes moot. See `IOS.md` §2.
+4. **Keep the unlock in reserve**, for if Darwin does not work out and the app finds an
+   audience.
+
+**170 in-app purchases a year is a marketing problem; a timetable ingest is an
+engineering problem.** The second one stays solved.
+
+### Noted 12 August 2026: the journey planner is a separate app
+
+Everything learned here — service days, the timezone-less API times, direction as a
+property of the route, the station data, the arrival-ranking work in Fast Train — is
+reusable in a full journey planner, and **that** is the product where ticket affiliate
+revenue has matching intent, because the user is planning a journey they have not bought
+yet.
+
+**It must be a separate app, not a mode of this one.** Interchange logic, fare display
+and A-to-B search are precisely what the Positioning section above refuses, and the
+refusal is the reason this app can answer in two seconds. A planner also inherits the
+"no direct service" dead end that Principle 2 exists to keep out of this product.
+
+Sequenced deliberately: **this app shipped and its bugs worked out first.** The planner is
+a bigger build with real competitors, and it would need a data source that supports it —
+which is another argument for doing the Darwin work, since a planner needs an assembled
+timetable of its own regardless.
 
 ## Brand Commitments
 
