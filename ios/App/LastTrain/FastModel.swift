@@ -137,16 +137,21 @@ final class FastModel {
     var canPage: Bool { pageCount > 1 }
     var isOnFirstPage: Bool { page == 0 }
 
-    /**
-     The next three after these.
+    /// True on the last page, where the next tap comes back to the first. The masthead
+    /// reads this to know which glyph to draw before you press it.
+    var pageWrapsToNow: Bool { page + 1 >= pageCount }
 
-     Stops at the last page rather than wrapping. The spec asked for a wrap; a wrap and a
-     `Now` button do the same job, and the button says what it does. `Today` already works
-     this way on the Last Train date, so the two modes behave alike.
+    /**
+     The next three after these, and round to the first page off the end.
+
+     This used to stop dead on the last page, matching a `Now` button that did the going
+     back. Both modes now share one rule at that end of the masthead: forward, and round
+     to the start. The Last Train date does the same thing with its five days, and a
+     control that rounds is one you never press twice to find out it has stopped.
      */
-    func nextPage() {
-        guard page + 1 < pageCount else { return }
-        page += 1
+    func advance() {
+        guard canPage else { return }
+        page = pageWrapsToNow ? 0 : page + 1
     }
 
     /// Back to the next three from now.

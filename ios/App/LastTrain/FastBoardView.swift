@@ -114,67 +114,23 @@ struct FastBoardView: View {
             ForEach(model.shown) { service in
                 FastRow(service: service)
             }
-
-            pager
         }
-    }
-
-    private var heading: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(model.isOnFirstPage ? "Fastest from now" : "Later still").labelStyle()
-            Spacer()
-            if model.pageCount > 1 {
-                Text("\(model.page + 1) of \(model.pageCount)").labelStyle()
-            }
-        }
-        .padding(.horizontal, Theme.Space.gutter)
-        .padding(.top, 18)
-        .padding(.bottom, 5)
     }
 
     /**
-     Forward, and a way back.
+     Which three these are.
 
-     The spec asked for a wrap at the last page. A wrap and a `Now` button do the same
-     job, and the button says which one it is — which matters most late in the evening,
-     when the page count shrinks and a wrap would look like a fault. `Today` already
-     works this way on the Last Train date, so the two modes behave alike.
+     The count and the way forward moved to the masthead, where §11 put them — this says
+     only which of the two answers you are reading. Paging used to live at the foot of the
+     list, which put it below the fold on a phone.
      */
-    @ViewBuilder
-    private var pager: some View {
-        if model.canPage {
-            HStack(spacing: 8) {
-                if !model.isOnFirstPage {
-                    Button { model.now() } label: {
-                        Text("Now")
-                            .labelStyle(Theme.text)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 9)
-                            .background(Theme.raised)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                Button { model.nextPage() } label: {
-                    HStack(spacing: 6) {
-                        Text("Later")
-                        Image(systemName: "chevron.right").font(.system(size: 10, weight: .bold))
-                    }
-                    .labelStyle(model.page + 1 < model.pageCount ? Theme.text : Theme.textFaint)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 9)
-                    .background(Theme.raised)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(model.page + 1 >= model.pageCount)
-
-                Spacer(minLength: 0)
-            }
+    private var heading: some View {
+        Text(model.isOnFirstPage ? "Fastest from now" : "Later still")
+            .labelStyle()
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Theme.Space.gutter)
-            .padding(.top, 12)
-        }
+            .padding(.top, 18)
+            .padding(.bottom, 5)
     }
 
     private var skeleton: some View {

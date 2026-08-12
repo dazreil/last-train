@@ -607,30 +607,66 @@ records the design. §14 records what it costs and how it gets built.
 ### The gesture
 
 Tapping **"Last Train"** in the header switches the app into **Fast Train** mode —
-the same interaction as tapping the date opposite it, which already swaps today for
-tomorrow. Two taps at opposite ends of the same bar, each toggling one axis.
+the same interaction as tapping the date opposite it, which already steps the board on a
+service day. Two taps at opposite ends of the same bar, each turning one axis: the title
+changes *what is being asked*, the control opposite it changes *which answer you are
+looking at*.
 
 The name is the description: the mode ranks by how fast you get there, and it is one
 word swapped in the title the tap lands on — *Last* Train becomes *Fast* Train.
 
 ### Fast Train
 
-Same app, one addition: you enter a **from** and a **to**. It lists **four trains,
-ordered by arrival time at the destination**, fastest first.
+Same app, one addition: a **to**, chosen from the places that direction actually goes —
+never typed, see §14. It lists **three trains, ordered by arrival time at the
+destination**, fastest first.
 
 Ordering by arrival rather than departure is the entire feature. UPM→SOC: a train
 leaving in a few minutes goes via Tilbury and arrives later than one leaving fifteen
 minutes afterwards via Basildon. A departure board cannot show you that; this can.
 
 In this mode the date tap changes meaning too. Instead of today/tomorrow it pages
-forward — the next four trains after the four on screen.
+forward — the next three trains after the three on screen.
+
+**Three, not four. Corrected 11 August 2026** when the mode was built: four left no room
+for the destination row above it. `FastModel.perPage` is the figure, and paging stops
+after five pages so it cannot walk the whole timetable.
+
+### The pager is the date tap, and that took two goes
+
+**Corrected 12 August 2026.** The paragraph above was written first and honoured second.
+The pager was built as a footer beneath the list with `Later` and `Now` buttons — which
+works, and which nobody found, because on a phone it sits below the fold and the place
+the design pointed at was blank. Fast Train hid the masthead date and put nothing in its
+place.
+
+It now behaves as written: the trailing end of the masthead is the pager, showing
+`2 of 3` with a chevron, and `Now` appears beside it once you have moved. The footer is
+gone and the heading over the list says only which of the two answers you are reading —
+"Fastest from now", or "Later still".
+
+**Both modes round off the end rather than stopping.** §11 originally asked for a wrap,
+the build substituted a stop plus a `Now` button, and the stop was wrong for the same
+reason on both sides of the app: a control that stops dead is one you press twice to
+learn that it has. So the Last Train date rounds to today past its fifth day, and the
+Fast Train pager rounds to the first page past its last. The glyph turns from a chevron
+into a return arrow to say so before you press it. `Today` and `Now` stay, because a
+round trip through five days to get back is not a way back.
+
+**The pager appears only where there is a second page**, which is the one place a missing
+control is honest: three or fewer trains to the destination and there is nowhere to go.
+Note what governs that — `PATTERN_BUDGET` in `/api/v2/fast` prices at most eight
+candidates, so `pageCount` reaches three at most, never the five `maximumPages` allows.
+The free tier is sizing the interface; raising the budget on the Team tier lets more of
+the mode appear on its own.
 
 ### Last Fast Train
 
-The third mode, unadvertised: last-train behaviour with a selectable destination,
-listing the **last four trains ordered by arrival**. Usually that is the same order
-as the plain last-train board; where it is not, it is the case that matters most, and
-it hands over complete control.
+The third mode, unadvertised and not built: last-train behaviour with a selectable
+destination, listing the **last three trains ordered by arrival** — three for the same
+reason Fast Train shows three. Usually that is the same order as the plain last-train
+board; where it is not, it is the case that matters most, and it hands over complete
+control.
 
 ### What has to be settled before any of this is built
 
@@ -918,11 +954,14 @@ Tilbury and Basildon routes are already told apart without a label.
 
 ### Phases
 
-1. **Core.** The ranking rule and a `FastBoard` type, with tests. No network.
-2. **API.** `GET /api/v2/fast?from=&to=&date=` — one filtered line-up, then patterns.
-3. **iOS.** The mode behind the title tap. From and to fields.
+1. ~~**Core.**~~ The ranking rule and a `FastBoard` type, with tests. No network. **Done.**
+2. ~~**API.**~~ `GET /api/v2/fast?from=&to=&date=` — one filtered line-up, then patterns.
+   **Done**, with `/api/v2/destinations` for the list step.
+3. ~~**iOS.**~~ The mode behind the title tap, a destination chosen from a list rather
+   than typed, and the pager on the masthead. **Done 12 August 2026.**
 4. **Last Fast Train.** The third mode from §11.
-5. **Cost.** The headcode cache, once the shape is settled.
+5. **Cost.** The headcode cache, once the shape is settled. Reconsider `PATTERN_BUDGET`
+   here too: at eight it caps the pager at three pages.
 
 ---
 

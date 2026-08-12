@@ -101,17 +101,15 @@ struct BoardView: View {
             HStack(alignment: .firstTextBaseline) {
                 mastheadWordmark
                 Spacer()
-                if mode == .last {
-                    todayButton
-                    mastheadDate
+                if hasTrailingControl {
+                    mastheadTrailing
                 }
             }
             VStack(alignment: .leading, spacing: 4) {
                 mastheadWordmark
-                if mode == .last {
+                if hasTrailingControl {
                     HStack(alignment: .firstTextBaseline) {
-                        todayButton
-                        mastheadDate
+                        mastheadTrailing
                     }
                 }
             }
@@ -120,6 +118,31 @@ struct BoardView: View {
         .padding(.horizontal, Theme.Space.gutter)
         .padding(.top, 14)
         .padding(.bottom, 10)
+    }
+
+    /// Whether the right-hand end of the bar has anything to offer. Last Train's date
+    /// always steps; Fast Train's pager only exists once there is a second page.
+    private var hasTrailingControl: Bool { mode == .last || fast.canPage }
+
+    /**
+     The right-hand end of the bar: forward, and a way back to the start.
+
+     One rule, both modes. Last Train steps a service day and rounds to today after five;
+     Fast Train steps three trains and rounds to the first page after the last. §11 asked
+     for exactly this — the tap opposite the wordmark changing meaning with the mode,
+     rather than Fast Train growing a control of its own — and it was first built as a
+     footer under the list, below the fold, where nobody found it.
+     */
+    @ViewBuilder
+    private var mastheadTrailing: some View {
+        switch mode {
+        case .last:
+            todayButton
+            mastheadDate
+        case .fast:
+            nowButton
+            mastheadPage
+        }
     }
 
     /**
@@ -211,6 +234,65 @@ struct BoardView: View {
         .disabled(!model.isBrowsing)
         .allowsHitTesting(model.isBrowsing)
         .accessibilityHidden(!model.isBrowsing)
+    }
+
+    /**
+     Which three you are looking at, and the way to the next three.
+
+     Drawn only where there is a second page: with three or fewer trains to the
+     destination there is genuinely nowhere to go, and this is the one place a missing
+     control is honest rather than confusing. Nothing sits to its right, so its arrival
+     shifts nothing.
+     */
+    @ViewBuilder
+    private var mastheadPage: some View {
+        if fast.canPage {
+            Button {
+                fast.advance()
+            } label: {
+                HStack(spacing: 5) {
+                    Text("\(fast.page + 1) of \(fast.pageCount)")
+                        .fixedSize(horizontal: false, vertical: true)
+                    Image(systemName: fast.pageWrapsToNow ? "arrow.counterclockwise" : "chevron.right")
+                        .font(.system(size: 9, weight: .bold))
+                }
+                .font(Theme.Font.label)
+                .tracking(Theme.tracking)
+                .textCase(.uppercase)
+                .foregroundStyle(Theme.textDim)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(
+                fast.pageWrapsToNow ? "Back to the trains from now" : "Show the next three trains"
+            )
+            .accessibilityValue("Page \(fast.page + 1) of \(fast.pageCount)")
+        }
+    }
+
+    /**
+     Back to the trains leaving now, offered once you have paged forward.
+
+     Holds its place in the row when it is not offered, for the same reason `todayButton`
+     does: appearing to the left of the page control would shove that control out from
+     under the finger that had just tapped it, and the next tap would land here instead.
+     */
+    private var nowButton: some View {
+        Button {
+            fast.now()
+        } label: {
+            Text("Now")
+                .labelStyle(Theme.text)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Theme.raised)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .opacity(fast.isOnFirstPage ? 0 : 1)
+        .disabled(fast.isOnFirstPage)
+        .allowsHitTesting(!fast.isOnFirstPage)
+        .accessibilityHidden(fast.isOnFirstPage)
     }
 
     private var stationField: some View {
