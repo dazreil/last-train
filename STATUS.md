@@ -598,6 +598,39 @@ Neither of these is a leak of the RTT token, which has never left the server. Bo
 about **quota and staleness**, and both are consequences of choices that were right at
 the time.
 
+### The rule that requires the proxy, in RTT's own words
+
+Read from the RTT API terms on 13 August 2026. The architecture already assumed this;
+this is the citation it was missing.
+
+> You must not embed or distribute your API token in any downstream user-facing
+> application, including but not limited to client-side code, mobile apps, or browser
+> extensions, unless specifically authorised by us. If we identify that a token is
+> exposed in a downstream application, it will be revoked immediately. End-user
+> applications are expected to proxy requests through a server-side application such that
+> the token is not publicly accessible.
+
+**We comply, and it was checked rather than assumed** (13 August 2026):
+
+- The only occurrences of "token" in the whole Swift codebase are the comment in
+  `BoardClient.swift` explaining this rule. No key, no bearer, nothing in the widget.
+- The app can reach exactly one host — `BOARD_API_BASE_URL`, loopback in Debug and the
+  deployment in Release. Nothing in `ios/` names `data.rtt.io` at all.
+- `lib/rtt.ts` opens with `import 'server-only'`, so a client import **fails the build**.
+  `.env*` is gitignored, no env file is tracked, and no credential-shaped string exists
+  in any tracked file.
+
+Two things the clause does **not** settle, and conflating them would be a mistake:
+
+- **It does not replace the commercial-plan requirement.** RTT's answer of 1 August was
+  about call volume. Proxying correctly and needing a Team plan are independent, and both
+  are true.
+- **It sharpens the open-proxy question below rather than answering it.** The token
+  cannot be stolen, but its *quota* can be spent by anyone, and the terms show RTT
+  reasoning about who is answerable for the calls a token makes. Ours is unauthenticated,
+  and the station list to walk ships inside the app. That is the decision to take before
+  submission.
+
 ### Old deployment URLs served old answers — closed 7 August 2026
 
 Deployment Protection had to be turned off for the phone to reach the API, and that
