@@ -38,6 +38,16 @@ final class FastModel {
      */
     private(set) var destination: Station?
 
+    /**
+     Whether the picker is open.
+
+     Held here rather than as view state because two things raise it and neither owns the
+     other: tapping a direction, which lives in the control above this view, and arriving
+     somewhere with nowhere to go, which this model is the first to know. A `@State` flag
+     in `FastBoardView` could only be set by one of them.
+     */
+    var isChoosing = false
+
     private(set) var destinations: [Destination] = []
     /// True when the server could not check the list against every other direction.
     private(set) var listIsProvisional = false
@@ -59,10 +69,22 @@ final class FastModel {
 
     // MARK: - Where you are going
 
-    /// Read the remembered destination for this station and direction, if there is one.
+    /**
+     Read the remembered destination for this station and direction, and ask if there is
+     none.
+
+     The asking belongs here rather than in the view because the condition is this
+     model's to know: a pair that has never been used has nowhere to go, and Fast Train
+     cannot answer anything until it does. Somewhere you have been before keeps its
+     destination and is left alone.
+     */
     func adopt(station: Station, direction: Compass) {
         destination = SharedSelection.destination(for: station.crs, direction: direction)
+        if destination == nil { isChoosing = true }
     }
+
+    /// Ask again, for a direction tap that did not change which direction is showing.
+    func askWhereTo() { isChoosing = true }
 
     func choose(_ chosen: Station?, at station: Station, direction: Compass) {
         SharedSelection.setDestination(chosen, crs: station.crs, direction: direction)
@@ -81,6 +103,8 @@ final class FastModel {
             let list = try await client.destinations(from: station.crs, direction: direction)
             destinations = list.destinations
             listIsProvisional = !list.isSettled
+        } catch is CancellationError {
+            return
         } catch {
             destinations = []
             errorMessage = (error as? BoardClientError)?.errorDescription
@@ -90,9 +114,17 @@ final class FastModel {
 
     // MARK: - What is coming
 
-    func load(at station: Station, direction: Compass) async {
-        adopt(station: station, direction: direction)
+    /**
+     Look up the trains.
 
+     **This must not adopt.** It used to, and adopting sets `destination`, which is part
+     of the key the caller's `.task(id:)` watches — so the first lookup after opening the
+     mode changed that key from underneath itself, SwiftUI cancelled the task it had just
+     started, and the cancelled request was reported as *"Could not reach the server. Are
+     you online?"*. The request had already reached the server; only the answer was thrown
+     away. `FastBoardView` adopts, this reads, and the key settles before the request goes.
+     */
+    func load(at station: Station, direction: Compass) async {
         guard let heading = destination else {
             services = []
             return
@@ -112,6 +144,10 @@ final class FastModel {
             )
             truncated = board.truncated
             page = 0
+        } catch is CancellationError {
+            // Somewhere else is already asking a better question. Leaving what is on
+            // screen alone is the whole point: this is not a failure to report.
+            return
         } catch {
             services = []
             errorMessage = (error as? BoardClientError)?.errorDescription

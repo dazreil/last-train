@@ -203,7 +203,7 @@ public struct BoardClient: Sendable {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            throw isLoopback ? BoardClientError.devServerDown(hostLabel) : .unreachable
+            throw transportFailure(error)
         }
 
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
@@ -233,6 +233,24 @@ public struct BoardClient: Sendable {
     var hostLabel: String {
         guard let host = baseURL.host() else { return "localhost" }
         return baseURL.port.map { "\(host):\($0)" } ?? host
+    }
+
+    /**
+     What a thrown transport error actually means.
+
+     **A cancelled request is not a failed one.** `URLSession` reports cancellation as an
+     ordinary thrown error, so a blanket `catch` maps it to `.unreachable` and puts *"Could
+     not reach the server. Are you online?"* on screen for a request the app itself called
+     off. Measured: it sent a session looking at the network, the base URL and the
+     deployment, none of which were wrong.
+
+     Re-thrown as `CancellationError` so a caller can tell the two apart — the distinction
+     `BoardModel` already relied on and every other caller has to.
+     */
+    public func transportFailure(_ error: Error) -> Error {
+        if error is CancellationError { return CancellationError() }
+        if let url = error as? URLError, url.code == .cancelled { return CancellationError() }
+        return isLoopback ? BoardClientError.devServerDown(hostLabel) : BoardClientError.unreachable
     }
 
     private struct APIError: Decodable {
@@ -307,7 +325,7 @@ extension BoardClient {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            throw isLoopback ? BoardClientError.devServerDown(hostLabel) : .unreachable
+            throw transportFailure(error)
         }
 
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
@@ -370,7 +388,7 @@ extension BoardClient {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            throw isLoopback ? BoardClientError.devServerDown(hostLabel) : .unreachable
+            throw transportFailure(error)
         }
 
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
@@ -419,7 +437,7 @@ extension BoardClient {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            throw isLoopback ? BoardClientError.devServerDown(hostLabel) : .unreachable
+            throw transportFailure(error)
         }
 
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0

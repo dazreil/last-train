@@ -39,7 +39,11 @@ struct BoardView: View {
                     DirectionControl(
                         available: model.available,
                         towards: model.towards,
-                        selection: $model.direction
+                        selection: $model.direction,
+                        // Where you are going is asked for one direction at a time, so
+                        // in Fast Train the two are chosen together. Last Train passes
+                        // nothing: it never asks.
+                        onTap: mode == .fast ? { _ in fast.askWhereTo() } : nil
                     )
                     .padding(.top, 8)
 

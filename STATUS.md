@@ -326,18 +326,47 @@ address can produce it, so a shipped build can never show it.
 Either fix works — start the dev server, or Product ▸ Scheme ▸ Edit Scheme ▸ Run ▸ Build
 Configuration ▸ Release.
 
-### A rate-limited Fast Train lookup reports itself as being offline
+### A cancelled request reported itself as being offline
 
-Found 12 August 2026, while verifying the pager. Five date steps in a minute spend the
-free tier's 10/minute; the Fast Train lookup that followed queued behind the limiter,
-overran `BoardClient`'s **20-second** timeout, and the app said *"Could not reach the
-server. Are you online?"* — which sends you looking at the network, the base URL and the
-deployment, none of which were wrong. The same lookup answered in 1.2s once the window
-had rolled.
+Fixed 13 August 2026. Fast Train said *"Could not reach the server. Are you online?"* on
+the first entry after every launch, and worked on the second.
 
-It is the `devServerDown` lesson again in a second place: a transport-level failure is
-reported as one, and the *cause* was the quota. **Warm the pair with `curl` before
-driving the app**, and the app's request is an `x-cache` HIT that cannot time out.
+**Nothing was wrong with the network, and the server had already answered.** Two faults
+compounded, and the first one hid the second:
+
+- `BoardClient` caught every thrown transport error and mapped it to `.unreachable`.
+  `URLSession` reports **cancellation** as an ordinary thrown error, so a request the app
+  itself called off was reported as one the network had refused.
+- `BoardView`'s `.task(id: fastKey)` was keyed on `fast.destination`, and the lookup it
+  started **set** that destination through `adopt`. The key changed underneath the task,
+  SwiftUI cancelled it, and the cancellation came back as "are you online?".
+
+So the mode cancelled its own first lookup, every time, and blamed the network. It cost a
+wasted upstream request as well as the wrong diagnosis.
+
+`BoardClient.transportFailure` now re-throws cancellation as `CancellationError`, which
+`FastModel` treats as "nothing happened" — the guard `BoardModel` already had.
+`FastModel.load` no longer adopts; `FastBoardView` does, so the key settles before the
+request goes. `TransportFailureTests` pins all four cases, including that a genuine
+failure still says unreachable and still names the dev server on loopback.
+
+**This was first misdiagnosed as a rate limit** — the free tier's 10/minute had just been
+spent, which fitted the timing and was wrong. The tell that should have settled it sooner:
+a `curl` of the same pair came back *warm in 1.2 seconds*, which means the app's request
+had reached the server and populated the cache. A request that times out upstream does not
+leave a warm answer behind.
+
+### One remembered destination was not enough, and it failed silently
+
+Found the same day. `SharedSelection` held a single destination plus the scope it belonged
+to, copied from the pin design — where one-at-a-time is deliberate, because a headcode
+means nothing at another station.
+
+A destination is not like that. Choosing where to go *east* from a station overwrote where
+you went *west* from it, and the read returned nothing on a scope mismatch, so the field
+fell back to "Choose a destination" as though it had never been set. It now stores a map
+of scope to destination, one short string per pair actually used, and carries the old
+single slot over on first write.
 
 ### An empty Fast Train board late at night is usually the right answer
 

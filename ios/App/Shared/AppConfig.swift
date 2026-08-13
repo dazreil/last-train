@@ -43,6 +43,9 @@ enum SharedSelection {
         static let pinHeadcode = "lastTrain.pin.headcode"
         static let pinScope = "lastTrain.pin.scope"
         static let widgetFailures = "lastTrain.widget.failures"
+        /// Scope (`CRS:direction`) to destination CRS, one entry per pair.
+        static let destinations = "lastTrain.fast.destinations"
+        /// The single slot the map replaced. Read once, then carried over and cleared.
         static let destination = "lastTrain.fast.destination"
         static let destinationScope = "lastTrain.fast.scope"
     }
@@ -103,20 +106,42 @@ enum SharedSelection {
      all once it is set up, so nothing is asked at the moment it matters.
      */
     static func destination(for crs: String, direction: Compass) -> Station? {
-        guard defaults.string(forKey: Key.destinationScope) == scope(crs, direction) else {
-            return nil
-        }
-        return defaults.string(forKey: Key.destination).flatMap(Stations.find)
+        destinationsByScope()[scope(crs, direction)].flatMap(Stations.find)
     }
 
     static func setDestination(_ station: Station?, crs: String, direction: Compass) {
-        guard let station else {
-            defaults.removeObject(forKey: Key.destination)
-            defaults.removeObject(forKey: Key.destinationScope)
-            return
+        var map = destinationsByScope()
+        map[scope(crs, direction)] = station?.crs
+        defaults.set(map, forKey: Key.destinations)
+        // Carried into the map by the read above, so the slot it came from must go —
+        // otherwise clearing a destination that originated there would not clear it.
+        defaults.removeObject(forKey: Key.destination)
+        defaults.removeObject(forKey: Key.destinationScope)
+    }
+
+    /**
+     Every destination this phone has chosen, by station and direction.
+
+     **One slot was not enough, and the failure was quiet.** It held a single destination
+     plus the scope it belonged to, so choosing where to go east from a station silently
+     forgot where you went west from it — the read simply returned nothing on a scope
+     mismatch, and the field went back to "Choose a destination" as though it had never
+     been set. Pinning is genuinely one-at-a-time; a destination is not, and copying that
+     design across was the mistake.
+
+     Small by construction: one short string per station and direction you have actually
+     used, written only when you choose.
+     */
+    private static func destinationsByScope() -> [String: String] {
+        var map = defaults.dictionary(forKey: Key.destinations) as? [String: String] ?? [:]
+        // One-time carry-over from the single slot, so upgrading does not forget where
+        // you were last going.
+        if let legacyScope = defaults.string(forKey: Key.destinationScope),
+           let legacyCrs = defaults.string(forKey: Key.destination),
+           map[legacyScope] == nil {
+            map[legacyScope] = legacyCrs
         }
-        defaults.set(station.crs, forKey: Key.destination)
-        defaults.set(scope(crs, direction), forKey: Key.destinationScope)
+        return map
     }
 
     /**

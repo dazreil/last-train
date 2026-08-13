@@ -51,10 +51,9 @@ awkward once the app is public.
 
 Two traps worth keeping in view, both in `STATUS.md`: Xcode's Run button builds Debug and
 Debug points at `localhost:3000`, so run `npm run dev` or switch the scheme to Release.
-And this testing is expensive on the free tier — a cold board is two line-ups and a cold
-Fast Train lookup is up to nine requests, against 10/minute. Spend that budget and the
-next Fast Train lookup times out and blames your network; warm the pair with `curl`
-first.
+And testing costs upstream requests — a cold board is two line-ups and a cold Fast Train
+lookup is up to nine. That was tight against the free tier's 10/minute; the Team plan is
+now live, so the binding number is the weekly one, `25000 ÷ 7`.
 
 **In flight, not in the repo:** the RTT **Team** tier is being bought (see
 `PRODUCT.md` § Paying for it), and Rail Data Marketplace registration is pending for

@@ -39,6 +39,19 @@ struct DirectionControl: View {
     let towards: [Compass: String]
     @Binding var selection: Compass
 
+    /**
+     Every tap, including one that re-picks the direction already showing.
+
+     `selection` alone cannot carry this: re-tapping the selected block writes the same
+     value and SwiftUI reports no change, so a control that looks pressable does nothing
+     — the failure this project keeps meeting at the other end of the masthead.
+
+     Fast Train uses it to re-ask where you are going. The destination list belongs to
+     one direction, so picking a direction and picking a destination are one gesture, not
+     two. Last Train passes nothing and behaves exactly as before.
+     */
+    var onTap: ((Compass) -> Void)?
+
     @Environment(\.dynamicTypeSize) private var typeSize
 
     /**
@@ -71,7 +84,10 @@ struct DirectionControl: View {
                     // height. Stacked in one column there is nothing to match, and the
                     // reserve would only add empty rows to an already tall control.
                     reservesSecondLine: !typeSize.isAccessibilitySize,
-                    action: { selection = direction }
+                    action: {
+                        selection = direction
+                        onTap?(direction)
+                    }
                 )
             }
         }

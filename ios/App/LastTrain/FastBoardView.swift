@@ -19,8 +19,6 @@ struct FastBoardView: View {
     let direction: Compass
     @Bindable var model: FastModel
 
-    @State private var choosing = false
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             destinationField
@@ -31,7 +29,7 @@ struct FastBoardView: View {
                 results
             }
         }
-        .sheet(isPresented: $choosing) {
+        .sheet(isPresented: $model.isChoosing) {
             DestinationPicker(station: station, direction: direction, model: model)
         }
         // The remembered destination belongs to one station and one direction, so it is
@@ -45,7 +43,7 @@ struct FastBoardView: View {
 
     private var destinationField: some View {
         Button {
-            choosing = true
+            model.askWhereTo()
         } label: {
             VStack(alignment: .leading, spacing: 2) {
                 Text("To").labelStyle()
