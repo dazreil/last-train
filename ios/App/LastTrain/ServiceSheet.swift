@@ -178,7 +178,17 @@ struct ServiceSheet: View {
             Text(call.time ?? "--:--")
                 .font(Theme.Font.meta.monospacedDigit())
                 .foregroundStyle(Theme.textDim)
-                .frame(width: 46, alignment: .leading)
+                // A *minimum*, not a width. `.caption` scales with the text size, so a
+                // fixed 46pt column was too narrow before the largest sizes — `05:08`
+                // wrapped after `05:0` and left the last digit alone on the next line,
+                // which reads as a different time for the length of a glance.
+                //
+                // `fixedSize` first, so the time takes the width it actually needs and
+                // can never wrap; the frame then keeps the column aligned at the sizes
+                // where 46pt is still enough. Grows rather than clips, per the Real
+                // Length Rule, and the station name beside it already grows the row.
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(minWidth: 46, alignment: .leading)
 
             Text(call.name.withoutLondonPrefix)
                 .font(Theme.Font.body)
