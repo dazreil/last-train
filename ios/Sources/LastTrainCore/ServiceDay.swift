@@ -273,4 +273,24 @@ public enum ServiceDay {
         guard let parsed = bareDate.date(from: date) else { return nil }
         return serviceDateDisplay.string(from: parsed)
     }
+
+    private static let weekdayDisplay: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.timeZone = utc
+        formatter.locale = Locale(identifier: "en_GB")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "EEE"
+        return formatter
+    }()
+
+    /**
+     `Thu`, for a day near enough that the date is noise.
+
+     The board reaches five days ahead, so no weekday repeats inside its range and the
+     name alone is unambiguous. Anything further would need the date back.
+     */
+    public static func formatWeekday(_ date: IsoDate) -> String? {
+        guard let parsed = bareDate.date(from: date) else { return nil }
+        return weekdayDisplay.string(from: parsed)
+    }
 }

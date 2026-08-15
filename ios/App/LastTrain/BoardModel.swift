@@ -275,9 +275,25 @@ final class BoardModel {
         ServiceDay.daysBetween(ServiceDay.currentServiceDate(), shownDate) ?? 0
     }
 
+    /**
+     Which day of the walk is on screen, counted from the live service day.
+
+     **Zero whenever you have not moved it yourself**, which is not the same as
+     `daysAhead`. After the last train and before 03:00 the board carries *tomorrow's*
+     first train while the service day is still today's — `daysAhead` reads 1 there, and
+     counting the walk from it skipped a day: the first tap stepped from what was on
+     screen to the day after it, so tomorrow could not be reached at all.
+     */
+    var dayIndex: Int { isBrowsing ? daysAhead : 0 }
+
+    /// The service day each step of the walk lands on, today being step zero.
+    func date(atStep step: Int) -> String? {
+        ServiceDay.addDays(ServiceDay.currentServiceDate(), step)
+    }
+
     /// True on the furthest day the board reaches, where the next tap comes back to today
     /// rather than doing nothing.
-    var stepWrapsToToday: Bool { daysAhead >= Self.maximumDaysAhead }
+    var stepWrapsToToday: Bool { dayIndex >= Self.maximumDaysAhead }
 
     /**
      Step the board on a day, and round to today at the end.
@@ -296,7 +312,8 @@ final class BoardModel {
             returnToToday()
             return
         }
-        guard let next = ServiceDay.addDays(shownDate, 1) else { return }
+        // From the live service day, not from what is on screen -- see `dayIndex`.
+        guard let next = date(atStep: dayIndex + 1) else { return }
         isBrowsing = true
         requestedDate = next
         Task { await load() }

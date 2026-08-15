@@ -137,16 +137,100 @@ struct BoardView: View {
      rather than Fast Train growing a control of its own — and it was first built as a
      footer under the list, below the fold, where nobody found it.
      */
+    /**
+     Back, here, next — and the last one is a button.
+
+     Three slots in one order, both modes. The left is the way back to the start and is
+     absent when you are already there; the middle is where you are, in white; the right
+     names where the next tap lands, which on the furthest step *is* the start again. So
+     the wrap needs no special case and no second glyph: the label already says `Today`.
+
+     The right slot is the one pressed repeatedly and it is the rightmost thing in a
+     right-aligned row, so nothing appearing beside it can shift it out from under a
+     finger — the bug that made the date look broken, now prevented by the arrangement
+     rather than by reserving a gap.
+     */
     @ViewBuilder
     private var mastheadTrailing: some View {
         switch mode {
         case .last:
-            todayButton
-            mastheadDate
+            if model.dayIndex > 0 && !model.stepWrapsToToday { todayButton }
+            stepLabel(model.dayIndex == 0
+                ? "Today"
+                : ServiceDay.formatWeekday(model.shownDate) ?? "")
+            stepButton(
+                label: model.stepWrapsToToday
+                    ? "Today"
+                    : ServiceDay.formatWeekday(model.date(atStep: model.dayIndex + 1) ?? "") ?? "",
+                action: { model.stepForward() },
+                accessibility: model.stepWrapsToToday
+                    ? "Back to today"
+                    : "Show the next day",
+                // `Sun` on screen, the whole date said aloud.
+                value: ServiceDay.formatServiceDate(model.shownDate) ?? ""
+            )
         case .fast:
-            nowButton
-            mastheadPage
+            if !fast.isOnFirstPage && !fast.pageWrapsToNow { nowButton }
+            stepLabel(Self.pageName(fast.page))
+            stepButton(
+                label: fast.pageWrapsToNow ? "Now" : Self.pageName(fast.page + 1),
+                action: { fast.advance() },
+                accessibility: fast.pageWrapsToNow
+                    ? "Back to the trains from now"
+                    : "Show the next three trains",
+                // The count is no longer on screen, so it is said here instead. A
+                // screen reader should not lose what the compact label dropped.
+                value: "Page \(fast.page + 1) of \(fast.pageCount)"
+            )
         }
+    }
+
+    /**
+     Pages named rather than counted.
+
+     `1 of 3` told you where you were and how far it went, which is more than the
+     question needs and reads like pagination. The days beside it are named — `Today`,
+     `Sun`, `Mon` — so the pages are too: the first three are the ones leaving `Now`, and
+     the rest are the word for their place. The total goes to the accessibility value,
+     where it costs no width.
+     */
+    private static let pageWords = ["Now", "Two", "Three", "Four", "Five"]
+
+    private static func pageName(_ index: Int) -> String {
+        index >= 0 && index < pageWords.count ? pageWords[index] : "\(index + 1)"
+    }
+
+    /// The middle slot: where you are, and not a control — there is nowhere for it to
+    /// take you.
+    private func stepLabel(_ text: String) -> some View {
+        Text(text)
+            .labelStyle(Theme.text)
+            .fixedSize(horizontal: true, vertical: false)
+    }
+
+    /// The right slot: named rather than drawn as a bare chevron, because a glyph says
+    /// that something will happen and a name says what.
+    private func stepButton(
+        label: String,
+        action: @escaping () -> Void,
+        accessibility: String,
+        value: String? = nil
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Text(label)
+                    .fixedSize(horizontal: true, vertical: false)
+                // One glyph in every state now. The return arrow existed to say the next
+                // tap went somewhere different; the label says where.
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .bold))
+            }
+            .labelStyle(Theme.textDim)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibility)
+        .accessibilityValue(value ?? "")
     }
 
     /**
@@ -187,138 +271,48 @@ struct BoardView: View {
     }
 
     /**
-     The date, and the way forward.
+     Back to tonight, in the left slot while you are walking forward.
 
-     A tap is a whole day, because that is the only step this board has: it answers about
-     a service day, so there is nothing between one and the next to land on. Forward
-     only — yesterday's last train is not a question anyone asks — and five days, which
-     covers "next Saturday" and keeps it off dates the timetable does not reach.
+     Drawn only once you have stepped away by hand, and not at all on the furthest day —
+     there the walk rounds to today anyway, so `Today` is already in the right slot and
+     naming it twice would be two ways to say one thing.
 
-     Off the end it rounds to today rather than stopping. A control that stops dead is
-     one you press twice to find out it has, and the glyph turns from a chevron into a
-     return arrow to say so before you press it.
-     */
-    private var mastheadDate: some View {
-        Button {
-            model.stepForward()
-        } label: {
-            HStack(spacing: 5) {
-                Text(ServiceDay.formatServiceDate(model.shownDate) ?? "")
-                    .fixedSize(horizontal: false, vertical: true)
-                Image(systemName: model.stepWrapsToToday ? "arrow.counterclockwise" : "chevron.right")
-                    .font(.system(size: 9, weight: .bold))
-            }
-            .font(Theme.Font.label)
-            .tracking(Theme.tracking)
-            .textCase(.uppercase)
-            // White once you have moved the date by hand, grey while it is the day the
-            // app would have picked. Paired with `isBrowsing` rather than with the date
-            // itself, so it lights up exactly when `Today` appears beside it: the two
-            // always agree about whether a day was chosen.
-            .foregroundStyle(model.isBrowsing ? Theme.text : Theme.textDim)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(model.stepWrapsToToday ? "Back to today" : "Show the next day")
-        .accessibilityValue(ServiceDay.formatServiceDate(model.shownDate) ?? "")
-    }
-
-    /**
-     Back to tonight, offered only once you have stepped away by hand.
-
-     Not offered when the board moved itself past a spent service day: today is then the
-     day whose trains have all gone, and offering to return to it would be offering to go
-     back to nothing.
-
-     **It holds its place in the row even when it is not offered**, and that is the whole
-     fix for a bug that read as the date selector being broken. The date sits at the
-     trailing edge; inserting this button to its left on the first step shoved the date
-     leftwards, out from under the finger that had just tapped it. A second tap in the
-     same place landed on Today and came straight back — "tapping the date shows you
-     today". Reserving the space means the date never moves, so the second tap steps
-     again, which is what it looks like it will do.
+     Never offered when the board moved itself past a spent service day: today is then
+     the day whose trains have all gone, and offering to return to it would be offering
+     to go back to nothing. `dayIndex` is zero in that state, which is what keeps this
+     absent without a second condition.
      */
     private var todayButton: some View {
         Button {
             model.returnToToday()
         } label: {
-            Text("Today")
-                // The way back, not where you are: grey, while the date it sits beside
-                // is white.
-                .labelStyle(Theme.textDim)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Theme.raised)
-                .contentShape(Rectangle())
+            wayBackLabel("Today")
         }
         .buttonStyle(.plain)
-        // Laid out always, drawn and pressable only when it means something.
-        .opacity(model.isBrowsing ? 1 : 0)
-        .disabled(!model.isBrowsing)
-        .allowsHitTesting(model.isBrowsing)
-        .accessibilityHidden(!model.isBrowsing)
+        .accessibilityLabel("Back to today")
     }
 
-    /**
-     Which three you are looking at, and the way to the next three.
-
-     Drawn only where there is a second page: with three or fewer trains to the
-     destination there is genuinely nowhere to go, and this is the one place a missing
-     control is honest rather than confusing. Nothing sits to its right, so its arrival
-     shifts nothing.
-     */
-    @ViewBuilder
-    private var mastheadPage: some View {
-        if fast.canPage {
-            Button {
-                fast.advance()
-            } label: {
-                HStack(spacing: 5) {
-                    Text("\(fast.page + 1) of \(fast.pageCount)")
-                        .fixedSize(horizontal: false, vertical: true)
-                    Image(systemName: fast.pageWrapsToNow ? "arrow.counterclockwise" : "chevron.right")
-                        .font(.system(size: 9, weight: .bold))
-                }
-                .font(Theme.Font.label)
-                .tracking(Theme.tracking)
-                .textCase(.uppercase)
-                // The date's rule, kept: white once you have paged off the first three,
-                // grey while you are on the ones leaving now.
-                .foregroundStyle(fast.isOnFirstPage ? Theme.textDim : Theme.text)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(
-                fast.pageWrapsToNow ? "Back to the trains from now" : "Show the next three trains"
-            )
-            .accessibilityValue("Page \(fast.page + 1) of \(fast.pageCount)")
-        }
-    }
-
-    /**
-     Back to the trains leaving now, offered once you have paged forward.
-
-     Holds its place in the row when it is not offered, for the same reason `todayButton`
-     does: appearing to the left of the page control would shove that control out from
-     under the finger that had just tapped it, and the next tap would land here instead.
-     */
+    /// `Today`'s twin, and the same shape for the same reason.
     private var nowButton: some View {
         Button {
             fast.now()
         } label: {
-            Text("Now")
-                // `Today`'s twin, and grey for the same reason.
-                .labelStyle(Theme.textDim)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Theme.raised)
-                .contentShape(Rectangle())
+            wayBackLabel("Now")
         }
         .buttonStyle(.plain)
-        .opacity(fast.isOnFirstPage ? 0 : 1)
-        .disabled(fast.isOnFirstPage)
-        .allowsHitTesting(!fast.isOnFirstPage)
-        .accessibilityHidden(fast.isOnFirstPage)
+        .accessibilityLabel("Back to the trains from now")
+    }
+
+    /// The way back wears a pill wherever it sits, so it reads as the same control on
+    /// either side of the row.
+    private func wayBackLabel(_ text: String) -> some View {
+        Text(text)
+            .labelStyle(Theme.textDim)
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Theme.raised)
+            .contentShape(Rectangle())
     }
 
     private var stationField: some View {
