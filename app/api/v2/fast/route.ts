@@ -37,12 +37,25 @@ export const runtime = 'nodejs';
 /**
  * How many candidates get a calling pattern.
  *
- * Each one is a request. Eight is what the Upminster measurement in §14 needed to cover
- * a two-hour window, and it leaves the worst case at nine requests for a cold lookup —
- * the same order as a board. Candidates past this are counted and reported as
- * `truncated` rather than silently dropped.
+ * Each one is a request, so this is the cost of the mode and it used to be the free
+ * tier's 10/minute that set it. Eight covered the Upminster two-hour window in §14 and
+ * kept a cold lookup to nine requests.
+ *
+ * **Fifteen now, because that is what the app can show.** The client pages three at a
+ * time up to five pages and discards the rest, so anything above `perPage × maximumPages`
+ * is paid for and thrown away. Eight was also the wrong shape: it does not divide by
+ * three, so a full result was 3 + 3 + 2 and the last page arrived short — one train on it
+ * whenever a candidate failed to price.
+ *
+ * The Team tier is what affords it: 40/minute against a worst case of sixteen requests for
+ * a cold lookup, and `25000 ÷ 7` sustainable a day against a cost that is only paid when a
+ * pair is looked at for the first time that day. Calling patterns are cached by service id
+ * rather than by pair, so a second destination from the same station reuses most of them.
+ *
+ * Candidates past this are still counted and reported as `truncated` rather than silently
+ * dropped.
  */
-const PATTERN_BUDGET = 8;
+const PATTERN_BUDGET = 15;
 
 const answerKey = (from: string, to: string, date: IsoDate) => `fast:${from}:${to}:${date}`;
 

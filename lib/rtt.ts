@@ -17,12 +17,19 @@ import 'server-only';
 const BASE_URL = 'https://data.rtt.io';
 
 /**
- * Observed rate limits on the free personal tier: 10/minute, 100/hour, 1000/day,
- * 10000/week. Note these are a third of the figures in the project spec -- the
- * portal is the authority, and every budget in this app is sized against the
- * per-minute limit of 10, which is by far the tightest.
+ * Rate limits on the **Team** tier, live since 15 August 2026: 40/minute, 1200/hour,
+ * 12000/day, 25000/week. The free personal tier was 10/100/1000/10000, and every budget
+ * in this app was sized against its 10/minute.
+ *
+ * **The per-minute figure is no longer the one that binds.** On free, 7 × 1000/day fitted
+ * inside 10000/week, so the daily cap was a rate you could hold. On Team, 7 × 12000 is
+ * 84000 against a 25000 weekly ceiling, so the *week* binds: `25000 ÷ 7` = 3571 a day
+ * sustainable, not the 12000 headline. Size against that. See STATUS.md.
+ *
+ * Nothing reads this constant — the budgets it informs are written where they are spent.
+ * It is kept as the one place the numbers are recorded in code, and it was wrong until now.
  */
-export const RATE_LIMIT_PER_MINUTE = 10;
+export const RATE_LIMIT_PER_MINUTE = 40;
 
 /**
  * Pinned so a spec change cannot silently alter response shapes underneath us.
