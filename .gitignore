@@ -71,3 +71,9 @@ ios/App/Widget/LastTrainWidget.entitlements
 *.xcuserdatad
 xcuserdata/
 DerivedData/
+
+# Agent tooling, installed into the repo rather than written for it. Roughly 72,000 lines
+# of it, which is why this is here: `git add -A` swept the lot into a two-line commit
+# about a request budget before anyone noticed.
+.agents/
+skills-lock.json
