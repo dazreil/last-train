@@ -155,17 +155,30 @@ struct BoardView: View {
      §11 chose this: two taps at opposite ends of the same bar, each turning one axis.
      The date on the right changes *when*; the title on the left changes *what is being
      asked*. The name is the description — Last Train becomes Fast Train.
+
+     **Both names are shown, and the case says which you are reading.** It was an
+     `arrow.left.arrow.right` glyph, which announced that something would swap without
+     saying what for — you had to press it to find out. Naming the other mode answers that
+     before the tap, and costs nothing but the width.
+
+     White for the mode you are in, faint and lowercase for the one you are not, which is
+     the same rule the date and the pager keep at the other end of the bar. The whole thing
+     is one button: either name switches, because there are only two.
      */
     private var mastheadWordmark: some View {
         Button {
-            mode = mode == .last ? .fast : .last
+            mode = mode.other
         } label: {
-            HStack(spacing: 5) {
+            HStack(spacing: 7) {
                 Text(mode.title)
-                Image(systemName: "arrow.left.arrow.right")
-                    .font(.system(size: 8, weight: .bold))
+                    .textCase(.uppercase)
+                    .foregroundStyle(Theme.text)
+                Text(mode.other.title)
+                    .textCase(.lowercase)
+                    .foregroundStyle(Theme.textFaint)
             }
-            .labelStyle(mode == .fast ? Theme.text : Theme.textFaint)
+            .font(Theme.Font.label)
+            .tracking(Theme.tracking)
             .fixedSize(horizontal: false, vertical: true)
             .contentShape(Rectangle())
         }
@@ -198,7 +211,11 @@ struct BoardView: View {
             .font(Theme.Font.label)
             .tracking(Theme.tracking)
             .textCase(.uppercase)
-            .foregroundStyle(Theme.textDim)
+            // White once you have moved the date by hand, grey while it is the day the
+            // app would have picked. Paired with `isBrowsing` rather than with the date
+            // itself, so it lights up exactly when `Today` appears beside it: the two
+            // always agree about whether a day was chosen.
+            .foregroundStyle(model.isBrowsing ? Theme.text : Theme.textDim)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -226,7 +243,9 @@ struct BoardView: View {
             model.returnToToday()
         } label: {
             Text("Today")
-                .labelStyle(Theme.text)
+                // The way back, not where you are: grey, while the date it sits beside
+                // is white.
+                .labelStyle(Theme.textDim)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(Theme.raised)
@@ -263,7 +282,9 @@ struct BoardView: View {
                 .font(Theme.Font.label)
                 .tracking(Theme.tracking)
                 .textCase(.uppercase)
-                .foregroundStyle(Theme.textDim)
+                // The date's rule, kept: white once you have paged off the first three,
+                // grey while you are on the ones leaving now.
+                .foregroundStyle(fast.isOnFirstPage ? Theme.textDim : Theme.text)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -286,7 +307,8 @@ struct BoardView: View {
             fast.now()
         } label: {
             Text("Now")
-                .labelStyle(Theme.text)
+                // `Today`'s twin, and grey for the same reason.
+                .labelStyle(Theme.textDim)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(Theme.raised)

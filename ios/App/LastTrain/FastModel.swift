@@ -201,4 +201,7 @@ enum AppMode: String {
 
     /// The wordmark. One word swapped, which is the whole of §11's gesture.
     var title: String { self == .last ? "Last Train" : "Fast Train" }
+
+    /// The one you are not reading, named beside the one you are.
+    var other: AppMode { self == .last ? .fast : .last }
 }
