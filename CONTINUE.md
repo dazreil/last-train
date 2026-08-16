@@ -26,24 +26,24 @@ Please don't re-derive these, they're settled and written down:
 
 Node is at `/opt/homebrew/bin/node` and may not be on PATH.
 
-**Work is on the branch `main-ms16uk`, not `main`.** Four commits ahead of it, all
-pushed. `git fetch origin main-ms16uk && git checkout main-ms16uk`.
+**Work on `main`.** `main-ms16uk` was merged into it on 16 August 2026 — a clean
+fast-forward, thirteen commits — and is kept only as a fallback. Nothing new should land
+on it. **Every push to `main` deploys to production**, which the iOS app talks to, so a
+server change reaches the phone without rebuilding anything.
 
-**The two iOS changes are built and verified — 12 August 2026.** They had been written
-on Linux with no Swift toolchain and never compiled; they compile clean, and all four
-behaviours were driven on an iPhone 17 Pro simulator against the deployment (Release, so
-no dev server was needed):
+**The iOS work of 12–16 August is built, verified and merged.** Driven on an iPhone 17 Pro
+simulator against the deployment, and on device by Daryl:
 
-1. The date steps a day, `TODAY` appears, and the date **holds its position** — the
-   control is right-anchored, so the second tap lands where the first did.
-2. Changing direction on a future day **keeps** the day.
-3. The fifth day shows a return arrow in place of the chevron, and the next tap rounds
-   to today.
-4. Fast Train's pager is in the **masthead**, above the fold; the last page rounds back
-   to the first, and `NOW` appears without shoving the counter sideways.
+1. The date walk is `back | here | next` — `TODAY | SUN ›`, then `TODAY · SUN | MON ›`,
+   through five days to `THU | TODAY ›`. Days are named, not dated; the right slot names
+   where the next tap lands, so the wrap needs no return arrow and no branch.
+2. Fast Train's pager mirrors it exactly: `NOW | TWO ›` … `THREE | NOW ›`.
+3. The masthead names both modes — `LAST TRAIN` white beside `fast train` faint — and
+   white means active everywhere in that bar.
+4. Fast Train asks where you are going when you tap a direction, and remembers a
+   destination per station *and* direction.
 
-`swift test` still passes, 108 tests. Nothing is uncommitted — the four commits on this
-branch are the same ones that were already pushed.
+`swift test` passes 112, `npm test` 114.
 
 **The next task is `IOS.md` §9 step 7: the paid RTT token, attribution, and
 submission** — plus the two *Exposure* decisions in `STATUS.md`, which are cheap now and
@@ -55,14 +55,24 @@ And testing costs upstream requests — a cold board is two line-ups and a cold 
 lookup is up to nine. That was tight against the free tier's 10/minute; the Team plan is
 now live, so the binding number is the weekly one, `25000 ÷ 7`.
 
-**In flight, not in the repo:** the RTT **Team** tier is being bought (see
-`PRODUCT.md` § Paying for it), and Rail Data Marketplace registration is pending for
-the Darwin spike in `IOS.md` §2. When the Team token lands: set `RTT_ACCESS_TOKEN` in
-Vercel and `.env.local`, take a separate dev key, and revisit the three budgets sized
-against the free tier's 10/minute — `DETAIL_BUDGET` in `app/api/trains/route.ts` and
-`PATTERN_BUDGET` in both `app/api/v2/fast` and `app/api/v2/destinations`. Also
-`RATE_LIMIT_PER_MINUTE` in `lib/rtt.ts`, which is exported, never used, and will be
-wrong.
+**The Team tier is live**, bought 15 August 2026. No new token was issued — the plan
+attaches to the account, so `RTT_REFRESH_TOKEN` is unchanged and the limits rose upstream.
+Confirmed from the response headers rather than the invoice.
+
+Two of the budgets it unblocked are done: `PATTERN_BUDGET` in `app/api/v2/fast` is 15,
+which is what the app can display, and `RATE_LIMIT_PER_MINUTE` in `lib/rtt.ts` reads 40.
+**Still sized against the free tier:** `DETAIL_BUDGET` in `app/api/trains/route.ts` (the
+old web route) and `PATTERN_BUDGET` in `app/api/v2/destinations`. Neither is urgent; both
+are cheap now. The separate dev key — Team allows five — has not been taken, so testing
+still shares production's quota.
+
+**In flight, not in the repo:** Rail Data Marketplace access came through on 15 August for
+the Darwin spike in `IOS.md` §2. The product to find is the **timetable feed, not LDBWS** —
+§2 explains why the departure-board API structurally cannot answer this app's question.
+One finding from the openraildata list worth carrying in: the Push Port is Kafka now, and
+the timetable files alone cannot give cancellations or live platforms, which this app
+already shows. So "Darwin makes it £0" is true of the last-train question and not of what
+the app does today.
 
 ---
 
