@@ -38,11 +38,17 @@ export const runtime = 'nodejs';
 /**
  * How many services get their pattern read.
  *
- * A direction usually runs three or four distinct stopping patterns, so eight covers the
- * routes and not merely the first eight trains. Same budget and same cache as
- * `/api/v2/fast`, so a lookup that follows one of these is largely paid for.
+ * A direction usually runs three or four distinct stopping patterns, so this covers the
+ * routes rather than merely the first few trains — and every pattern missed is a place
+ * that never appears in the picker, which is a destination you cannot choose rather than
+ * a list that is merely shorter.
+ *
+ * **Fifteen, deliberately the same number as `/api/v2/fast`.** They share the pattern
+ * cache, keyed by service id, so choosing a destination straight after opening this list
+ * is largely paid for already — and that property only holds while the two agree. Eight
+ * was the free tier's ceiling for both; raise or lower them together.
  */
-const PATTERN_BUDGET = 8;
+const PATTERN_BUDGET = 15;
 
 const key = (crs: string, direction: string, date: IsoDate) => `dest:${crs}:${direction}:${date}`;
 

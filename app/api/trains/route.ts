@@ -77,12 +77,20 @@ const VERIFY_BUDGET = 4;
 /**
  * Ceiling on service queries per lookup, whatever they are for.
  *
- * The free tier allows ten requests a minute, and a lookup now spends up to two of
- * them on line-ups. Six leaves the worst case at eight, which is where it was before
- * the next service day was brought in -- so a single lookup still cannot exhaust the
- * minute on its own. Cache hits are free and do not count against it.
+ * Six was the free tier's arithmetic: ten requests a minute, up to two spent on line-ups,
+ * so six kept the worst case at eight and a single lookup could not exhaust the minute.
+ *
+ * **Twelve now, and sized on what the route needs rather than on what the quota allows.**
+ * A board shows four services and sifts others on the way to them, and at six those two
+ * uses competed -- verification could eat the budget before the trains that get drawn were
+ * labelled. Twelve separates them. The worst case is fourteen requests against the Team
+ * tier's forty a minute, so the original invariant holds with room to spare.
+ *
+ * Running out is quiet by design: an unverified service is kept rather than dropped, so a
+ * budget that is too small shows a train too many and labels a route too few. Cache hits
+ * are free and do not count against it.
  */
-const DETAIL_BUDGET = 6;
+const DETAIL_BUDGET = 12;
 
 const json = (body: unknown, init?: ResponseInit) =>
   new Response(JSON.stringify(body), {
