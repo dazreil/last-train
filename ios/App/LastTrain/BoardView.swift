@@ -109,12 +109,17 @@ struct BoardView: View {
                     mastheadTrailing
                 }
             }
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 mastheadWordmark
                 if hasTrailingControl {
-                    HStack(alignment: .firstTextBaseline) {
-                        mastheadTrailing
-                    }
+                    // **Still the right-hand end, even on its own line.** Left-aligned here
+                    // it slid the whole way across the screen the moment the text grew, so
+                    // the control you had just tapped was somewhere else entirely — and
+                    // §11's idea of two taps at opposite ends of one bar stopped being
+                    // true. Trailing keeps the thumb's target where it was and reads as a
+                    // bar that wrapped rather than two rows that disagree.
+                    mastheadTrailing
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
         }
@@ -129,15 +134,6 @@ struct BoardView: View {
     private var hasTrailingControl: Bool { mode == .last || fast.canPage }
 
     /**
-     The right-hand end of the bar: forward, and a way back to the start.
-
-     One rule, both modes. Last Train steps a service day and rounds to today after five;
-     Fast Train steps three trains and rounds to the first page after the last. §11 asked
-     for exactly this — the tap opposite the wordmark changing meaning with the mode,
-     rather than Fast Train growing a control of its own — and it was first built as a
-     footer under the list, below the fold, where nobody found it.
-     */
-    /**
      Back, here, next — and the last one is a button.
 
      Three slots in one order, both modes. The left is the way back to the start and is
@@ -149,9 +145,23 @@ struct BoardView: View {
      right-aligned row, so nothing appearing beside it can shift it out from under a
      finger — the bug that made the date look broken, now prevented by the arrangement
      rather than by reserving a gap.
+
+     **Centred, with every slot the same height.** Baseline alignment looked like the right
+     answer and did not work: `Today` carries a pill, so its text sits inside a padded box,
+     and a first-text-baseline guide does not survive the `Button` and background around it
+     — the pill rode visibly higher than the two labels beside it. Giving all three the same
+     vertical padding makes the boxes equal, and equal boxes centre exactly, whatever the
+     guide does.
      */
     @ViewBuilder
     private var mastheadTrailing: some View {
+        HStack(alignment: .center, spacing: 7) {
+            trailingSlots
+        }
+    }
+
+    @ViewBuilder
+    private var trailingSlots: some View {
         switch mode {
         case .last:
             if model.dayIndex > 0 && !model.stepWrapsToToday { todayButton }
@@ -201,11 +211,12 @@ struct BoardView: View {
     }
 
     /// The middle slot: where you are, and not a control — there is nowhere for it to
-    /// take you.
+    /// take you. Padded to the pill's height so the three slots centre on each other.
     private func stepLabel(_ text: String) -> some View {
         Text(text)
             .labelStyle(Theme.text)
             .fixedSize(horizontal: true, vertical: false)
+            .padding(.vertical, 4)
     }
 
     /// The right slot: named rather than drawn as a bare chevron, because a glyph says
@@ -226,6 +237,9 @@ struct BoardView: View {
                     .font(.system(size: 9, weight: .bold))
             }
             .labelStyle(Theme.textDim)
+            // Matches the pill's height, so the row centres rather than drifts, and gives
+            // the most-pressed control in the app a taller target than its text.
+            .padding(.vertical, 4)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
