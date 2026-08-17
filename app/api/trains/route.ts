@@ -68,11 +68,20 @@ export const runtime = 'nodejs';
  * Ceiling on speculative corridor checks per lookup.
  *
  * Checks are only needed for services bound outside the app's station list, which in
- * practice means Liverpool Street and nowhere else; their patterns are then reused
- * for route labelling. Four leaves room in the budget below for the services that
- * actually get shown, which matter more than the ones being sifted.
+ * practice means Liverpool Street and nowhere else; their patterns are then reused for
+ * route labelling.
+ *
+ * **Eight, of the twelve below.** Four was chosen to leave room for the services that
+ * actually get drawn, back when there were only six to share — a rationing decision the
+ * free tier forced rather than one about how many trains need sifting. Eight for the
+ * sifting and four for the labelling spends the ceiling the way the work actually divides.
+ *
+ * Running out fails towards showing too much: an unchecked service is treated as in
+ * corridor, so a small budget puts an off-corridor train on the board rather than dropping
+ * a real one. That is the right direction to fail in, and it is why this was safe to leave
+ * small for so long.
  */
-const VERIFY_BUDGET = 4;
+const VERIFY_BUDGET = 8;
 
 /**
  * Ceiling on service queries per lookup, whatever they are for.
