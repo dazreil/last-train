@@ -22,20 +22,7 @@ struct ServiceRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            if isPinned {
-                HStack(spacing: 5) {
-                    Image(systemName: "pin.fill").font(.system(size: 9, weight: .bold))
-                    Text("In the widget")
-                }
-                .labelStyle(Theme.paper.opacity(0.85))
-            }
-
-            if isLastTrain {
-                // Stated in words as well as in colour. Red carries it at a glance, but
-                // red against blue is a hue difference more than a brightness one, so
-                // this has to work for anyone who cannot separate the two at all.
-                Text("Last train").labelStyle(Theme.paper)
-            }
+            badges
 
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(service.dep)
@@ -54,11 +41,12 @@ struct ServiceRow: View {
                     .overlay(Rectangle().strokeBorder(Theme.paper.opacity(0.7), lineWidth: 1))
             }
 
-            if !meta.isEmpty {
-                Text(meta)
-                    .font(Theme.Font.meta)
-                    .foregroundStyle(Theme.paper.opacity(0.78))
-            }
+            // A space rather than nothing, for the same reason as the badge line: a
+            // platform is known for some trains and not others, and a board whose blocks
+            // change height depending on which is a board that looks broken.
+            Text(meta.isEmpty ? " " : meta)
+                .font(Theme.Font.meta)
+                .foregroundStyle(Theme.paper.opacity(0.78))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Theme.Space.gutter)
@@ -69,6 +57,47 @@ struct ServiceRow: View {
         .foregroundStyle(Theme.paper)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(spoken)
+    }
+
+    /**
+     One line for both badges, and the line is always there.
+
+     **Every block reserves it, whether or not it has anything to say.** Two of the four on
+     a normal board carry a badge and two do not, so without this the blocks came out three
+     different heights and a list that should read as one object read as a stack of
+     mismatched ones.
+
+     Both badges share the line rather than taking one each, which is what keeps the
+     reservation to a single line even for the case that has both: the last train, pinned.
+     `Last train` leads, because that is the one the colour is already shouting and the one
+     that has to survive not being able to see the colour at all.
+     */
+    private var badges: some View {
+        Group {
+            if isLastTrain || isPinned {
+                HStack(spacing: 10) {
+                    if isLastTrain {
+                        // Stated in words as well as in colour. Red carries it at a
+                        // glance, but red against blue is a hue difference more than a
+                        // brightness one, so this has to work for anyone who cannot
+                        // separate the two at all.
+                        Text("Last train").labelStyle(Theme.paper)
+                    }
+                    if isPinned {
+                        HStack(spacing: 5) {
+                            Image(systemName: "pin.fill")
+                                .font(.system(size: 9, weight: .bold))
+                            Text("In the widget")
+                        }
+                        .labelStyle(Theme.paper.opacity(0.85))
+                    }
+                }
+            } else {
+                // Holds the line open. Hidden rather than transparent, so it is not read
+                // aloud and cannot be tapped.
+                Text("Last train").labelStyle(Theme.paper).hidden()
+            }
+        }
     }
 
     /**
