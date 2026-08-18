@@ -10,9 +10,13 @@ import LastTrainCore
  so the position does not have to** — which is what lets four directions fit in two
  rows where a compass cross needs three.
 
- Measured against the fold at 375×667, the smallest phone still supported: this is
- 118pt with all four directions showing, and the last train still clears. The compass
- cross was 169pt and put the red block 41pt under.
+ Measured against the fold at 375×667, the smallest phone still supported. It was 118pt
+ with all four directions showing; matching a departure block's height took it to about
+ 190pt, and **the last train still clears — by roughly 12pt rather than the 55 it had.**
+ Re-measured on an iPhone SE, not calculated. The compass cross was 169pt and put the red
+ block 41pt under, so there is still real distance from the arrangement that failed, but
+ this is now the tightest the fold has been and the next thing added above the board is
+ the thing that breaks it.
 
  Three things here are decisions, not details:
 
@@ -119,6 +123,21 @@ struct DirectionBlock: View {
     private let edgeWidth: CGFloat = 2
 
     /**
+     A rung larger than the shared labels, and local rather than a change to them.
+
+     `Theme.Font.label` and `.meta` are 11 and 12, which is right where they are used —
+     under a departure time, beside a heading — and small on a block you read at arm's
+     length while walking. Both move up to `.footnote` here: two points on the direction
+     word, one on the place.
+
+     Still Dynamic Type text styles rather than point sizes, so they scale with the
+     setting; and still local, because raising the tokens would grow the platform line, the
+     operator badge and every heading in the app along with them.
+     */
+    private let directionFont = SwiftUI.Font.system(.footnote).weight(.bold)
+    private let towardsFont = SwiftUI.Font.system(.footnote).weight(.semibold)
+
+    /**
      One height for every block, so the four arrows drawn on them match.
 
      Rows sized themselves before, so row one and row two were different heights whenever
@@ -126,8 +145,16 @@ struct DirectionBlock: View {
      turned into different shapes. A minimum rather than a fixed height: it scales with
      the text setting, and a name long enough to need a third line still grows the block
      instead of being cut.
+
+     **96 to match a departure block**, so the board keeps one module height from the
+     direction control to the last train rather than two. Matched by eye against the
+     rendered row rather than computed from it: a departure block is a badge line, a time
+     and a platform line inside 11pt of padding, and tying this to that sum would couple
+     two views that have no other reason to know about each other. It is a visual rhyme, so
+     it is allowed to be approximate — but it costs 44pt of the fold, which the note above
+     about 375×667 is the reason to keep watching.
      */
-    @ScaledMetric(relativeTo: .caption) private var blockHeight: CGFloat = 74
+    @ScaledMetric(relativeTo: .caption) private var blockHeight: CGFloat = 96
 
     var body: some View {
         Button(action: action) {
@@ -144,13 +171,13 @@ struct DirectionBlock: View {
                 */
                 if state != .empty, towards != nil {
                     Text(direction.rawValue.uppercased())
-                        .font(Theme.Font.label)
+                        .font(directionFont)
                         .tracking(Theme.tracking)
                         + Text(" towards")
-                        .font(Theme.Font.meta)
+                        .font(towardsFont)
                 } else {
                     Text(direction.rawValue.uppercased())
-                        .font(Theme.Font.label)
+                        .font(directionFont)
                         .tracking(Theme.tracking)
                 }
 
@@ -158,7 +185,7 @@ struct DirectionBlock: View {
                     // The Real Length Rule: station names are never truncated and never
                     // ellipsised. A long one wraps and the block grows to hold it.
                     Text(towards.withoutLondonPrefix)
-                        .font(Theme.Font.meta)
+                        .font(towardsFont)
                         .fixedSize(horizontal: false, vertical: true)
                         .lineLimit(1...)
                 }
