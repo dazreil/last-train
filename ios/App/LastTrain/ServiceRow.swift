@@ -64,6 +64,8 @@ struct ServiceRow: View {
         .padding(.horizontal, Theme.Space.gutter)
         .padding(.vertical, 11)
         .background(isLastTrain ? Theme.lastTrainRed : Theme.serviceBlue)
+        // Lit in its own colour, so a red block folds as red and a blue one as blue.
+        .embossed(lit: isLastTrain ? Theme.lastTrainRedLit : Theme.serviceBlueLit)
         .foregroundStyle(Theme.paper)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(spoken)

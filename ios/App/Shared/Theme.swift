@@ -56,6 +56,10 @@ enum Theme {
     static let controlLit = Color(hex: 0x3d4956)
     static let serviceBlueLit = Color(hex: 0x20449b)
 
+    /// `#f8325a`. The same lift on the last train's red. Still red — a facet of the block
+    /// it lights, never a second signal.
+    static let lastTrainRedLit = Color(hex: 0xf8325a)
+
     static let text = Color(hex: 0xf2f5f8)
     static let textDim = Color(hex: 0x9aa7b4)
     static let textFaint = Color(hex: 0x6b7885)
@@ -115,6 +119,28 @@ extension Color {
 }
 
 extension View {
+    /**
+     A lit top edge and a shaded bottom one, in the surface's own colour.
+
+     The direction blocks light their arrow's facets by hand because the shape has facets
+     to light. A departure block is a rectangle, so the same idea is two rules: the top
+     catches the light, the bottom falls away from it. Stacked at zero spacing, each block's
+     shadow meets the next block's highlight and the join becomes a ridge — which separates
+     the rows as a side effect, without a divider that would have to be drawn in something
+     other than the blocks' own colours.
+
+     `lit` is always the surface's fill lifted, never white. White reads as an outline drawn
+     on a block; the block's own hue reads as the block, folded.
+     */
+    func embossed(lit: Color, weight: CGFloat = 1) -> some View {
+        overlay(alignment: .top) {
+            Rectangle().fill(lit).frame(height: weight)
+        }
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Theme.ink.opacity(0.4)).frame(height: weight)
+        }
+    }
+
     /// An uppercase, letter-spaced label in the house style.
     func labelStyle(_ colour: Color = Theme.textFaint) -> some View {
         self

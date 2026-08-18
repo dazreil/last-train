@@ -185,6 +185,7 @@ struct FastRow: View {
         .padding(.horizontal, Theme.Space.gutter)
         .padding(.vertical, 11)
         .background(Theme.serviceBlue)
+        .embossed(lit: Theme.serviceBlueLit)
         .foregroundStyle(Theme.paper)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
