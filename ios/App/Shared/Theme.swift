@@ -42,6 +42,20 @@ enum Theme {
     static let control = Color(hex: 0x232b34)
     static let hairline = Color(hex: 0x2a323b)
 
+    /**
+     `#3d4956` and `#20449b`. The lit facet of a direction block, per fill.
+
+     **Not white.** The emboss was built with `paper` at part opacity, and on device that
+     is a white line drawn on a dark shape rather than light falling across it — the whole
+     effect reads as an outline. Light on a surface is that surface, lifted: each of these
+     is its own fill taken a few steps up, so the edge belongs to the block it sits on.
+
+     Decorative only. State is carried by the fill beneath — blue, grey, or black — so
+     these never have to reach a contrast ratio.
+     */
+    static let controlLit = Color(hex: 0x3d4956)
+    static let serviceBlueLit = Color(hex: 0x20449b)
+
     static let text = Color(hex: 0xf2f5f8)
     static let textDim = Color(hex: 0x9aa7b4)
     static let textFaint = Color(hex: 0x6b7885)

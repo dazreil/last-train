@@ -184,27 +184,34 @@ struct DirectionBlock: View {
             .clipShape(ChevronBlock(direction: direction))
             .overlay {
                 /*
-                 The emboss, and the state signal, in one treatment.
+                 The emboss.
 
-                 Brightness carries availability exactly as the old lit edge did — full
-                 for the selected block, a little over half for one you could pick. A
-                 direction with no trains gets **neither facet**: it is a hole in the
-                 control, and lighting or shading it would model a shape that has nothing
-                 in it.
+                 **Each facet is the block's own colour, moved.** Built first with white at
+                 part opacity, which looked right in a mock-up and cheap on a phone: a white
+                 line drawn on a dark shape is an outline, not light falling across one. The
+                 lit facet is now the fill lifted a few steps and the shaded facet is the
+                 ground beneath it, so both belong to the material rather than sitting on
+                 top of it.
+
+                 State left with the white. It is carried by the fill — blue selected, grey
+                 available, black empty — which it always was, so the emboss is free to be
+                 only what it looks like. A direction with no trains gets **neither facet**:
+                 it is a hole in the control, and lighting or shading it would model a shape
+                 with nothing in it.
 
                  Both strokes are clipped to the block, so each shows only its inner half
                  and sits flush with the edge rather than bleeding into the gap.
                 */
-                if state != .empty {
+                if let lit = embossLit {
                     ZStack {
                         EmbossFacets(direction: direction, lit: false)
                             .stroke(
-                                Theme.ink.opacity(0.55),
+                                Theme.ink.opacity(0.7),
                                 style: StrokeStyle(lineWidth: edgeWidth, lineJoin: .miter)
                             )
                         EmbossFacets(direction: direction, lit: true)
                             .stroke(
-                                Theme.paper.opacity(state == .selected ? 0.9 : 0.5),
+                                lit,
                                 style: StrokeStyle(lineWidth: edgeWidth, lineJoin: .miter)
                             )
                     }
@@ -217,6 +224,15 @@ struct DirectionBlock: View {
         .disabled(state == .empty)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityAddTraits(state == .selected ? [.isSelected] : [])
+    }
+
+    /// The block's own fill, lifted. Nil where there is nothing to light.
+    private var embossLit: Color? {
+        switch state {
+        case .selected: Theme.serviceBlueLit
+        case .available: Theme.controlLit
+        case .empty: nil
+        }
     }
 
     private var background: Color {
