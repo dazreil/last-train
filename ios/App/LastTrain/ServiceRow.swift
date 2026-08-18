@@ -69,12 +69,20 @@ struct ServiceRow: View {
         .accessibilityLabel(spoken)
     }
 
+    /**
+     Platform, and a bus when it is one.
+
+     **The headcode is deliberately absent.** `2B42` identifies a train to someone
+     reading a signalling screen and means nothing on a platform at midnight, and it sat
+     under the departure time where the eye lands. It is still carried on the service and
+     still what the widget pins to — it is only not shown here. `ServiceSheet` keeps it,
+     which is where identifying one particular train is the actual question.
+     */
     private var meta: String {
         var parts: [String] = []
         if let platform = service.platform { parts.append("plat \(platform)") }
         // Badged, never silently shown as a train.
         if service.isReplacementBus { parts.append("replacement bus") }
-        if let headcode = service.headcode { parts.append(headcode) }
         return parts.joined(separator: " · ")
     }
 

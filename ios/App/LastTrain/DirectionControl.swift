@@ -80,10 +80,6 @@ struct DirectionControl: View {
                     direction: direction,
                     towards: towards[direction],
                     state: state(for: direction),
-                    // Reserving a second line keeps four side-by-side blocks the same
-                    // height. Stacked in one column there is nothing to match, and the
-                    // reserve would only add empty rows to an already tall control.
-                    reservesSecondLine: !typeSize.isAccessibilitySize,
                     action: {
                         selection = direction
                         onTap?(direction)
@@ -111,76 +107,108 @@ struct DirectionBlock: View {
     let direction: Compass
     let towards: String?
     let state: State
-    var reservesSecondLine = true
     let action: () -> Void
 
-    /// Visible thickness of the lit edge. Doubled and clipped, so this is what shows.
-    private let edgeWidth: CGFloat = 4
+    /**
+     Stroke width of an emboss facet. Clipped to the block, so half of it shows.
+
+     Three was the old lit edge's weight and far too heavy for this: at 168pt wide a 3pt
+     line across the top of a block reads as an underline, not as light catching an edge.
+     An emboss is a hairline or it is a stripe.
+     */
+    private let edgeWidth: CGFloat = 2
+
+    /**
+     One height for every block, so the four arrows drawn on them match.
+
+     Rows sized themselves before, so row one and row two were different heights whenever
+     one destination wrapped and another did not — which the old full-span arrows then
+     turned into different shapes. A minimum rather than a fixed height: it scales with
+     the text setting, and a name long enough to need a third line still grows the block
+     instead of being cut.
+     */
+    @ScaledMetric(relativeTo: .caption) private var blockHeight: CGFloat = 74
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(direction.rawValue)
-                    .font(Theme.Font.label)
-                    .tracking(Theme.tracking)
-                    .textCase(.uppercase)
+            VStack(alignment: .leading, spacing: 2) {
+                /*
+                 `EAST towards` on one line, the place on the next.
+
+                 It was the direction on one line and `towards Shoeburyness` on the next,
+                 which spent a whole line on a preposition and left the destination to
+                 wrap — so blocks ended up different heights and the arrows drawn on them
+                 stopped matching. One line saved per block is what makes equal heights
+                 affordable, and it reads as a sentence rather than a label stacked on a
+                 caption.
+                */
+                if state != .empty, towards != nil {
+                    Text(direction.rawValue.uppercased())
+                        .font(Theme.Font.label)
+                        .tracking(Theme.tracking)
+                        + Text(" towards")
+                        .font(Theme.Font.meta)
+                } else {
+                    Text(direction.rawValue.uppercased())
+                        .font(Theme.Font.label)
+                        .tracking(Theme.tracking)
+                }
 
                 if state != .empty, let towards {
-                    // Reads the way the sliding block reads. No service count -- the
-                    // number was never the question, and a direction only means
-                    // something once you know where it goes.
-                    //
                     // The Real Length Rule: station names are never truncated and never
-                    // ellipsised. A long one wraps and the row grows to hold it.
-                    Text("towards \(towards.withoutLondonPrefix)")
+                    // ellipsised. A long one wraps and the block grows to hold it.
+                    Text(towards.withoutLondonPrefix)
                         .font(Theme.Font.meta)
                         .fixedSize(horizontal: false, vertical: true)
-                        // Two lines of space, always, whether or not this name needs
-                        // them. Otherwise a block whose destination happens to wrap is
-                        // taller than the one beside it, and four blocks that are meant
-                        // to read as a set stop looking like one.
-                        //
-                        // A range rather than a limit: `lineLimit(2)` would *truncate* a
-                        // third line, and the Real Length Rule forbids that. This
-                        // reserves two and still grows.
-                        .lineLimit(reservesSecondLine ? 2... : 1...)
+                        .lineLimit(1...)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            // The label must clear the notch. Without this the chevron eats the first
-            // letter -- "EAST" renders as "AST" -- which is the Real Length Rule broken
-            // by geometry rather than by an ellipsis, and just as wrong.
-            //
-            // East and west take the same leading inset even though only east needs it
-            // for clearance. They sit one above the other in the right-hand column, and
-            // text that starts 14pt further left on one of them reads as a mistake
-            // rather than as a consequence of which way the chevron points.
+            /*
+             One inset, all four sides, every block.
+
+             The arrow sits on a different edge per direction, so per-direction padding
+             was four different insets and text that started in a different place
+             depending on which way the trains went. Reserving the arrow's depth on every
+             side costs 12pt where it is not needed and buys text that lines up across the
+             whole control — which is what makes four blocks read as one thing.
+            */
             .padding(
-                .leading,
-                12 + (direction == .east || direction == .west ? ChevronBlock.horizontalNotch : 0)
+                .horizontal,
+                12 + (direction == .east || direction == .west ? ChevronBlock.horizontalDepth : 0)
             )
-            .padding(.trailing, 12 + (direction == .west ? ChevronBlock.horizontalNotch : 0))
-            .padding(.top, 10 + (direction == .south ? ChevronBlock.verticalNotch : 0))
-            .padding(.bottom, 10 + (direction == .north ? ChevronBlock.verticalNotch : 0))
-            .frame(minHeight: 58)
+            .padding(.vertical, 10 + ChevronBlock.verticalDepth)
+            .frame(minHeight: blockHeight)
             .background(background)
             .foregroundStyle(foreground)
             .clipShape(ChevronBlock(direction: direction))
             .overlay {
-                // Only where something runs. A blacked-out block is a hole in the
-                // control, and lighting its edge would draw the eye to a direction
-                // with no trains in it.
+                /*
+                 The emboss, and the state signal, in one treatment.
+
+                 Brightness carries availability exactly as the old lit edge did — full
+                 for the selected block, a little over half for one you could pick. A
+                 direction with no trains gets **neither facet**: it is a hole in the
+                 control, and lighting or shading it would model a shape that has nothing
+                 in it.
+
+                 Both strokes are clipped to the block, so each shows only its inner half
+                 and sits flush with the edge rather than bleeding into the gap.
+                */
                 if state != .empty {
-                    PointingEdge(direction: direction)
-                        .stroke(
-                            Theme.paper.opacity(state == .selected ? 1 : 0.55),
-                            style: StrokeStyle(lineWidth: edgeWidth * 2, lineJoin: .miter)
-                        )
-                        // Clipped to the same chevron, so the stroke is centred on the
-                        // boundary and only its inner half shows. That leaves a crisp
-                        // line flush with the block edge rather than one bleeding into
-                        // the gap between blocks.
-                        .clipShape(ChevronBlock(direction: direction))
+                    ZStack {
+                        EmbossFacets(direction: direction, lit: false)
+                            .stroke(
+                                Theme.ink.opacity(0.55),
+                                style: StrokeStyle(lineWidth: edgeWidth, lineJoin: .miter)
+                            )
+                        EmbossFacets(direction: direction, lit: true)
+                            .stroke(
+                                Theme.paper.opacity(state == .selected ? 0.9 : 0.5),
+                                style: StrokeStyle(lineWidth: edgeWidth, lineJoin: .miter)
+                            )
+                    }
+                    .clipShape(ChevronBlock(direction: direction))
                 }
             }
             .contentShape(ChevronBlock(direction: direction))
@@ -231,70 +259,95 @@ struct ChevronBlock: Shape {
     let direction: Compass
 
     /**
-     Notch depth, in points rather than a proportion, and different on each axis.
+     One arrow, the same size on every block, and nothing bitten out of the far edge.
 
-     A percentage was the obvious first choice and it is wrong twice over. It grows with
-     the block, so the padding keeping the label clear has to grow too and the two drift
-     apart under Dynamic Type until the first letter disappears. And the blocks are far
-     wider than they are tall, so one proportion is two different depths: 7% of the
-     width but a quarter of the height.
+     **The arrow no longer spans the edge, and that is the whole point.** It used to run
+     corner to apex to corner, so its angle was set by depth against span — and the span
+     was whatever the block happened to be. East and west spanned the block's height,
+     which changes the moment `towards Fenchurch Street` wraps and `towards Pitsea` does
+     not; north and south spanned the width, which at a fixed depth flattened them into a
+     slant. Four arrows that were never the same shape twice, redrawn by every text size.
+     Tuning the numbers could not fix it: blocks of different aspect ratios cannot share
+     an angle while the arrow spans the full edge. The `14`/`7` split was already an
+     attempt to hide that.
 
-     That second error was visible on device — north and south nested into each other
-     and the left column read as a single shape rather than two blocks. The vertical
-     notch is shallower to match how much less room it has.
+     A fixed span and a fixed depth give one angle everywhere, by construction, at any
+     size. Mocked up against the alternative — a constant angle with the depth derived
+     from the span — which showed the vertical notch going past 20pt and north and south
+     biting into each other again, which is a fault this control has already had once.
+
+     The matching indent on the opposite edge is gone too. It existed so blocks could
+     interlock, and interlocking is what let them nest into one another.
      */
-    static let horizontalNotch: CGFloat = 14
-    static let verticalNotch: CGFloat = 7
+    static let horizontalDepth: CGFloat = 14
+    static let verticalDepth: CGFloat = 7
 
-    static func notch(for direction: Compass) -> CGFloat {
+    static func depth(for direction: Compass) -> CGFloat {
         switch direction {
-        case .east, .west: horizontalNotch
-        case .north, .south: verticalNotch
+        case .east, .west: horizontalDepth
+        case .north, .south: verticalDepth
         }
     }
 
+    /**
+     A point on the edge it faces, and a straight edge everywhere else.
+
+     Two shapes were built and rejected on device before this one. A fixed arrowhead
+     centred on the edge kept its angle everywhere, which was the goal, but the corners it
+     cut back showed the background through them and read as wedges bitten out of the
+     *gaps* rather than as arrows on the blocks; insetting every side to fix that left the
+     tips spiking into the channels between blocks like stray marks. Neither looked like a
+     departure board.
+
+     What the arrow actually needed was not a fixed size but a fixed *canvas*, and
+     `blockHeight` now provides it. With every block the same size, a point that spans its
+     edge has one angle across the control and keeps it at any text size — which is the
+     whole of the complaint — while the silhouette stays the bold thing it was.
+
+     The matching indent on the opposite edge stays gone. It existed so blocks could
+     interlock, and interlocking is what let north and south nest into each other.
+     */
     func path(in rect: CGRect) -> Path {
         let w = rect.width
         let h = rect.height
-        // Never eat more than a third of the block, however small it gets.
-        let n = min(Self.notch(for: direction), min(w, h) / 3)
+        // Different per axis because the axes are: the point spans 168pt across the top
+        // and about 74 down the side, so one depth would be two very different angles.
+        let d = direction == .north || direction == .south
+            ? min(Self.verticalDepth, h / 3)
+            : min(Self.horizontalDepth, w / 3)
         var path = Path()
 
         let points: [CGPoint] = switch direction {
         case .north:
             [
-                CGPoint(x: 0, y: n),
+                CGPoint(x: 0, y: d),
                 CGPoint(x: w / 2, y: 0),
-                CGPoint(x: w, y: n),
+                CGPoint(x: w, y: d),
                 CGPoint(x: w, y: h),
-                CGPoint(x: w / 2, y: h - n),
                 CGPoint(x: 0, y: h),
             ]
         case .south:
             [
                 CGPoint(x: 0, y: 0),
-                CGPoint(x: w / 2, y: n),
                 CGPoint(x: w, y: 0),
-                CGPoint(x: w, y: h - n),
+                CGPoint(x: w, y: h - d),
                 CGPoint(x: w / 2, y: h),
-                CGPoint(x: 0, y: h - n),
+                CGPoint(x: 0, y: h - d),
             ]
         case .east:
             [
                 CGPoint(x: 0, y: 0),
-                CGPoint(x: w - n, y: 0),
+                CGPoint(x: w - d, y: 0),
                 CGPoint(x: w, y: h / 2),
-                CGPoint(x: w - n, y: h),
+                CGPoint(x: w - d, y: h),
                 CGPoint(x: 0, y: h),
-                CGPoint(x: n, y: h / 2),
             ]
         case .west:
             [
-                CGPoint(x: n, y: 0),
+                CGPoint(x: d, y: 0),
                 CGPoint(x: w, y: 0),
-                CGPoint(x: w - n, y: h / 2),
                 CGPoint(x: w, y: h),
-                CGPoint(x: n, y: h),
+                CGPoint(x: d, y: h),
                 CGPoint(x: 0, y: h / 2),
             ]
         }
@@ -315,27 +368,67 @@ struct ChevronBlock: Shape {
  Uses the same per-axis notch depth as `ChevronBlock`, or the line would sit off the
  shape on the north and south blocks.
  */
-struct PointingEdge: Shape {
+/**
+ The lit or shaded facets of a block, for the emboss.
+
+ One light, from the top left, on all four blocks — which is what makes them read as a
+ set. The top edge and the arrow's upper facet catch it; the bottom edge and the lower
+ facet fall into shadow.
+
+ This replaces a shape that stroked the *pointing* edge to say which way the block faced.
+ That job now belongs to the silhouette, and the highlight is free to do the other one it
+ was quietly doing: carrying state through its brightness.
+ */
+struct EmbossFacets: Shape {
     let direction: Compass
+    /// The half catching the light, rather than the half in shadow.
+    let lit: Bool
 
     func path(in rect: CGRect) -> Path {
         let w = rect.width
         let h = rect.height
-        let n = min(ChevronBlock.notch(for: direction), min(w, h) / 3)
+        let d = direction == .north || direction == .south
+            ? min(ChevronBlock.verticalDepth, h / 3)
+            : min(ChevronBlock.horizontalDepth, w / 3)
+        var path = Path()
 
-        let points: [CGPoint] = switch direction {
-        case .north:
-            [CGPoint(x: 0, y: n), CGPoint(x: w / 2, y: 0), CGPoint(x: w, y: n)]
-        case .south:
-            [CGPoint(x: 0, y: h - n), CGPoint(x: w / 2, y: h), CGPoint(x: w, y: h - n)]
-        case .east:
-            [CGPoint(x: w - n, y: 0), CGPoint(x: w, y: h / 2), CGPoint(x: w - n, y: h)]
-        case .west:
-            [CGPoint(x: n, y: 0), CGPoint(x: 0, y: h / 2), CGPoint(x: n, y: h)]
+        // Each run is contiguous: the lit half walks the top edge and carries straight on
+        // up the point's near facet, so light turns the corner the way it would on a
+        // folded surface.
+        switch (direction, lit) {
+        case (.north, true):
+            path.addLines([
+                CGPoint(x: 0, y: d), CGPoint(x: w / 2, y: 0), CGPoint(x: w, y: d),
+            ])
+        case (.north, false):
+            path.addLines([CGPoint(x: 0, y: h), CGPoint(x: w, y: h)])
+
+        case (.south, true):
+            path.addLines([CGPoint(x: 0, y: 0), CGPoint(x: w, y: 0)])
+        case (.south, false):
+            path.addLines([
+                CGPoint(x: 0, y: h - d), CGPoint(x: w / 2, y: h), CGPoint(x: w, y: h - d),
+            ])
+
+        case (.east, true):
+            path.addLines([
+                CGPoint(x: 0, y: 0), CGPoint(x: w - d, y: 0), CGPoint(x: w, y: h / 2),
+            ])
+        case (.east, false):
+            path.addLines([
+                CGPoint(x: w, y: h / 2), CGPoint(x: w - d, y: h), CGPoint(x: 0, y: h),
+            ])
+
+        case (.west, true):
+            path.addLines([
+                CGPoint(x: 0, y: h / 2), CGPoint(x: d, y: 0), CGPoint(x: w, y: 0),
+            ])
+        case (.west, false):
+            path.addLines([
+                CGPoint(x: 0, y: h / 2), CGPoint(x: d, y: h), CGPoint(x: w, y: h),
+            ])
         }
 
-        var path = Path()
-        path.addLines(points)
         return path
     }
 }

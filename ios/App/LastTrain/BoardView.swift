@@ -499,15 +499,19 @@ struct BoardView: View {
         let trailing: String
 
         switch (role, board.mode) {
+        // The service count is deliberately not shown. It answered a question nobody
+        // asked -- how busy the line is today, when the board exists to say when the last
+        // train goes -- and it was a lower bound rather than a fact at Liverpool Street,
+        // which meant carrying a caveat for a number that earned nothing.
         case (.last, .normal):
             let count = board.lastTrains.count
             title = count > 1
                 ? "Last \(count) trains \(board.direction.rawValue)"
                 : "Last train \(board.direction.rawValue)"
-            trailing = "\(board.totalServices) services"
+            trailing = ""
         case (.last, .preService):
             title = "Last train \(board.direction.rawValue)"
-            trailing = "\(board.totalServices) services"
+            trailing = ""
         case (.first, .normal):
             // Named, not called "tomorrow" — at 00:40 that word is wrong by a day.
             title = "First train back"
