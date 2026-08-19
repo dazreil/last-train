@@ -118,6 +118,34 @@ extension Color {
     }
 }
 
+/**
+ What a tap looks like before anything has loaded.
+
+ Every control in this app was `.buttonStyle(.plain)`, which draws **nothing** on touch
+ down. On a board where the answer to a tap arrives over the network a second later, that
+ left the screen inert at exactly the moment it needed to say "yes, I felt that" — and the
+ date control had already been misread as broken once for a related reason.
+
+ Two styles, because the surfaces are two kinds. A filled block is a slab and lifts toward
+ the light; a text control has nothing to light, so it recedes instead. Neither scales:
+ a departure board is printed on something, and printed things do not shrink when pressed.
+ */
+struct PressLift: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .brightness(configuration.isPressed ? 0.07 : 0)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+struct PressDim: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.55 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
 extension View {
     /**
      A lit top edge and a shaded bottom one, in the surface's own colour.

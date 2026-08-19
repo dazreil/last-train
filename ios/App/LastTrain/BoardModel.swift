@@ -248,8 +248,18 @@ final class BoardModel {
         return headcode == pinnedHeadcode
     }
 
+    /**
+     Counts pin changes, so feedback can fire on the act rather than on the value.
+
+     `pinnedHeadcode` is scoped to a station and direction, so it also changes when you
+     move to another station — and a success tap for a pin you did not make is worse than
+     none at all.
+     */
+    private(set) var pinChanges = 0
+
     /// Follow this train, or stop following it. The widget is told either way.
     func setPin(_ service: BoardDeparture, following: Bool) {
+        pinChanges += 1
         guard let station else { return }
         SharedSelection.setPin(
             following ? service.headcode : nil,

@@ -59,7 +59,7 @@ struct FastBoardView: View {
             .overlay(Rectangle().strokeBorder(Theme.hairline, lineWidth: 1))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressLift())
         .padding(.horizontal, Theme.Space.gutter)
         .padding(.top, 8)
     }
@@ -289,7 +289,7 @@ struct DestinationPicker: View {
             .foregroundStyle(chosen ? Theme.paper : Theme.text)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressDim())
     }
 
     private var skeleton: some View {

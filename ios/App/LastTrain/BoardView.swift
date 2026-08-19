@@ -62,6 +62,17 @@ struct BoardView: View {
             .padding(.bottom, 32)
         }
         .background(Theme.surface)
+        .modifier(
+            BoardHaptics(
+                direction: model.direction,
+                dayIndex: model.dayIndex,
+                page: fast.page,
+                pinChanges: model.pinChanges,
+                nearbyCount: model.nearby.count,
+                locateError: model.locateError,
+                errorMessage: model.errorMessage
+            )
+        )
         .refreshable { await model.load(refresh: true) }
         .task { await model.load() }
         // Fast Train needs its own lookup, and only once there is somewhere to go.
@@ -242,7 +253,7 @@ struct BoardView: View {
             .padding(.vertical, 4)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressDim())
         .accessibilityLabel(accessibility)
         .accessibilityValue(value ?? "")
     }
@@ -280,7 +291,7 @@ struct BoardView: View {
             .fixedSize(horizontal: false, vertical: true)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressDim())
         .accessibilityLabel(mode == .last ? "Switch to Fast Train" : "Switch to Last Train")
     }
 
@@ -302,7 +313,7 @@ struct BoardView: View {
         } label: {
             wayBackLabel("Today")
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressLift())
         .accessibilityLabel("Back to today")
     }
 
@@ -313,7 +324,7 @@ struct BoardView: View {
         } label: {
             wayBackLabel("Now")
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressLift())
         .accessibilityLabel("Back to the trains from now")
     }
 
@@ -349,7 +360,7 @@ struct BoardView: View {
                     .padding(.trailing, 8)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressLift())
 
                 locateButton
             }
@@ -393,7 +404,7 @@ struct BoardView: View {
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressDim())
         .disabled(model.isLocating)
         .accessibilityLabel("Use nearest station")
     }
@@ -433,7 +444,7 @@ struct BoardView: View {
                                 )
                                 .foregroundStyle(Theme.textDim)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(PressLift())
                         }
                     }
                 }
@@ -474,6 +485,15 @@ struct BoardView: View {
         }
     }
 
+    /**
+     The board, dimmed while a new one is on its way.
+
+     A step or a direction change fires a lookup that takes about a second, and until now
+     nothing on screen said so — `isLoading` existed and only the very first load ever drew
+     the skeleton. Dimming rather than replacing, because the board on screen is still true
+     until the new one lands: what has changed is that it is no longer the answer to the
+     question you just asked.
+     */
     private func departures(_ board: DepartureBoard) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(board.services.enumerated()), id: \.element.id) { index, service in
@@ -492,6 +512,8 @@ struct BoardView: View {
             }
         }
         .padding(.top, 6)
+        .opacity(model.isLoading ? 0.45 : 1)
+        .animation(.easeOut(duration: 0.15), value: model.isLoading)
     }
 
     private func heading(for role: ServiceRole, board: DepartureBoard) -> some View {
@@ -655,5 +677,54 @@ struct StationPicker: View {
             }
             .prefix(60)
             .map(\.0)
+    }
+}
+
+/**
+ Six pieces of feedback, and no more.
+
+ Only where the answer is not already on screen, or where the tap commits something. A
+ tick per press turns into noise on a control you walk while using, so the mode switch,
+ the pickers and pull-to-refresh are deliberately silent — the whole screen changing, a
+ sheet dismissing and iOS's own refresh spinner are each their own answer.
+
+ A `ViewModifier` rather than seven modifiers on the board itself, and not for tidiness:
+ stacked inline they put `BoardView.body` past what the type-checker will solve, and it
+ fails with `unable to type-check this expression in reasonable time` pointing at the top
+ of the view rather than at the cause.
+ */
+struct BoardHaptics: ViewModifier {
+    let direction: Compass
+    let dayIndex: Int
+    let page: Int
+    let pinChanges: Int
+    let nearbyCount: Int
+    let locateError: String?
+    let errorMessage: String?
+
+    func body(content: Content) -> some View {
+        content
+            .sensoryFeedback(.selection, trigger: direction)
+            .sensoryFeedback(trigger: dayIndex) { old, new in
+                guard old != new else { return nil }
+                // Rounding off the end of the walk is not another step, and should not
+                // feel like one.
+                return new == 0 && old > 0 ? .impact(flexibility: .soft) : .selection
+            }
+            .sensoryFeedback(trigger: page) { old, new in
+                guard old != new else { return nil }
+                return new == 0 && old > 0 ? .impact(flexibility: .soft) : .selection
+            }
+            // The one action that commits anything: this train, in the widget.
+            .sensoryFeedback(.success, trigger: pinChanges)
+            .sensoryFeedback(trigger: nearbyCount) { old, new in
+                new > 0 && old == 0 ? .success : nil
+            }
+            .sensoryFeedback(trigger: locateError) { _, new in
+                new == nil ? nil : .warning
+            }
+            .sensoryFeedback(trigger: errorMessage) { _, new in
+                new == nil ? nil : .error
+            }
     }
 }

@@ -247,7 +247,7 @@ struct DirectionBlock: View {
             }
             .contentShape(ChevronBlock(direction: direction))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressLift())
         .disabled(state == .empty)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityAddTraits(state == .selected ? [.isSelected] : [])
