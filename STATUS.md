@@ -485,6 +485,26 @@ server. Regeneration is only needed when files are added or removed, so in pract
 is set once and forgotten. The terminal recipe above needs none of it, which is why it is
 the one written down first.
 
+### The first Xcode open after `xcodegen generate` looks like a hang
+
+Measured 20 August 2026, after the Live Activity added two files. Xcode opened, the window
+came up, and it stopped responding for **over three minutes** — long enough to look wedged
+and be force-quit, which only starts the wait again.
+
+It is not wedged. Regenerating recreates the `.xcodeproj`, which throws away Xcode's cached
+Swift package resolution, and `project.yml` points the `LastTrainCore` package at `.` — the
+package root *is* `ios/`. So resolution walks the same directory that CLI `swift test`
+fills with build artifacts: **`ios/.build` was 307MB** at the time. `xcodebuild -project
+LastTrain.xcodeproj -list` shows exactly where it sits, printing `Resolve Package Graph` and
+then nothing.
+
+**It is a one-off.** The same command took three seconds the second time, and Xcode opens
+normally afterwards. The cheap way to pay it without watching a frozen window is to run
+`xcodebuild -list` in a terminal first and let it finish, then open Xcode.
+
+If it ever does not settle, `rm -rf ios/.build` is safe — it is gitignored, and the next
+`swift test` rebuilds it at the cost of one slow run.
+
 ### The simulator's widget gallery will not take synthetic taps
 
 Adding a widget needs long-press → Edit → Add Widget, and the tap on **Edit** is
