@@ -103,6 +103,9 @@ targets:
         # a light rendering of it would be a different design, not a variant.
         UIUserInterfaceStyle: Dark
         ITSAppUsesNonExemptEncryption: false
+        # The pinned train's countdown on the Dynamic Island and lock screen. Declared on
+        # the app because the app starts it; the views live in the widget extension.
+        NSSupportsLiveActivities: true
         # The nearest-station button, and nothing else. Asked for when-in-use only, and
         # only when the button is pressed -- the app never watches your position, since
         # a departure board is read standing still.

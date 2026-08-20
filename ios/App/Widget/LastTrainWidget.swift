@@ -14,6 +14,9 @@ import LastTrainCore
 struct LastTrainWidgetBundle: WidgetBundle {
     var body: some Widget {
         LastTrainWidget()
+        // The pinned train's countdown. Same extension, different lifetime: the widget is
+        // always there and this exists only while a train is worth running for.
+        TrainLiveActivity()
     }
 }
 

@@ -75,6 +75,9 @@ struct BoardView: View {
         )
         .refreshable { await model.load(refresh: true) }
         .task { await model.load() }
+        // An activity outlives the process that started it, and the system will happily go
+        // on showing a countdown that reached zero while nobody was watching.
+        .task { await TrainActivityController.tidy() }
         // Fast Train needs its own lookup, and only once there is somewhere to go.
         .task(id: fastKey) {
             guard mode == .fast, let station = model.station else { return }

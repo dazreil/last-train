@@ -257,7 +257,18 @@ final class BoardModel {
      */
     private(set) var pinChanges = 0
 
-    /// Follow this train, or stop following it. The widget is told either way.
+    /**
+     Follow this train, or stop following it. The widget is told either way — and so is the
+     Dynamic Island.
+
+     One action, two surfaces, deliberately. "This is my train" is a single thought, and
+     splitting it into *show it in the widget* and *count it down on the island* would be a
+     settings question wearing a button.
+
+     The countdown declines itself when it makes no sense: a train already gone, or one
+     further off than `TrainActivityController.horizon`. Nothing is said about that, because
+     the pin still did what it says — the widget is following it either way.
+     */
     func setPin(_ service: BoardDeparture, following: Bool) {
         pinChanges += 1
         guard let station else { return }
@@ -267,6 +278,17 @@ final class BoardModel {
             direction: direction
         )
         WidgetCenter.shared.reloadAllTimelines()
+
+        if following {
+            TrainActivityController.start(
+                service: service,
+                stationName: station.name.withoutLondonPrefix,
+                direction: direction,
+                isLastTrain: service.serviceId == board?.lastTrain?.serviceId
+            )
+        } else {
+            Task { await TrainActivityController.stop() }
+        }
     }
 
     /// Dismiss the alternatives once one has been taken, or the picker used.
