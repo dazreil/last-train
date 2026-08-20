@@ -14,6 +14,8 @@
 
 import 'server-only';
 
+import { createTokenBucket } from './pacing.ts';
+
 const BASE_URL = 'https://data.rtt.io';
 
 /**
@@ -26,8 +28,9 @@ const BASE_URL = 'https://data.rtt.io';
  * 84000 against a 25000 weekly ceiling, so the *week* binds: `25000 ÷ 7` = 3571 a day
  * sustainable, not the 12000 headline. Size against that. See STATUS.md.
  *
- * Nothing reads this constant — the budgets it informs are written where they are spent.
- * It is kept as the one place the numbers are recorded in code, and it was wrong until now.
+ * **The per-minute figure is now enforced**, by the token bucket below. It was exported and
+ * read by nothing for the whole life of the free tier, which is how a burst of seventeen
+ * requests in five seconds became an error rather than a pause.
  */
 export const RATE_LIMIT_PER_MINUTE = 40;
 
@@ -48,6 +51,76 @@ export class RttError extends Error {
     super(message);
     this.name = 'RttError';
   }
+}
+
+// ---------------------------------------------------------------------- pacing
+
+/**
+ * A refusal this process made, rather than one the API made.
+ *
+ * They carry the same status and the same message to the caller, because to the caller they
+ * are the same event. The distinction matters exactly once: the retry below must not fire
+ * for this one, since waiting and trying again is precisely what the bucket has already
+ * done, and doing it twice would double the delay the app is measured on.
+ */
+class PacingRefusal extends RttError {}
+
+/**
+ * A token bucket, so a burst cannot ask for more than the tier allows.
+ *
+ * **Measured 20 August 2026, and the reason this exists.** Volume was never the problem —
+ * 122 requests in a week against a 25000 ceiling — but the per-minute cap is 40 and one
+ * cold Fast Train interaction costs about 17 in five seconds. Two of those inside a minute
+ * went over, and a 429 was thrown straight at the screen: an error for a quota that was
+ * 99.5% unspent.
+ *
+ * The arithmetic lives in `lib/pacing.ts` with an injected clock, because the behaviour
+ * worth proving is what happens over a minute and no test should take one.
+ *
+ * **It is per-process, which is a real limit on how much it can promise.** Each Vercel
+ * instance holds its own bucket, so several at once can still exceed the cap between them —
+ * which is what the retry below is for. For one person on one instance, which is the case
+ * this app is actually sized for, it is the difference between a pause and an error.
+ */
+const bucket = createTokenBucket({ perMinute: RATE_LIMIT_PER_MINUTE });
+
+/** How long to wait for a token before giving up. */
+const MAX_PACING_WAIT_MS = 3_000;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Wait for a token, or refuse.
+ *
+ * Refusing locally rather than spending the request and being refused upstream: the answer
+ * is the same 429 either way, and this one arrives immediately and costs nothing. The
+ * ceiling is deliberately short — the app gives up on a lookup at 20 seconds, so a pause
+ * long enough to matter has already lost the race.
+ */
+async function takeToken(): Promise<void> {
+  const first = bucket.take();
+  if (first.granted) return;
+
+  if (first.waitMs > MAX_PACING_WAIT_MS) {
+    throw new PacingRefusal(
+      'Realtime Trains rate limit reached.',
+      429,
+      Math.ceil(first.waitMs / 1000)
+    );
+  }
+
+  await sleep(first.waitMs);
+  const second = bucket.take();
+  if (second.granted) return;
+
+  // Another caller in this process took the token while we waited. One short wait is a
+  // pause; two is a queue, and a queue behind a 20-second client is a failure that costs
+  // more than it saves.
+  throw new PacingRefusal(
+    'Realtime Trains rate limit reached.',
+    429,
+    Math.ceil(second.waitMs / 1000)
+  );
 }
 
 // ------------------------------------------------------------------ credentials
@@ -78,6 +151,10 @@ async function getBearerToken(): Promise<string> {
   if (cachedAccessToken && Date.now() < cachedAccessToken.expiresAtMillis) {
     return cachedAccessToken.value;
   }
+
+  // The exchange is a request against the same allowance, and a cold instance always makes
+  // one. Counting it is the difference between the bucket being right and being nearly right.
+  await takeToken();
 
   const res = await fetch(`${BASE_URL}/api/get_access_token`, {
     headers: {
@@ -143,6 +220,39 @@ async function request<T>(path: string, params: Record<string, QueryValue> = {})
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
   }
+
+  try {
+    return await send<T>(url);
+  } catch (cause) {
+    /*
+     One retry, and only for a refusal that came from upstream — never for one the bucket
+     made itself, which has already waited.
+
+     The bucket cannot see the other instances, so a 429 can still arrive when this process
+     believes it has allowance. `Retry-After` says how long to wait and the API means it, so
+     waiting once turns the last unavoidable case into a slower answer rather than an error.
+
+     Bounded hard: anything past two seconds has already spent the patience the app has, and
+     a second attempt that arrives after the client has given up is a request spent on
+     nobody.
+    */
+    const isUpstream429 =
+      cause instanceof RttError &&
+      !(cause instanceof PacingRefusal) &&
+      cause.status === 429 &&
+      cause.retryAfterSeconds !== undefined;
+    if (!isUpstream429) throw cause;
+
+    const waitMs = (cause as RttError).retryAfterSeconds! * 1000;
+    if (waitMs > 2_000) throw cause;
+
+    await sleep(waitMs);
+    return await send<T>(url);
+  }
+}
+
+async function send<T>(url: URL): Promise<T | null> {
+  await takeToken();
 
   let res: Response;
   try {
