@@ -60,38 +60,68 @@ struct DirectionControl: View {
      Four across, two at accessibility text sizes.
 
      **The blocks were 96 tall and the two rows cost 203pt**, which left the board clearing
-     the fold on a 375×667 phone by twelve. They are tabs now — the height goes to what the
-     content needs — so the same two rows cost about 119. That is 84pt back.
+     the fold on a 375×667 phone by twelve. One row of tabs costs about 76 — the saving the
+     whole change was for.
 
-     **Four across was tried first and could not hold a station name.** A quarter of the
-     screen is roughly 90pt, and `Shoeburyness` hyphenated into `Shoebury-/ness` at every
-     inset worth having, including with the point cleared only on the edge that has one.
-     The old comment here predicted that almost word for word, and this project treats a
-     hyphenated station name as truncation by another route. Two across gives each tab 183
-     and every destination fits on one line.
+     **The destination is why this is one row and not four labelled tiles.** A quarter of a
+     402pt screen is roughly 90pt, and at that width `Shoeburyness` hyphenates into
+     `Shoebury-/ness` at every inset worth having — which this project treats as the
+     truncation the Real Length Rule forbids, arrived at by another route. Compass words are
+     short and near enough the same length, so they fit a quarter easily; a station name
+     does not. So the tabs carry the word and the line beneath carries the place, across the
+     full width, where nothing has to break.
 
-     One column at accessibility sizes, as before: the control gets tall, which is correct.
+     Two columns at accessibility sizes, where even the compass words outgrow a quarter.
      */
     private var columns: [GridItem] {
         let column = GridItem(.flexible(), spacing: 3)
-        return typeSize.isAccessibilitySize ? [column] : [column, column]
+        return typeSize.isAccessibilitySize
+            ? [column, column]
+            : [column, column, column, column]
     }
 
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 3) {
-            ForEach(Compass.allCases, id: \.self) { direction in
-                DirectionBlock(
-                    direction: direction,
-                    towards: towards[direction],
-                    state: state(for: direction),
-                    action: {
-                        selection = direction
-                        onTap?(direction)
-                    }
-                )
+        VStack(alignment: .leading, spacing: 0) {
+            LazyVGrid(columns: columns, spacing: 3) {
+                ForEach(Compass.allCases, id: \.self) { direction in
+                    DirectionBlock(
+                        direction: direction,
+                        towards: towards[direction],
+                        state: state(for: direction),
+                        action: {
+                            selection = direction
+                            onTap?(direction)
+                        }
+                    )
+                }
             }
+            destinationLine
         }
         .padding(.horizontal, Theme.Space.gutter)
+    }
+
+    /**
+     Where the selected direction goes, under the row.
+
+     The 2×2 could name all four at once and this cannot, which is the real cost of one
+     row: the directions you are not looking at stop answering "east to what?". What it
+     keeps is the answer for the one you *are* looking at, at full width, where a long name
+     never has to break.
+
+     **The line is always laid out**, even when there is nothing to say — a station with no
+     destination for a direction, or a board that has not arrived. Otherwise picking a
+     direction moves the entire board up or down by twenty points as the line comes and
+     goes, which is the same fault the departure blocks were fixed for.
+     */
+    private var destinationLine: some View {
+        Text(towards[selection].map { "towards \($0.withoutLondonPrefix)" } ?? " ")
+            .font(SwiftUI.Font.system(.footnote).weight(.semibold))
+            .foregroundStyle(Theme.textDim)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 7)
+            .padding(.horizontal, 2)
+            .accessibilityHidden(towards[selection] == nil)
     }
 
     private func state(for direction: Compass) -> DirectionBlock.State {
@@ -109,6 +139,14 @@ struct DirectionBlock: View {
     }
 
     let direction: Compass
+    /**
+     Where this direction goes — spoken, never drawn.
+
+     The tab shows only the compass word; the line under the row shows the destination for
+     whichever tab is chosen. That works by eye and fails by ear: someone moving through
+     the four with VoiceOver hears the line only once, attached to nothing they are on. So
+     each tab still carries its own destination and says it aloud.
+     */
     let towards: String?
     let state: State
     let action: () -> Void
@@ -125,25 +163,12 @@ struct DirectionBlock: View {
     /**
      A rung larger than the shared labels, and local rather than a change to them.
 
-     `Theme.Font.label` and `.meta` are 11 and 12, which is right where they are used —
-     under a departure time, beside a heading — and small on a block you read at arm's
-     length while walking. Both move up to `.footnote` here: two points on the direction
-     word, one on the place.
-
-     Still Dynamic Type text styles rather than point sizes, so they scale with the
-     setting; and still local, because raising the tokens would grow the platform line, the
-     operator badge and every heading in the app along with them.
+     `Theme.Font.label` is 11, which is right under a departure time and small on a control
+     read at arm's length while walking. `.footnote` here is two points more. Still a
+     Dynamic Type text style, so it still scales; still local, because raising the token
+     would grow the platform line, the operator badge and every heading with it.
      */
     private let directionFont = SwiftUI.Font.system(.footnote).weight(.bold)
-
-    /**
-     A rung below the compass word, because the container changed rather than the taste.
-
-     Both are `.footnote` again. A quarter-width tab needed the destination a rung smaller
-     to stand any chance of fitting; a half-width one does not, and shrinking type that has
-     room is how a control ends up unreadable at arm's length for no reason.
-     */
-    private let towardsFont = SwiftUI.Font.system(.footnote).weight(.semibold)
 
     /**
      One height for every block, so the four arrows drawn on them match.
@@ -154,42 +179,26 @@ struct DirectionBlock: View {
      the text setting, and a name long enough to need a third line still grows the block
      instead of being cut.
 
-     **58 now the blocks are tabs.** They were 96 to rhyme with a departure block, which
-     was worth having while there were two rows of them and cost 44pt of the fold to keep.
-     Four across, that rhyme is not available at any height — a quarter-width tab is not a
-     departure block whatever you do to it — so the height goes back to what the content
-     needs and the fold gets the difference.
+     **`Theme.Space.tap`, and that is the floor rather than a preference.** They were 96 to
+     rhyme with a departure block, which was worth having while there were two rows and cost
+     44pt of the fold. One row of four carries a word each, so the height is whatever keeps
+     it comfortably pressable one-handed — the token that already means exactly that — and
+     the fold gets everything else.
      */
-    @ScaledMetric(relativeTo: .caption) private var blockHeight: CGFloat = 58
+    @ScaledMetric(relativeTo: .caption) private var blockHeight: CGFloat = Theme.Space.tap
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 2) {
-                /*
-                 The compass word, and the place under it.
+            /*
+             One word, and the place it goes lives under the row.
 
-                 `EAST towards Shoeburyness` read as a sentence across a half-width block
-                 and does not fit a quarter of one, so the preposition goes: a tab is a
-                 label, not a phrase. What it buys is that **every** direction still names
-                 where it goes — the thing the 2×2 was right about and the plain tab row
-                 gave up. A direction only means something once you know where it leads,
-                 and that is as true of the one you are not looking at.
-                */
-                Text(direction.rawValue.uppercased())
-                    .font(directionFont)
-                    .tracking(Theme.tracking)
-
-                if state != .empty, let towards {
-                    // The Real Length Rule: never truncated, never ellipsised, never
-                    // abbreviated to fit — `Fenchurch Street` wraps to two lines here and
-                    // the row grows to hold it, which is why the height is a minimum.
-                    Text(towards.withoutLondonPrefix)
-                        .font(towardsFont)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(1...)
-                }
-            }
+             `EAST towards Shoeburyness` read as a sentence across a half-width block and
+             fits nothing at a quarter of one. The tab is the word; `DirectionControl`'s
+             line beneath carries the destination for whichever tab is chosen.
+            */
+            Text(direction.rawValue.uppercased())
+                .font(directionFont)
+                .tracking(Theme.tracking)
             .frame(maxWidth: .infinity)
             /*
              Centred, and padded to clear the point on whichever edge carries it.
@@ -204,7 +213,7 @@ struct DirectionBlock: View {
             */
             .padding(.leading, 4 + (direction == .west ? ChevronBlock.horizontalDepth : 0))
             .padding(.trailing, 4 + (direction == .east ? ChevronBlock.horizontalDepth : 0))
-            .padding(.vertical, 8 + ChevronBlock.verticalDepth)
+            .padding(.vertical, 6 + ChevronBlock.verticalDepth)
             .frame(minHeight: blockHeight)
             .background(background)
             .foregroundStyle(foreground)
@@ -292,11 +301,10 @@ struct DirectionBlock: View {
 }
 
 /**
- A block with a chevron bitten out of one edge and pushed out of the opposite one, so
- the whole shape points the way the train goes.
+ A tab with a point on the edge it faces, and a straight edge everywhere else.
 
- The notch is 14% of the short axis — enough to read as an arrow at a glance from arm's
- length, shallow enough to leave the label a rectangle to sit in.
+ The matching indent on the opposite edge is gone: it existed so blocks could interlock,
+ and interlocking is what let north and south nest into one another.
  */
 struct ChevronBlock: Shape {
     let direction: Compass
