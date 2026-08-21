@@ -5,18 +5,16 @@ import LastTrainCore
 /**
  The direction control, decided in IOS.md §4 after prototyping six arrangements.
 
- A 2×2 grid. Each block is clipped into a chevron pointing the way its trains go, and
- carries the direction word above `towards <destination>`. **The shape says which way,
- so the position does not have to** — which is what lets four directions fit in two
- rows where a compass cross needs three.
+ A 2×2 grid of tabs. Each is clipped into a chevron pointing the way its trains go and
+ carries the direction word above where those trains lead. **The shape says which way, so
+ the position does not have to** — which is what lets four directions fit in two rows
+ where a compass cross needs three.
 
- Measured against the fold at 375×667, the smallest phone still supported. It was 118pt
- with all four directions showing; matching a departure block's height took it to about
- 190pt, and **the last train still clears — by roughly 12pt rather than the 55 it had.**
- Re-measured on an iPhone SE, not calculated. The compass cross was 169pt and put the red
- block 41pt under, so there is still real distance from the arrangement that failed, but
- this is now the tightest the fold has been and the next thing added above the board is
- the thing that breaks it.
+ Measured against the fold at 375×667, the smallest phone still supported. The blocks were
+ 118pt, then 190 once they matched a departure block's height, which left the last train
+ clearing by about 12pt. As tabs they are **116** — measured on screen, not calculated —
+ so roughly 84pt comes back and the margin is comfortable again. The compass cross was
+ 169pt and put the red block 41pt under; that remains the arrangement to stay away from.
 
  Three things here are decisions, not details:
 
@@ -59,22 +57,24 @@ struct DirectionControl: View {
     @Environment(\.dynamicTypeSize) private var typeSize
 
     /**
-     Two columns normally, one at accessibility text sizes.
+     Four across, two at accessibility text sizes.
 
-     A 2×2 grid holds its columns at half the screen whatever the text does, so at the
-     largest accessibility sizes each block is about 180pt wide and the destination
-     hyphenates into `to-/wards Shoe-/bury-/ness`. That grows rather than clips, so it
-     satisfies the letter of the Grow-Never-Clip Rule while being unreadable — and
-     breaking a station name across hyphens is barely different from the truncation the
-     Real Length Rule forbids.
+     **The blocks were 96 tall and the two rows cost 203pt**, which left the board clearing
+     the fold on a 375×667 phone by twelve. They are tabs now — the height goes to what the
+     content needs — so the same two rows cost about 119. That is 84pt back.
 
-     Collapsing to one column gives each block the full width back, so the names fit
-     again. The control gets tall, which is correct: the layout grows downward.
+     **Four across was tried first and could not hold a station name.** A quarter of the
+     screen is roughly 90pt, and `Shoeburyness` hyphenated into `Shoebury-/ness` at every
+     inset worth having, including with the point cleared only on the edge that has one.
+     The old comment here predicted that almost word for word, and this project treats a
+     hyphenated station name as truncation by another route. Two across gives each tab 183
+     and every destination fits on one line.
+
+     One column at accessibility sizes, as before: the control gets tall, which is correct.
      */
     private var columns: [GridItem] {
-        typeSize.isAccessibilitySize
-            ? [GridItem(.flexible(), spacing: 3)]
-            : [GridItem(.flexible(), spacing: 3), GridItem(.flexible(), spacing: 3)]
+        let column = GridItem(.flexible(), spacing: 3)
+        return typeSize.isAccessibilitySize ? [column] : [column, column]
     }
 
     var body: some View {
@@ -135,6 +135,14 @@ struct DirectionBlock: View {
      operator badge and every heading in the app along with them.
      */
     private let directionFont = SwiftUI.Font.system(.footnote).weight(.bold)
+
+    /**
+     A rung below the compass word, because the container changed rather than the taste.
+
+     Both are `.footnote` again. A quarter-width tab needed the destination a rung smaller
+     to stand any chance of fitting; a half-width one does not, and shrinking type that has
+     room is how a control ends up unreadable at arm's length for no reason.
+     */
     private let towardsFont = SwiftUI.Font.system(.footnote).weight(.semibold)
 
     /**
@@ -146,65 +154,57 @@ struct DirectionBlock: View {
      the text setting, and a name long enough to need a third line still grows the block
      instead of being cut.
 
-     **96 to match a departure block**, so the board keeps one module height from the
-     direction control to the last train rather than two. Matched by eye against the
-     rendered row rather than computed from it: a departure block is a badge line, a time
-     and a platform line inside 11pt of padding, and tying this to that sum would couple
-     two views that have no other reason to know about each other. It is a visual rhyme, so
-     it is allowed to be approximate — but it costs 44pt of the fold, which the note above
-     about 375×667 is the reason to keep watching.
+     **58 now the blocks are tabs.** They were 96 to rhyme with a departure block, which
+     was worth having while there were two rows of them and cost 44pt of the fold to keep.
+     Four across, that rhyme is not available at any height — a quarter-width tab is not a
+     departure block whatever you do to it — so the height goes back to what the content
+     needs and the fold gets the difference.
      */
-    @ScaledMetric(relativeTo: .caption) private var blockHeight: CGFloat = 96
+    @ScaledMetric(relativeTo: .caption) private var blockHeight: CGFloat = 58
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(spacing: 2) {
                 /*
-                 `EAST towards` on one line, the place on the next.
+                 The compass word, and the place under it.
 
-                 It was the direction on one line and `towards Shoeburyness` on the next,
-                 which spent a whole line on a preposition and left the destination to
-                 wrap — so blocks ended up different heights and the arrows drawn on them
-                 stopped matching. One line saved per block is what makes equal heights
-                 affordable, and it reads as a sentence rather than a label stacked on a
-                 caption.
+                 `EAST towards Shoeburyness` read as a sentence across a half-width block
+                 and does not fit a quarter of one, so the preposition goes: a tab is a
+                 label, not a phrase. What it buys is that **every** direction still names
+                 where it goes — the thing the 2×2 was right about and the plain tab row
+                 gave up. A direction only means something once you know where it leads,
+                 and that is as true of the one you are not looking at.
                 */
-                if state != .empty, towards != nil {
-                    Text(direction.rawValue.uppercased())
-                        .font(directionFont)
-                        .tracking(Theme.tracking)
-                        + Text(" towards")
-                        .font(towardsFont)
-                } else {
-                    Text(direction.rawValue.uppercased())
-                        .font(directionFont)
-                        .tracking(Theme.tracking)
-                }
+                Text(direction.rawValue.uppercased())
+                    .font(directionFont)
+                    .tracking(Theme.tracking)
 
                 if state != .empty, let towards {
-                    // The Real Length Rule: station names are never truncated and never
-                    // ellipsised. A long one wraps and the block grows to hold it.
+                    // The Real Length Rule: never truncated, never ellipsised, never
+                    // abbreviated to fit — `Fenchurch Street` wraps to two lines here and
+                    // the row grows to hold it, which is why the height is a minimum.
                     Text(towards.withoutLondonPrefix)
                         .font(towardsFont)
                         .fixedSize(horizontal: false, vertical: true)
+                        .multilineTextAlignment(.center)
                         .lineLimit(1...)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity)
             /*
-             One inset, all four sides, every block.
+             Centred, and padded to clear the point on whichever edge carries it.
 
-             The arrow sits on a different edge per direction, so per-direction padding
-             was four different insets and text that started in a different place
-             depending on which way the trains went. Reserving the arrow's depth on every
-             side costs 12pt where it is not needed and buys text that lines up across the
-             whole control — which is what makes four blocks read as one thing.
+             Left-aligned text in a quarter-width tab sits under its own arrow at one end
+             and leaves a hole at the other.
+
+             The point is cleared only on the edge that has one. Padding every side for it
+             cost 20pt of a 90pt tab and `Shoeburyness` hyphenated into `Shoebury-/ness` —
+             which the old 2×2 comment predicted almost word for word, and which this
+             project treats as truncation by another route.
             */
-            .padding(
-                .horizontal,
-                12 + (direction == .east || direction == .west ? ChevronBlock.horizontalDepth : 0)
-            )
-            .padding(.vertical, 10 + ChevronBlock.verticalDepth)
+            .padding(.leading, 4 + (direction == .west ? ChevronBlock.horizontalDepth : 0))
+            .padding(.trailing, 4 + (direction == .east ? ChevronBlock.horizontalDepth : 0))
+            .padding(.vertical, 8 + ChevronBlock.verticalDepth)
             .frame(minHeight: blockHeight)
             .background(background)
             .foregroundStyle(foreground)
@@ -322,8 +322,8 @@ struct ChevronBlock: Shape {
      The matching indent on the opposite edge is gone too. It existed so blocks could
      interlock, and interlocking is what let them nest into one another.
      */
-    static let horizontalDepth: CGFloat = 14
-    static let verticalDepth: CGFloat = 7
+    static let horizontalDepth: CGFloat = 10
+    static let verticalDepth: CGFloat = 5
 
     static func depth(for direction: Compass) -> CGFloat {
         switch direction {
