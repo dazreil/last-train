@@ -280,12 +280,14 @@ final class BoardModel {
         WidgetCenter.shared.reloadAllTimelines()
 
         if following {
-            TrainActivityController.start(
-                service: service,
-                stationName: station.name.withoutLondonPrefix,
-                direction: direction,
-                isLastTrain: service.serviceId == board?.lastTrain?.serviceId
-            )
+            Task {
+                _ = await TrainActivityController.start(
+                    service: service,
+                    stationName: station.name.withoutLondonPrefix,
+                    direction: direction,
+                    isLastTrain: service.serviceId == board?.lastTrain?.serviceId
+                )
+            }
         } else {
             Task { await TrainActivityController.stop() }
         }

@@ -58,6 +58,14 @@ final class FastModel {
     private(set) var isLoading = false
     private(set) var errorMessage: String?
 
+    /// The service currently occupying the Dynamic Island, if it is one of ours.
+    private(set) var activityServiceId: String?
+    /// A recovery message only. A successful selection is already visible on the row and
+    /// on the Island, so repeating it in prose would add noise to the board.
+    private(set) var activityMessage: String?
+    private(set) var activityChanges = 0
+    private(set) var isChangingActivity = false
+
     /// Zero-based. Page zero is always the next three from now.
     private(set) var page = 0
 
@@ -80,6 +88,8 @@ final class FastModel {
      */
     func adopt(station: Station, direction: Compass) {
         destination = SharedSelection.destination(for: station.crs, direction: direction)
+        activityServiceId = TrainActivityController.activeServiceId
+        activityMessage = nil
         if destination == nil { isChoosing = true }
     }
 
@@ -91,6 +101,7 @@ final class FastModel {
         destination = chosen
         page = 0
         services = []
+        activityMessage = nil
     }
 
     /// The places this direction goes. One request, cached hard by the server.
@@ -152,6 +163,58 @@ final class FastModel {
             services = []
             errorMessage = (error as? BoardClientError)?.errorDescription
                 ?? error.localizedDescription
+        }
+    }
+
+    // MARK: - This is my train
+
+    /**
+     Put a Fast Train result on the Dynamic Island, replace the one already there, or
+     remove it when the selected row is tapped again.
+
+     Fast Train does not change the lock-screen widget's stored pin. That widget answers
+     the last-train question and often does not contain this near-term service at all; the
+     Island answers the immediate "which train am I catching" question.
+     */
+    func toggleActivity(
+        _ service: FastService,
+        at station: Station,
+        direction: Compass
+    ) async {
+        guard !isChangingActivity, let destination else { return }
+        isChangingActivity = true
+        activityMessage = nil
+        defer { isChangingActivity = false }
+
+        if activityServiceId == service.serviceId {
+            await TrainActivityController.stop()
+            activityServiceId = nil
+            activityChanges += 1
+            return
+        }
+
+        let result = await TrainActivityController.start(
+            service: service,
+            stationName: station.name.withoutLondonPrefix,
+            destinationName: destination.name.withoutLondonPrefix,
+            direction: direction
+        )
+
+        switch result {
+        case .started:
+            activityServiceId = service.serviceId
+            activityChanges += 1
+        case .tooFar:
+            activityMessage = "Available on the Dynamic Island within four hours."
+        case .departed:
+            activityMessage = "That train has already departed. Refresh Fast Train for the latest services."
+        case .activitiesDisabled:
+            activityMessage = "Live Activities are turned off for Last Train in Settings."
+        case .invalidDeparture:
+            activityMessage = "That departure time could not be read. Refresh Fast Train and try again."
+        case .failed:
+            activityServiceId = TrainActivityController.activeServiceId
+            activityMessage = "The Dynamic Island could not be started. Try again."
         }
     }
 

@@ -68,6 +68,7 @@ struct BoardView: View {
                 dayIndex: model.dayIndex,
                 page: fast.page,
                 pinChanges: model.pinChanges,
+                activityChanges: fast.activityChanges,
                 nearbyCount: model.nearby.count,
                 locateError: model.locateError,
                 errorMessage: model.errorMessage
@@ -684,7 +685,7 @@ struct StationPicker: View {
 }
 
 /**
- Six pieces of feedback, and no more.
+ Seven pieces of feedback, and no more.
 
  Only where the answer is not already on screen, or where the tap commits something. A
  tick per press turns into noise on a control you walk while using, so the mode switch,
@@ -701,6 +702,7 @@ struct BoardHaptics: ViewModifier {
     let dayIndex: Int
     let page: Int
     let pinChanges: Int
+    let activityChanges: Int
     let nearbyCount: Int
     let locateError: String?
     let errorMessage: String?
@@ -720,6 +722,8 @@ struct BoardHaptics: ViewModifier {
             }
             // The one action that commits anything: this train, in the widget.
             .sensoryFeedback(.success, trigger: pinChanges)
+            // The same commitment from Fast Train, on the immediate surface it owns.
+            .sensoryFeedback(.success, trigger: activityChanges)
             .sensoryFeedback(trigger: nearbyCount) { old, new in
                 new > 0 && old == 0 ? .success : nil
             }

@@ -1,5 +1,6 @@
 import ActivityKit
 import Foundation
+import OSLog
 
 import LastTrainCore
 
@@ -35,6 +36,18 @@ struct TrainActivity: ActivityAttributes {
     let direction: String
     /// Red is the last train and nothing else, including here.
     let isLastTrain: Bool
+    /// Identifies the selected row when the app is opened again. Optional so an activity
+    /// created by a build before Fast Train selection was added still decodes safely.
+    let serviceId: String?
+}
+
+enum TrainActivityStartResult: Sendable {
+    case started
+    case activitiesDisabled
+    case invalidDeparture
+    case departed
+    case tooFar
+    case failed
 }
 
 /**
@@ -51,6 +64,11 @@ struct TrainActivity: ActivityAttributes {
  */
 enum TrainActivityController {
 
+    private static let logger = Logger(
+        subsystem: "com.dazreil.lasttrain",
+        category: "LiveActivity"
+    )
+
     /**
      How far ahead a train is worth counting down to.
 
@@ -58,48 +76,104 @@ enum TrainActivityController {
      a train at dawn is useless long before that. Four hours covers an evening out, which
      is the scene this app exists for.
      */
-    static let horizon: TimeInterval = 4 * 60 * 60
+    static let horizon = CountdownWindow.duration
 
     static var isAvailable: Bool { ActivityAuthorizationInfo().areActivitiesEnabled }
+
+    /// A value type crosses the caller's actor boundary; the non-Sendable `Activity`
+    /// itself remains inside this synchronous read.
+    static var activeServiceId: String? {
+        Activity<TrainActivity>.activities.first?.attributes.serviceId
+    }
 
     static func start(
         service: BoardDeparture,
         stationName: String,
         direction: Compass,
         isLastTrain: Bool
-    ) {
-        guard isAvailable, let departure = service.instant else { return }
-        // Past, or too far off to be a countdown anyone would watch.
-        let wait = departure.timeIntervalSinceNow
-        guard wait > 0, wait <= horizon else { return }
+    ) async -> TrainActivityStartResult {
+        guard let departure = service.instant else { return .invalidDeparture }
+        return await request(
+            serviceId: service.serviceId,
+            departure: departure,
+            departureText: service.dep,
+            platform: service.platform,
+            stationName: stationName,
+            destination: service.destination.withoutLondonPrefix,
+            direction: direction,
+            isLastTrain: isLastTrain
+        )
+    }
+
+    /**
+     Start the same countdown from a Fast Train result.
+
+     The destination is the place the passenger chose, not the train's final destination:
+     Fast Train may recommend a Shoeburyness service for a journey to Southend Central, and
+     the Island should name the journey being made rather than the end of the rolling stock's.
+     */
+    static func start(
+        service: FastService,
+        stationName: String,
+        destinationName: String,
+        direction: Compass
+    ) async -> TrainActivityStartResult {
+        await request(
+            serviceId: service.serviceId,
+            departure: service.departsAt,
+            departureText: service.departure,
+            platform: nil,
+            stationName: stationName,
+            destination: destinationName,
+            direction: direction,
+            isLastTrain: false
+        )
+    }
+
+    private static func request(
+        serviceId: String,
+        departure: Date,
+        departureText: String,
+        platform: String?,
+        stationName: String,
+        destination: String,
+        direction: Compass,
+        isLastTrain: Bool
+    ) async -> TrainActivityStartResult {
+        guard isAvailable else { return .activitiesDisabled }
+
+        switch CountdownWindow.eligibility(departure: departure) {
+        case .departed: return .departed
+        case .tooFar: return .tooFar
+        case .eligible: break
+        }
 
         let attributes = TrainActivity(
             stationName: stationName,
-            destination: service.destination.withoutLondonPrefix,
-            departureText: service.dep,
+            destination: destination,
+            departureText: departureText,
             direction: direction.rawValue,
-            isLastTrain: isLastTrain
+            isLastTrain: isLastTrain,
+            serviceId: serviceId
         )
         let state = TrainActivity.ContentState(
             departure: departure,
-            platform: service.platform
+            platform: platform
         )
 
-        /*
-         Ending the old one and starting the new one, in that order, in one task.
-
-         These were an unordered `Task { await stop() }` followed by the request, which is
-         a race and lost it: the stop landed *after* the new activity existed and ended the
-         countdown that had just been started. It looked exactly like the pin doing nothing,
-         and only on the second pin — the first had nothing to stop.
-        */
-        Task {
-            await stop()
-            _ = try? Activity.request(
+        // Ordered in one async operation. The old implementation launched stop and request
+        // in separate tasks, so the stop could arrive last and kill the new countdown.
+        await stop()
+        do {
+            _ = try Activity.request(
                 attributes: attributes,
                 content: ActivityContent(state: state, staleDate: departure),
                 pushType: nil
             )
+            return .started
+        } catch {
+            logger.error("Could not start Live Activity: \(error.localizedDescription, privacy: .public)")
+            return .failed
         }
     }
 

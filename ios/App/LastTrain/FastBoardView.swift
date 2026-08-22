@@ -109,10 +109,39 @@ struct FastBoardView: View {
         } else {
             heading
 
+            if let message = model.activityMessage {
+                activityNotice(message)
+            }
+
             ForEach(model.shown) { service in
-                FastRow(service: service)
+                FastRow(
+                    service: service,
+                    isSelected: model.activityServiceId == service.serviceId,
+                    isBusy: model.isChangingActivity
+                ) {
+                    Task {
+                        await model.toggleActivity(service, at: station, direction: direction)
+                    }
+                }
             }
         }
+    }
+
+    private func activityNotice(_ message: String) -> some View {
+        Text(message)
+            .font(Theme.Font.meta)
+            .foregroundStyle(Theme.textDim)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, Theme.Space.gutter)
+            .padding(.vertical, 9)
+            .background(Theme.raised)
+            .overlay(alignment: .top) {
+                Rectangle().fill(Theme.hairline).frame(height: 1)
+            }
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(Theme.hairline).frame(height: 1)
+            }
     }
 
     /**
@@ -150,48 +179,98 @@ struct FastBoardView: View {
  */
 struct FastRow: View {
     let service: FastService
+    let isSelected: Bool
+    let isBusy: Bool
+    let onSelect: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        Button(action: onSelect) {
+            VStack(alignment: .leading, spacing: 3) {
+                timingHeader
+
+                Text(details)
+                    .font(Theme.Font.meta)
+                    .foregroundStyle(Theme.paper.opacity(0.78))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, Theme.Space.gutter)
+            .padding(.vertical, 11)
+            .background(Theme.serviceBlue)
+            .embossed(lit: Theme.serviceBlueLit)
+            .foregroundStyle(Theme.paper)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressLift())
+        .disabled(isBusy)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(spoken)
+        .accessibilityHint(
+            isSelected
+                ? "Stops showing this train on the Dynamic Island."
+                : "Shows this train on the Dynamic Island when it departs within four hours."
+        )
+    }
+
+    private var details: String {
+        let journey = "\(service.journeyMinutes) min · towards \(service.destination.withoutLondonPrefix)"
+        return isSelected ? "YOUR TRAIN · \(journey)" : journey
+    }
+
+    /**
+     Keep both clock readings indivisible at every Dynamic Type size.
+
+     At ordinary sizes the operator stays on the same baseline. Once that composition no
+     longer fits, `ViewThatFits` moves only the badge down; it never solves the pressure by
+     turning `19:28` into `19:2` over `8`, which reads like a broken clock.
+     */
+    private var timingHeader: some View {
+        ViewThatFits(in: .horizontal) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(service.departure)
-                    .font(Theme.Font.time)
-                    .monospacedDigit()
-
-                Image(systemName: "arrow.right")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(Theme.paper.opacity(0.7))
-
-                Text(service.arrival)
-                    .font(Theme.Font.time)
-                    .monospacedDigit()
-
+                times
                 Spacer(minLength: 0)
-
-                Text(service.toc)
-                    .font(Theme.Font.label)
-                    .tracking(Theme.tracking)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 3)
-                    .overlay(Rectangle().strokeBorder(Theme.paper.opacity(0.7), lineWidth: 1))
+                operatorBadge
             }
 
-            Text("\(service.journeyMinutes) min · towards \(service.destination.withoutLondonPrefix)")
-                .font(Theme.Font.meta)
-                .foregroundStyle(Theme.paper.opacity(0.78))
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 5) {
+                times
+                operatorBadge
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, Theme.Space.gutter)
-        .padding(.vertical, 11)
-        .background(Theme.serviceBlue)
-        .embossed(lit: Theme.serviceBlueLit)
-        .foregroundStyle(Theme.paper)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            "Departs \(service.departure), arrives \(service.arrival), "
-                + "\(service.journeyMinutes) minutes"
-        )
+    }
+
+    private var times: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(service.departure)
+                .font(Theme.Font.time)
+                .monospacedDigit()
+                .fixedSize(horizontal: true, vertical: false)
+
+            Image(systemName: "arrow.right")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Theme.paper.opacity(0.7))
+
+            Text(service.arrival)
+                .font(Theme.Font.time)
+                .monospacedDigit()
+                .fixedSize(horizontal: true, vertical: false)
+        }
+    }
+
+    private var operatorBadge: some View {
+        Text(service.toc)
+            .font(Theme.Font.label)
+            .tracking(Theme.tracking)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 3)
+            .overlay(Rectangle().strokeBorder(Theme.paper.opacity(0.7), lineWidth: 1))
+            .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private var spoken: String {
+        (isSelected ? "Your train. " : "")
+            + "Departs \(service.departure), arrives \(service.arrival), "
+            + "\(service.journeyMinutes) minutes"
     }
 }
 
