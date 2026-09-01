@@ -89,15 +89,20 @@ struct TrainLiveActivity: Widget {
                         colour: activityColour(context),
                         scale: .row
                     )
-                    Text(caption(context))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Theme.textDim)
-                        .fixedSize(horizontal: false, vertical: true)
+                    // The countdown sits under the departure now, in the same LED face so the
+                    // two numbers read as one instrument. Kept paper-white, not the blue glow,
+                    // so it still leads: it is the figure you act on.
+                    countdown(to: context.state.departure)
+                        .font(.custom("WPOCRA-Regular", size: 30))
+                        .foregroundStyle(Theme.paper)
                 }
                 Spacer(minLength: 0)
-                countdown(to: context.state.departure)
-                    .font(.system(.title, design: .monospaced).weight(.bold))
-                    .foregroundStyle(Theme.paper)
+                Text(caption(context))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.textDim)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.trailing)
+                    .padding(.top, 6)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -110,7 +115,7 @@ struct TrainLiveActivity: Widget {
 
     /// `Shoeburyness from Upminster · plat 2`, with the platform only when it is known.
     private func caption(_ context: ActivityViewContext<TrainActivity>) -> String {
-        var parts = ["\(context.attributes.destination) from \(context.attributes.stationName)"]
+        var parts = ["\(context.attributes.stationName) to \(context.attributes.destination)"]
         if let platform = context.state.platform { parts.append("plat \(platform)") }
         return parts.joined(separator: " · ")
     }
