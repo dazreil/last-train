@@ -57,6 +57,8 @@ data/.adjacency-state.json
 # per-machine editor state. All of it regenerates from `swift run`.
 ios/.build/
 ios/.swiftpm/
+# xcodebuild's derived data when a build passes `-derivedDataPath build/...`.
+ios/build/
 
 # Generated from ios/project.yml by `xcodegen generate`, both of them. Committing the
 # project would mean committing hand-unreadable XML full of UUIDs, and every change to

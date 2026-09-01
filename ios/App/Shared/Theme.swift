@@ -91,23 +91,51 @@ struct CathodeGauze: View {
     }
 }
 
+/// Fine horizontal scanlines — the refined cathode surface that replaced the grid. Lines
+/// only, never a mesh: the graph paper was the part that read as noise. Kept faint and
+/// screen-blended so it lifts the black into lit glass without ever competing with a
+/// numeral. This is the whole texture now.
+struct CathodeScanlines: View {
+    var spacing: CGFloat = 3
+
+    var body: some View {
+        Canvas(opaque: false, rendersAsynchronously: true) { context, size in
+            var path = Path()
+            var y: CGFloat = 0
+            while y <= size.height {
+                path.move(to: CGPoint(x: 0, y: y))
+                path.addLine(to: CGPoint(x: size.width, y: y))
+                y += spacing
+            }
+            context.stroke(path, with: .color(.white.opacity(0.05)), lineWidth: 0.5)
+        }
+        .blendMode(.overlay)
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
+    }
+}
+
 struct CathodeBackdrop: View {
     var tint: Color = Theme.serviceBlueLit
 
     var body: some View {
         ZStack {
             Theme.ink
-            LinearGradient(
-                colors: [tint.opacity(0.09), .clear, Theme.ink.opacity(0.9)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            CathodeGauze(tint: tint)
+            // The phosphor bloom: a soft column of light rising through the board, so the
+            // dark glass reads as lit rather than merely black.
             RadialGradient(
-                colors: [.clear, Theme.ink.opacity(0.76)],
+                colors: [tint.opacity(0.17), tint.opacity(0.04), .clear],
+                center: UnitPoint(x: 0.5, y: 0.30),
+                startRadius: 6,
+                endRadius: 380
+            )
+            CathodeScanlines()
+            // Curvature: the edges fall away into the tube.
+            RadialGradient(
+                colors: [.clear, Theme.ink.opacity(0.82)],
                 center: .center,
-                startRadius: 80,
-                endRadius: 430
+                startRadius: 90,
+                endRadius: 440
             )
         }
         .ignoresSafeArea()

@@ -57,6 +57,8 @@ final class FastModel {
 
     private(set) var isLoading = false
     private(set) var errorMessage: String?
+    /// When the shown services were last fetched, for the "Updated HH:mm" trust stamp.
+    private(set) var updatedAt: Date?
 
     /// The service currently occupying the Dynamic Island, if it is one of ours.
     private(set) var activityServiceId: String?
@@ -114,6 +116,7 @@ final class FastModel {
         destination = chosen
         page = 0
         services = []
+        updatedAt = nil
         activityMessage = nil
         // Force the board's reload even when `chosen` is the destination already showing:
         // its `.task(id:)` restarts only when the key changes, and the destination alone
@@ -155,6 +158,7 @@ final class FastModel {
     func load(at station: Station, direction: Compass) async {
         guard let heading = destination else {
             services = []
+            updatedAt = nil
             return
         }
 
@@ -172,12 +176,14 @@ final class FastModel {
             )
             truncated = board.truncated
             page = 0
+            updatedAt = Date()
         } catch is CancellationError {
             // Somewhere else is already asking a better question. Leaving what is on
             // screen alone is the whole point: this is not a failure to report.
             return
         } catch {
             services = []
+            updatedAt = nil
             errorMessage = (error as? BoardClientError)?.errorDescription
                 ?? error.localizedDescription
         }

@@ -29,14 +29,6 @@ struct BoardView: View {
                     stationHeader
 
                     if let station = model.station {
-                        DirectionControl(
-                            available: model.available,
-                            towards: model.towards,
-                            selection: $model.direction,
-                            onTap: mode == .fast ? { _ in fast.askWhereTo() } : nil
-                        )
-                        .padding(.top, 14)
-
                         switch mode {
                         case .last: lastTrainResults
                         case .fast:
@@ -49,6 +41,7 @@ struct BoardView: View {
                         )
                     }
 
+                    freshnessStamp
                     footnote
                 }
                 .padding(.bottom, 30)
@@ -172,43 +165,89 @@ struct BoardView: View {
         .accessibilityAddTraits(mode == target ? .isSelected : [])
     }
 
+    /// The directions, inline under the station name. The chosen one leads, lit blue; the
+    /// other available ones follow in grey; a direction that does not run from here keeps
+    /// its slot but is invisible and dead, held to the right so the visible ones never
+    /// shift. Every compass point owns one of four equal columns, so the spacing is the
+    /// same whether a station offers two directions or four.
+    private var directionPicker: some View {
+        let selected = model.direction
+        let available = model.available
+        let avail = available.isEmpty
+            ? [selected]
+            : Compass.allCases.filter { available.contains($0) }
+        let availableOrdered = [selected] + avail.filter { $0 != selected }
+        let ordered = availableOrdered + Compass.allCases.filter { !avail.contains($0) }
+
+        return HStack(spacing: 0) {
+            ForEach(ordered, id: \.self) { direction in
+                if avail.contains(direction) {
+                    Button {
+                        withAnimation(.snappy(duration: 0.28)) { model.direction = direction }
+                        if mode == .fast { fast.askWhereTo() }
+                    } label: {
+                        directionLabel(direction, selected: selected)
+                    }
+                    .buttonStyle(PressDim())
+                    .accessibilityLabel(direction.rawValue.capitalized)
+                    .accessibilityValue(model.towards[direction].map { "towards \($0)" } ?? "")
+                    .accessibilityAddTraits(direction == selected ? .isSelected : [])
+                } else {
+                    // The slot is held, not filled: invisible and untappable, so a missing
+                    // direction costs no realignment of the ones that are there.
+                    directionLabel(direction, selected: selected)
+                        .opacity(0)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Direction")
+    }
+
+    /// One direction word in its column: blue when it is the chosen one, grey otherwise,
+    /// always the same size so a missing point never changes the layout.
+    private func directionLabel(_ direction: Compass, selected: Compass) -> some View {
+        Text(direction.rawValue)
+            .font(.system(.subheadline, design: .rounded).weight(.bold))
+            .tracking(Theme.tracking)
+            .textCase(.uppercase)
+            .foregroundStyle(direction == selected ? Theme.serviceBlueLit : Theme.textDim)
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
+    }
+
     private var stationHeader: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Button {
-                model.clearNearby()
-                pickingStation = true
-            } label: {
-                HStack(alignment: .center, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 1) {
+            HStack(alignment: .center, spacing: 12) {
+                Button {
+                    model.clearNearby()
+                    pickingStation = true
+                } label: {
+                    HStack(alignment: .center, spacing: 9) {
                         Text(model.station?.name.withoutLondonPrefix ?? "Choose station")
                             .font(.system(.largeTitle, design: .rounded).weight(.medium))
                             .foregroundStyle(model.station == nil ? Theme.textDim : Theme.text)
                             .fixedSize(horizontal: false, vertical: true)
-                        if model.station != nil {
-                            Text(model.direction.rawValue)
-                                .labelStyle(Theme.serviceBlueLit)
-                        }
+                        Image(systemName: "chevron.down")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Theme.textDim)
                     }
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.down")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Theme.textDim)
+                    .contentShape(Rectangle())
                 }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(PressDim())
-            .accessibilityLabel("Departure station, \(model.station?.name ?? "not selected")")
+                .buttonStyle(PressDim())
+                .accessibilityLabel("Departure station, \(model.station?.name ?? "not selected")")
 
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) {
-                    locateControl
-                    dayControl
-                }
-                VStack(alignment: .leading, spacing: 0) {
-                    locateControl
-                    dayControl
-                }
+                Spacer(minLength: 8)
+
+                locateButton
             }
+
+            if model.station != nil { directionPicker }
+
+            if mode == .last || fast.canPage { dayControl }
 
             if let locateError = model.locateError {
                 Text(locateError).font(Theme.Font.meta).foregroundStyle(Theme.textDim)
@@ -217,63 +256,121 @@ struct BoardView: View {
             if model.nearby.count > 1 { nearbyStations }
         }
         .padding(.horizontal, Theme.Space.gutter)
-        .padding(.top, 22)
+        .padding(.top, 16)
     }
 
-    @ViewBuilder
-    private var dayControl: some View {
-        if mode == .last {
-            HStack(spacing: 8) {
-                if model.dayIndex > 0 {
-                    Button("Today") { model.returnToToday() }
-                }
-                Text(model.dayIndex == 0 ? "Today" : ServiceDay.formatWeekday(model.shownDate) ?? "")
-                    .foregroundStyle(Theme.text)
-                Button {
-                    model.stepForward()
-                } label: {
-                    Image(systemName: model.stepWrapsToToday ? "arrow.uturn.backward" : "chevron.right")
-                }
-                .accessibilityLabel(model.stepWrapsToToday ? "Back to today" : "Next service day")
-            }
-            .font(Theme.Font.meta)
-            .foregroundStyle(Theme.textDim)
-            .frame(minHeight: 44)
-            .fixedSize(horizontal: true, vertical: false)
-        } else if fast.canPage {
-            HStack(spacing: 8) {
-                Text(fast.isOnFirstPage ? "Now" : "Page \(fast.page + 1)")
-                Button {
-                    fast.advance()
-                } label: {
-                    Image(systemName: fast.pageWrapsToNow ? "arrow.uturn.backward" : "chevron.right")
-                }
-                .accessibilityLabel(fast.pageWrapsToNow ? "Back to now" : "Next three trains")
-            }
-            .font(Theme.Font.meta)
-            .foregroundStyle(Theme.textDim)
-            .frame(minHeight: 44)
-            .fixedSize(horizontal: true, vertical: false)
-        }
-    }
-
-    private var locateControl: some View {
+    /// The nearest-station control, now an arrow alone in the station box — the label went
+    /// to save the room, the action did not.
+    private var locateButton: some View {
         Button {
             Task { await model.locate() }
         } label: {
-            HStack(spacing: 7) {
+            Group {
                 if model.isLocating { ProgressView().tint(Theme.textDim) }
                 else { Image(systemName: "location.fill") }
-                Text("Nearest")
             }
-            .font(Theme.Font.meta)
+            .font(.body.weight(.semibold))
             .foregroundStyle(Theme.textDim)
-            .frame(minHeight: 44)
-            .fixedSize(horizontal: true, vertical: false)
+            .frame(width: 44, height: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(PressDim())
         .disabled(model.isLocating)
+        .accessibilityLabel("Nearest station")
+    }
+
+    /// The date stepper (Last) and the page stepper (Fast), named the way the main design
+    /// names them: three slots — the way back, where you are, and where the next tap lands.
+    /// Days read Today · Wed · Thurs; pages read Now · Two · Three.
+    @ViewBuilder
+    private var dayControl: some View {
+        HStack(alignment: .center, spacing: 7) {
+            dayPagerSlots
+            Spacer(minLength: 0)
+        }
+        .frame(minHeight: 44)
+    }
+
+    @ViewBuilder
+    private var dayPagerSlots: some View {
+        switch mode {
+        case .last:
+            if model.dayIndex > 0 && !model.stepWrapsToToday { todayButton }
+            stepLabel(model.dayIndex == 0
+                ? "Today"
+                : ServiceDay.formatWeekday(model.shownDate) ?? "")
+            stepButton(
+                label: model.stepWrapsToToday
+                    ? "Today"
+                    : ServiceDay.formatWeekday(model.date(atStep: model.dayIndex + 1) ?? "") ?? "",
+                action: { model.stepForward() },
+                accessibility: model.stepWrapsToToday ? "Back to today" : "Show the next day",
+                value: ServiceDay.formatServiceDate(model.shownDate) ?? ""
+            )
+        case .fast:
+            if !fast.isOnFirstPage && !fast.pageWrapsToNow { nowButton }
+            stepLabel(Self.pageName(fast.page))
+            stepButton(
+                label: fast.pageWrapsToNow ? "Now" : Self.pageName(fast.page + 1),
+                action: { fast.advance() },
+                accessibility: fast.pageWrapsToNow ? "Back to the trains from now" : "Show the next three trains",
+                value: "Page \(fast.page + 1) of \(fast.pageCount)"
+            )
+        }
+    }
+
+    private static let pageWords = ["Now", "Two", "Three", "Four", "Five"]
+    private static func pageName(_ index: Int) -> String {
+        index >= 0 && index < pageWords.count ? pageWords[index] : "\(index + 1)"
+    }
+
+    /// The middle slot: where you are, and not a control.
+    private func stepLabel(_ text: String) -> some View {
+        Text(text)
+            .labelStyle(Theme.text)
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.vertical, 4)
+    }
+
+    /// The right slot: named rather than a bare chevron — a name says what the tap does.
+    private func stepButton(
+        label: String,
+        action: @escaping () -> Void,
+        accessibility: String,
+        value: String? = nil
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Text(label).fixedSize(horizontal: true, vertical: false)
+                Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
+            }
+            .labelStyle(Theme.textDim)
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressDim())
+        .accessibilityLabel(accessibility)
+        .accessibilityValue(value ?? "")
+    }
+
+    /// The way back to the start, worn as a pill so it reads the same in either mode.
+    private var todayButton: some View {
+        Button { model.returnToToday() } label: { wayBackLabel("Today") }
+            .buttonStyle(PressLift())
+            .accessibilityLabel("Back to today")
+    }
+
+    private var nowButton: some View {
+        Button { fast.now() } label: { wayBackLabel("Now") }
+            .buttonStyle(PressLift())
+            .accessibilityLabel("Back to the trains from now")
+    }
+
+    private func wayBackLabel(_ text: String) -> some View {
+        Text(text)
+            .labelStyle(Theme.textDim)
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.vertical, 4)
     }
 
     private var nearbyStations: some View {
@@ -326,7 +423,7 @@ struct BoardView: View {
 
         return VStack(alignment: .leading, spacing: 0) {
             if let last {
-                lastTrainHero(last)
+                ServiceRow(service: last, isLastTrain: true, isPinned: model.isPinned(last))
                     .contentShape(Rectangle())
                     .onTapGesture { inspecting = last }
             }
@@ -336,8 +433,8 @@ struct BoardView: View {
                     Text(sectionTitle(for: service.role, board: board))
                         .cathodeSection(service.role == .first ? Theme.serviceBlueLit : Theme.textDim)
                         .padding(.horizontal, Theme.Space.gutter)
-                        .padding(.top, Theme.Space.section)
-                        .padding(.bottom, 8)
+                        .padding(.top, 16)
+                        .padding(.bottom, 6)
                 }
                 ServiceRow(
                     service: service,
@@ -348,51 +445,9 @@ struct BoardView: View {
                 .onTapGesture { inspecting = service }
             }
         }
+        .padding(.top, 8)
         .opacity(model.isLoading ? 0.42 : 1)
         .animation(.easeOut(duration: 0.16), value: model.isLoading)
-    }
-
-    private func lastTrainHero(_ service: BoardDeparture) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ZStack(alignment: .center) {
-                VStack(spacing: -4) {
-                    CathodeNumber(text: "22:58", colour: Theme.lastTrainRedLit, scale: .row)
-                    CathodeNumber(text: "23:18", colour: Theme.lastTrainRedLit, scale: .row)
-                    CathodeNumber(text: "23:32", colour: Theme.lastTrainRedLit, scale: .row)
-                }
-                    .opacity(0.12)
-                    .accessibilityHidden(true)
-
-                CathodeNumber(text: service.dep, colour: Theme.lastTrainRedLit, scale: .hero)
-                    .frame(maxWidth: .infinity)
-            }
-            .frame(minHeight: typeSize.isAccessibilitySize ? 150 : 165)
-            .background(CathodeGauze(tint: Theme.lastTrainRed, density: 10))
-
-            Text("Last train").cathodeSection(Theme.lastTrainRedLit)
-
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(service.destination.withoutLondonPrefix)
-                    .font(.system(.title, design: .rounded).weight(.medium))
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 8)
-                Image(systemName: "chevron.right")
-                    .foregroundStyle(Theme.lastTrainRedLit)
-            }
-            .padding(.top, 12)
-
-            Text(serviceMeta(service))
-                .font(Theme.Font.meta)
-                .foregroundStyle(Theme.textDim)
-                .padding(.top, 5)
-        }
-        .padding(.horizontal, Theme.Space.gutter)
-        .padding(.top, 8)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            "Last train, \(ServiceDay.formatClock(service.dep).spoken), towards \(service.destination)"
-        )
-        .accessibilityHint("Shows calling points and widget controls")
     }
 
     private func sectionTitle(for role: ServiceRole, board: DepartureBoard) -> String {
@@ -400,13 +455,6 @@ struct BoardView: View {
         case .last: "Earlier trains"
         case .first: board.mode == .normal ? "First back" : "First trains"
         }
-    }
-
-    private func serviceMeta(_ service: BoardDeparture) -> String {
-        var parts = [service.tocName]
-        if let platform = service.platform { parts.append("Platform \(platform)") }
-        if service.isReplacementBus { parts.append("Replacement bus") }
-        return parts.joined(separator: " · ")
     }
 
     private var loadingBoard: some View {
@@ -435,6 +483,20 @@ struct BoardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Theme.Space.gutter)
         .padding(.top, 34)
+    }
+
+    /// `Updated 23:41`, on the London clock. Shown only once an answer is actually on
+    /// screen, so it reassures rather than competing with the loading or empty states.
+    @ViewBuilder
+    private var freshnessStamp: some View {
+        if let updated = mode == .last ? model.updatedAt : fast.updatedAt {
+            Text("Updated \(ServiceDay.formatLondonTime(updated))")
+                .font(Theme.Font.meta)
+                .foregroundStyle(Theme.textFaint)
+                .padding(.horizontal, Theme.Space.gutter)
+                .padding(.top, 20)
+                .accessibilityLabel("Times updated at \(ServiceDay.formatLondonTime(updated))")
+        }
     }
 
     private var footnote: some View {

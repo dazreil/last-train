@@ -238,6 +238,12 @@ public enum ServiceDay {
         return londonClock.string(from: date)
     }
 
+    /// `23:52`, London local — for an instant we already hold, such as when a board was
+    /// last fetched. Same face as departures so a freshness stamp reads on the same clock.
+    public static func formatLondonTime(_ date: Date) -> String {
+        londonClock.string(from: date)
+    }
+
     /// The London calendar date a time falls on — used to flag departures after midnight.
     public static func londonDate(of value: String) -> IsoDate? {
         guard let date = instant(from: value) else { return nil }

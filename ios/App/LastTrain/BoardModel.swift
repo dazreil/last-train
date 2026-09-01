@@ -37,6 +37,9 @@ final class BoardModel {
     private(set) var board: DepartureBoard?
     private(set) var isLoading = false
     private(set) var errorMessage: String?
+    /// When the shown board was last fetched. Drives the "Updated HH:mm" stamp so a
+    /// hurried reader on poor signal can trust the answer without checking elsewhere.
+    private(set) var updatedAt: Date?
 
     /**
      What is around you, after the nearest-station button.
@@ -129,6 +132,7 @@ final class BoardModel {
         guard let station else {
             board = nil
             errorMessage = nil
+            updatedAt = nil
             return
         }
 
@@ -152,11 +156,13 @@ final class BoardModel {
                 )
                 guard !Task.isCancelled else { return }
                 board = result
+                updatedAt = Date()
             } catch is CancellationError {
                 return
             } catch {
                 guard !Task.isCancelled else { return }
                 board = nil
+                updatedAt = nil
                 errorMessage = (error as? BoardClientError)?.errorDescription
                     ?? error.localizedDescription
             }

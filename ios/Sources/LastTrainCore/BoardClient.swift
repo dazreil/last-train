@@ -137,13 +137,13 @@ public enum BoardClientError: Error, LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .api(let message, _): message
-        case .badStatus(let code): "The server returned an error (\(code))."
+        case .badStatus: "The service had a problem. Try again in a moment."
         // Never dressed as a fault in the app: no signal on a platform is ordinary.
         case .unreachable: "Could not reach the server. Are you online?"
         case .devServerDown(let host):
             "No dev server at \(host). Run `npm run dev`, or switch the scheme to "
                 + "Release to use the deployment."
-        case .undecodable: "The server sent something this version cannot read."
+        case .undecodable: "This version can’t read the latest data. Update the app."
         }
     }
 }
