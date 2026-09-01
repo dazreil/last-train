@@ -82,32 +82,12 @@ struct CathodeGauze: View {
     var density: CGFloat = 12
 
     var body: some View {
-        ZStack {
-            Image("CathodeGauze")
-                .resizable(resizingMode: .tile)
-                .opacity(0.58)
-                .blendMode(.screen)
-
-            Canvas(opaque: false, rendersAsynchronously: true) { context, size in
-                var path = Path()
-                var x: CGFloat = 0
-                while x <= size.width {
-                    path.move(to: CGPoint(x: x, y: 0))
-                    path.addLine(to: CGPoint(x: x, y: size.height))
-                    x += density
-                }
-                var y: CGFloat = 0
-                while y <= size.height {
-                    path.move(to: CGPoint(x: 0, y: y))
-                    path.addLine(to: CGPoint(x: size.width, y: y))
-                    y += density
-                }
-                context.stroke(path, with: .color(tint.opacity(0.09)), lineWidth: 0.5)
-            }
-        }
-        .clipped()
-        .accessibilityHidden(true)
-        .allowsHitTesting(false)
+        // The grid and phosphor texture were removed by request. Kept as a transparent
+        // no-op so every call site — backdrops, rows, widgets, the Live Activity — still
+        // composes and lays out unchanged, and the effect can be restored in one place.
+        Color.clear
+            .accessibilityHidden(true)
+            .allowsHitTesting(false)
     }
 }
 
