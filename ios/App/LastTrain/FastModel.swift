@@ -66,6 +66,12 @@ final class FastModel {
     private(set) var activityChanges = 0
     private(set) var isChangingActivity = false
 
+    /// Bumped on every explicit destination choice, including re-choosing the one already
+    /// set. The board's reload is keyed on the selection, and a same-destination re-pick
+    /// leaves that key unchanged — so without this counter `choose` would empty `services`
+    /// and nothing would refill them, stranding the board on "Nothing direct left".
+    private(set) var selectionToken = 0
+
     /// Zero-based. Page zero is always the next three from now.
     private(set) var page = 0
 
@@ -109,6 +115,10 @@ final class FastModel {
         page = 0
         services = []
         activityMessage = nil
+        // Force the board's reload even when `chosen` is the destination already showing:
+        // its `.task(id:)` restarts only when the key changes, and the destination alone
+        // does not change on a re-pick. See `selectionToken`.
+        selectionToken += 1
     }
 
     /// The places this direction goes. One request, cached hard by the server.

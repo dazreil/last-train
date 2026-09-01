@@ -105,7 +105,7 @@ struct BoardView: View {
     }
 
     private var fastKey: String {
-        "\(mode.rawValue):\(model.station?.crs ?? "-"):\(model.direction.rawValue):\(fast.destination?.crs ?? "-")"
+        "\(mode.rawValue):\(model.station?.crs ?? "-"):\(model.direction.rawValue):\(fast.destination?.crs ?? "-"):\(fast.selectionToken)"
     }
 
     // MARK: - Header
