@@ -1,0 +1,8 @@
+{
+  "asset": "ios/App/Resources/Assets.xcassets/CathodeGauze.imageset/cathode-gauze.png",
+  "tool": "OpenAI built-in image generation",
+  "source": "/Users/darylsmith/.codex/generated_images/01a02aa4-e718-7cf0-a2e5-20747e43789c/exec-ec548558-4b3b-4a78-be50-05a2b037f361.png",
+  "reference": ".impeccable/mocks/cathode-original-app-colours.png",
+  "prompt": "Extract the approved comp's deep black cathode-display gauze into a seamless square texture: dense tiny rectangular phosphor cells behind smoked glass, neutral graphite only, no coloured light, numerals, text, interface, border, frame, or watermark.",
+  "generatedAt": "2026-08-23"
+}

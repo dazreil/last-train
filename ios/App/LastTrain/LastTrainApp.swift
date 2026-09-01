@@ -54,18 +54,20 @@ struct StationsMissingView: View {
     let detail: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Space.gutter) {
-            Text("No station list")
-                .font(Theme.Font.heading)
-            Text("The bundled station list could not be read, so nothing can be looked up.")
-                .font(Theme.Font.body)
-                .foregroundStyle(Theme.textDim)
-            Text(detail)
-                .font(Theme.Font.meta)
-                .foregroundStyle(Theme.textFaint)
+        ZStack {
+            CathodeBackdrop()
+            VStack(alignment: .leading, spacing: Theme.Space.gutter) {
+                Text("NO STATION LIST").cathodeSection(Theme.serviceBlueLit)
+                Text("The bundled station list could not be read, so nothing can be looked up.")
+                    .font(Theme.Font.body)
+                    .foregroundStyle(Theme.textDim)
+                Text(detail)
+                    .font(Theme.Font.meta)
+                    .foregroundStyle(Theme.textFaint)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(Theme.Space.gutter)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(Theme.Space.gutter)
-        .background(Theme.surface)
+        .preferredColorScheme(.dark)
     }
 }

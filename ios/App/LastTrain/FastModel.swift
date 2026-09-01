@@ -88,9 +88,16 @@ final class FastModel {
      */
     func adopt(station: Station, direction: Compass) {
         destination = SharedSelection.destination(for: station.crs, direction: direction)
-        activityServiceId = TrainActivityController.activeServiceId
+        syncActivityState()
         activityMessage = nil
         if destination == nil { isChoosing = true }
+    }
+
+    /// A Live Activity can be dismissed or ended outside this process. Re-read the
+    /// system-owned activity whenever the app becomes active and before interpreting a
+    /// row tap, so a stale checkmark can never turn a fresh selection into a stop action.
+    func syncActivityState() {
+        activityServiceId = TrainActivityController.activeServiceId
     }
 
     /// Ask again, for a direction tap that did not change which direction is showing.
@@ -185,6 +192,8 @@ final class FastModel {
         isChangingActivity = true
         activityMessage = nil
         defer { isChangingActivity = false }
+
+        syncActivityState()
 
         if activityServiceId == service.serviceId {
             await TrainActivityController.stop()

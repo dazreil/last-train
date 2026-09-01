@@ -122,6 +122,22 @@ struct ServiceDayTests {
         #expect(ServiceDay.formatLondonTime("2026-01-15T23:52:00Z") == "23:52")
     }
 
+    @Test("display times follow the selected 12 or 24 hour clock")
+    func displayTimesFollowHourCycle() {
+        let twelveHour = Locale(identifier: "en_US")
+        #expect(ServiceDay.formatClock("23:47", locale: twelveHour).time == "11:47")
+        #expect(ServiceDay.formatClock("23:47", locale: twelveHour).dayPeriod == "PM")
+        #expect(ServiceDay.formatClock("00:42", locale: twelveHour).spoken == "12:42 AM")
+        #expect(ServiceDay.formatClock("12:00", locale: twelveHour).spoken == "12:00 PM")
+
+        let twentyFourHour = Locale(identifier: "en_GB")
+        #expect(ServiceDay.formatClock("23:47", locale: twentyFourHour).time == "23:47")
+        #expect(ServiceDay.formatClock("23:47", locale: twentyFourHour).dayPeriod == nil)
+        #expect(ServiceDay.formatClock("00:42", locale: twentyFourHour).spoken == "00:42")
+
+        #expect(ServiceDay.formatClock("--:--", locale: twelveHour).spoken == "--:--")
+    }
+
     @Test("London wall-clock times resolve to the right absolute instant")
     func wallClockResolvesToRightInstant() {
         // 23:12 BST is 22:12 UTC.

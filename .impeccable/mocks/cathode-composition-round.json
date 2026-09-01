@@ -1,0 +1,43 @@
+{
+  "title": "Choose the Cathode Gauze composition",
+  "question": "Which layout should become the visual contract for every Last Train surface?",
+  "options": [
+    {
+      "id": "cathode-stack",
+      "label": "Cathode Stack",
+      "kicker": "CHOSEN DIRECTION",
+      "lineage": "all departures held as ghost numerals behind one struck answer",
+      "thesis": "The final train occupies the whole first impression while earlier services remain visible as decaying context.",
+      "palette": ["#020D14", "#F28724", "#F4E8D1", "#57361F", "#FF304C"],
+      "materials": ["bronze wire gauze", "deep glass", "decaying phosphor"],
+      "viewport": "A monumental central 23:47 sits above a quiet vertical service list and terminal first-back line.",
+      "risk": "The destination transition is clear, but the list below is the most conventional of the three compositions.",
+      "comp": ".impeccable/mocks/decision/cathode-gauze.webp"
+    },
+    {
+      "id": "route-strike",
+      "label": "Route Strike",
+      "kicker": "COMPOSITION TWO",
+      "lineage": "a chronological rail with active and ghosted time states",
+      "thesis": "A single vertical strike line makes the service sequence physical while the last departure snaps forward at monumental scale.",
+      "palette": ["#020D14", "#F28724", "#F4E8D1", "#57361F", "#FF304C"],
+      "materials": ["bronze wire gauze", "deep glass", "decaying phosphor"],
+      "viewport": "Station and direction live in a persistent edge index; 23:47 commands the upper-right and earlier trains descend along one illuminated rail.",
+      "risk": "Its asymmetry is memorable but needs careful Dynamic Type adaptation so the left edge never competes with the times.",
+      "comp": ".impeccable/mocks/cathode-route-strike.webp"
+    },
+    {
+      "id": "island-relay",
+      "label": "Island Relay",
+      "kicker": "COMPOSITION THREE",
+      "lineage": "the selected departure relayed between the app and Dynamic Island",
+      "thesis": "The Dynamic Island becomes the origin of the interface, with the chosen train traveling visibly between the phone and the live countdown.",
+      "palette": ["#020D14", "#F28724", "#F4E8D1", "#57361F", "#FF304C"],
+      "materials": ["bronze wire gauze", "deep glass", "decaying phosphor"],
+      "viewport": "A beam drops from the Island into the central 23:47, earlier departures compress into a fixed chronology strip, and first back closes the screen.",
+      "risk": "It expresses the new Live Activity connection best, but the Island cannot become essential navigation on devices without one.",
+      "comp": ".impeccable/mocks/cathode-island-relay.webp"
+    }
+  ],
+  "steer": true
+}

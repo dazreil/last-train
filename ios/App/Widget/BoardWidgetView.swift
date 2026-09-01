@@ -29,9 +29,19 @@ struct BoardWidgetView: View {
         content
             .widgetURL(entry.link)
             .containerBackground(for: .widget) {
-                // Accessory families ignore this and render vibrant regardless; it is
-                // the home screen that gets the red.
-                isAccessory ? Color.clear : blockColour
+                if isAccessory {
+                    Color.clear
+                } else {
+                    ZStack {
+                        Theme.ink
+                        CathodeGauze(tint: blockColour, density: 10)
+                        LinearGradient(
+                            colors: [blockColour.opacity(0.16), .clear],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    }
+                }
             }
     }
 
@@ -51,7 +61,7 @@ struct BoardWidgetView: View {
     private var inline: some View {
         switch state {
         case .answer(let glance):
-            Text("\(glance.departure.dep) \(words(for: glance.label).lowercased())")
+            Text("\(ServiceDay.formatClock(glance.departure.dep).spoken) \(words(for: glance.label).lowercased())")
         case .exhausted:
             Text("No trains left")
         case .unset:
@@ -72,9 +82,12 @@ struct BoardWidgetView: View {
                     // what the lock screen's accent picks out.
                     .widgetAccentable()
 
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text(glance.departure.dep)
-                        .font(.title3.monospacedDigit().weight(.bold))
+                HStack(alignment: .center, spacing: 5) {
+                    CathodeNumber(
+                        text: glance.departure.dep,
+                        colour: glance.isLastTrain ? Theme.lastTrainRedLit : Theme.serviceBlueLit,
+                        scale: .compact
+                    )
                     Text(glance.departure.destination.withoutLondonPrefix)
                         .font(.caption2)
                         .lineLimit(1)
@@ -110,13 +123,9 @@ struct BoardWidgetView: View {
         VStack(alignment: .leading, spacing: 0) {
             switch state {
             case .answer(let glance):
-                Text(words(for: glance.label)).labelStyle(Theme.paper)
+                Text(words(for: glance.label)).labelStyle(blockColour)
 
-                Text(glance.departure.dep)
-                    .font(.system(.largeTitle, design: .monospaced).weight(.bold))
-                    .monospacedDigit()
-                    .minimumScaleFactor(0.6)
-                    .lineLimit(1)
+                CathodeNumber(text: glance.departure.dep, colour: blockColour, scale: .row)
 
                 Text(glance.departure.destination.withoutLondonPrefix)
                     .font(Theme.Font.destination)
@@ -178,7 +187,7 @@ struct BoardWidgetView: View {
 
                     ForEach(glance.remaining.prefix(3)) { service in
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            Text(service.dep)
+                            Text(ServiceDay.formatClock(service.dep).spoken)
                                 .font(Theme.Font.meta.monospacedDigit())
                                 .fontWeight(service.id == glance.departure.id ? .bold : .regular)
                             Text(service.destination.withoutLondonPrefix)
@@ -217,8 +226,8 @@ struct BoardWidgetView: View {
 
     /// Red only for the last train, exactly as in the app. Never for an error.
     private var blockColour: Color {
-        if case .answer(let glance) = state, glance.isLastTrain { return Theme.lastTrainRed }
-        return Theme.serviceBlue
+        if case .answer(let glance) = state, glance.isLastTrain { return Theme.lastTrainRedLit }
+        return Theme.serviceBlueLit
     }
 
     private var caption: String {

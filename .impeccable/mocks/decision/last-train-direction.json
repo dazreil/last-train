@@ -1,0 +1,144 @@
+{
+  "title": "Choose Last Train's new visual world",
+  "question": "Which world should define the complete iOS redesign?",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "Night Chronograph",
+      "kicker": "THE ROLL",
+      "lineage": "precision night-running instruments and black ceramic chronographs",
+      "thesis": "The departure becomes a deadline you can feel: one enormous time, one luminous progress arc, and everything else held below its signal.",
+      "palette": ["#05080B", "#F4F7F9", "#63FFD7", "#FF304C", "#66717C"],
+      "materials": ["black ceramic", "smoked sapphire glass", "micro-etched titanium"],
+      "viewport": "A portrait iPhone surface with no dashboard chrome: 23:47 dominates the upper half, a precise arc shows the remaining window, and the departure stack rises directly beneath it.",
+      "risk": "The precision-timer language could feel like a fitness app if station and route identity are allowed to recede.",
+      "raised": [
+        {
+          "from": "Lexicon Shoulder",
+          "raise": "A persistent edge index always names the current station, direction, and service-day scope."
+        },
+        {
+          "from": "Alphabet Storm",
+          "raise": "The most important departure time owns the screen at genuinely monumental scale."
+        },
+        {
+          "from": "Miura Field",
+          "raise": "The same geometry folds coherently from full app to widget, Lock Screen, and Dynamic Island."
+        }
+      ],
+      "comp": ".impeccable/mocks/decision/night-chronograph.webp"
+    },
+    {
+      "id": "signal-lens",
+      "label": "Signal Lens",
+      "kicker": "IMPECCABLE’S PICK",
+      "lineage": "modern railway signal optics and route-setting light paths",
+      "thesis": "One live signal governs the night: light travels along a restrained route line until the chosen train becomes the only illuminated destination.",
+      "palette": ["#061018", "#EAF2F5", "#4DE1FF", "#FF304C", "#173141"],
+      "materials": ["optical glass", "anodized midnight metal", "projected route light"],
+      "viewport": "A vertical route beam connects station, direction, and four departures; the last train is the sole red optical event and a selected Fast Train pulses into the Island.",
+      "risk": "This is the most naturally railway-specific direction, but signal imagery is also the most familiar and could become literal if overdrawn.",
+      "comp": ".impeccable/mocks/decision/signal-lens.webp"
+    },
+    {
+      "id": "timetable-rack",
+      "label": "Luminous Timetable Rack",
+      "verdict": "competitive",
+      "lineage": "1970s pocket timetables reconstructed as tinted glass slides",
+      "thesis": "Each answer is a precisely raked glass strip on a lit golden bed, with state carried by reversal, weight, and fixed cells rather than card chrome.",
+      "palette": ["#E8AD1A", "#172025", "#F2E7CC", "#B92F26", "#245746"],
+      "materials": ["lit goldenrod", "slate glass", "scratched acetate"],
+      "viewport": "A lateral rack of three departure slides crosses the portrait screen; one opaque reversed plate states the last train while the station scope is fixed above.",
+      "case": "It identifies immediately with timetables and carries dense railway facts beautifully; Night Chronograph is clearer in one-handed, after-dark use.",
+      "risk": "Its golden field and angled density can feel archival rather than genuinely current if the construction is timid.",
+      "comp": ".impeccable/mocks/decision/timetable-rack.webp",
+      "hero": "https://impeccable.style/worlds/cards/rw-timetable-slide-rack-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/rw-timetable-slide-rack.webp"
+    },
+    {
+      "id": "cathode-gauze",
+      "label": "Cathode Gauze",
+      "verdict": "competitive",
+      "lineage": "cathode numeral stacks behind fine bronze anode mesh",
+      "thesis": "Every possible train remains as a dark ghost while the current answer strikes forward in a crisp, warm glow.",
+      "palette": ["#020D14", "#F28724", "#F4E8D1", "#57361F", "#FF304C"],
+      "materials": ["bronze wire gauze", "deep glass", "decaying phosphor"],
+      "viewport": "Oversized ghosted departure numerals fill the plane behind one sharply illuminated time, with selected and stale states expressed as glow and afterglow.",
+      "case": "It matches the nocturnal urgency and makes state changes memorable; overlapping ghosts are less immediately readable than the assigned instrument.",
+      "risk": "The orange phosphor can drift into retro-industrial spectacle and weaken scanning if too many ghosts remain visible.",
+      "comp": ".impeccable/mocks/decision/cathode-gauze.webp",
+      "hero": "https://impeccable.style/worlds/cards/operate-b-struck-cathode-gauze-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/operate-b-struck-cathode-gauze.webp"
+    },
+    {
+      "id": "lexicon",
+      "label": "Lexicon Shoulder",
+      "verdict": "declined",
+      "lineage": "nineteenth-century lexicon pages with guide words and shoulder indexes",
+      "thesis": "The screen behaves like a precise reference page whose edge always states the range currently in view.",
+      "palette": ["#F1E7D0", "#16130F", "#B63A2B", "#254B83"],
+      "materials": ["uncoated stock", "engraving ink", "bordered color plate"],
+      "viewport": "Departures become ranked entries beside a narrow station-and-direction shoulder index.",
+      "case": "The reference hierarchy is excellent, but neither the audience nor the moment feels naturally bookish.",
+      "kept": "A persistent edge index for station, direction, and service-day scope.",
+      "risk": "It turns a glanceable night tool into something that asks to be read."
+    },
+    {
+      "id": "split-flap",
+      "label": "Split-Flap Concourse",
+      "verdict": "declined",
+      "lineage": "mechanical concourse departure boards",
+      "thesis": "Fixed character cells update in a disciplined cascade while rows remain locked to time order.",
+      "palette": ["#0A0A0A", "#F5F5F1", "#E4A72C", "#FF304C"],
+      "materials": ["matte flap faces", "brushed steel", "painted characters"],
+      "viewport": "A compact mechanical board fills the phone with four fixed departure rows.",
+      "case": "It is instantly legible but is the literal railway treatment this redesign is meant to move beyond.",
+      "kept": "Uncompromising fixed-column rhythm for every departure row.",
+      "risk": "It reads as a polished replica instead of a new product identity."
+    },
+    {
+      "id": "alphabet-storm",
+      "label": "Alphabet Storm",
+      "verdict": "declined",
+      "lineage": "monumental typography behaving as weather and terrain",
+      "thesis": "Departure numerals gather, disperse, and reform as time advances toward the train.",
+      "palette": ["#F7F7F3", "#080808", "#AEB5BA", "#FF304C"],
+      "materials": ["paper-white field", "storm-black glyphs", "silver transition flash"],
+      "viewport": "One enormous departure time breaks into a directional current above a quiet service list.",
+      "case": "The scale is compelling, but continuous typographic weather conflicts with two-second trust and reduced-motion needs.",
+      "kept": "The winning time deserves scale large enough to become the whole first impression.",
+      "risk": "Motion can turn essential information into spectacle."
+    },
+    {
+      "id": "miura",
+      "label": "Miura Field",
+      "verdict": "declined",
+      "lineage": "precision deployable sheets and linked aerospace folds",
+      "thesis": "One compact answer unfolds into linked departure detail without losing the underlying geometry.",
+      "palette": ["#F7F7F5", "#111111", "#D9AF37", "#CFE4F7", "#FF304C"],
+      "materials": ["matte technical sheet", "scored folds", "gold foil"],
+      "viewport": "The last train sits as the compact packet and unfolds into the next services and route detail on demand.",
+      "case": "Its responsive logic is strong, but the fold metaphor adds learning cost to an app designed for immediate answers.",
+      "kept": "One geometry must survive every Apple surface without becoming a smaller unrelated design.",
+      "risk": "Diagonal folds can compromise native scanning and touch predictability."
+    }
+  ],
+  "reroll": {
+    "registers": ["safer", "bolder"]
+  },
+  "buildPath": {
+    "value": "comp",
+    "toggle": true
+  },
+  "canon": true,
+  "canonCard": {
+    "label": "The category standard",
+    "thesis": "A premium dark-mode transit app with clean glass cards, SF Pro, blue accents, and familiar segmented controls.",
+    "palette": ["#0B0D12", "#FFFFFF", "#0A84FF", "#2C2F36", "#FF304C"],
+    "materials": ["frosted glass", "soft elevation", "system chrome"],
+    "viewport": "A conventional navigation title, station card, direction control, and stacked departure cards executed at high native polish.",
+    "risk": "It is immediately usable but visually interchangeable with many contemporary travel apps.",
+    "comp": ".impeccable/mocks/decision/category-standard.webp"
+  },
+  "steer": true
+}

@@ -1,112 +1,52 @@
 import SwiftUI
+import UIKit
 
-/**
- The design system, ported from `DESIGN.md`.
+import LastTrainCore
 
- IOS.md §7 is explicit: **port, don't redesign.** Full-bleed blocks, zero radius, zero
- gaps, mono tabular times as the largest thing on screen, operator as an outline rather
- than a filled brand colour.
-
- Two rules here are load-bearing and easy to break by accident:
-
- **Red means "this is the last train" and nothing else.** There is deliberately no
- danger colour in this file. Errors, replacement buses and alerts are all non-red. The
- moment red means two things it means nothing, and the red block stops being readable
- from across a platform.
-
- **Contrast is computed, never eyeballed.** The palette already changed once because a
- Union Flag red measured 2.51:1 against the blue beneath it. Do not substitute a colour
- here without measuring it against the ground it sits on.
-
- Type uses Dynamic Type text styles rather than fixed point sizes — the native
- equivalent of the 200% font test the web app already passes. The layout grows
- downward; it never clips.
- */
+/// The Cathode Gauze visual system.
+///
+/// It keeps the product's original semantic palette: blue is an ordinary service and
+/// red is the final service of the day. The visual depth comes from light, grid and
+/// ghosted type, never from extra status colours.
 enum Theme {
+    static let ink = Color(hex: 0x05070a)
+    static let surface = Color(hex: 0x0b0d10)
+    static let raised = Color(hex: 0x11161d)
+    static let control = Color(hex: 0x18202a)
+    static let hairline = Color(hex: 0x29323d)
 
-    // MARK: - Colour
-
-    /// `#0b0d10`. The ground.
-    static let ink = Color(hex: 0x0b0d10)
-    /// `#14181d`. The page the board sits on.
-    static let surface = Color(hex: 0x14181d)
-    /// `#1c2229`. Fields.
-    static let raised = Color(hex: 0x1c2229)
-    /**
-     `#232b34`. An unselected direction block.
-
-     A shade above `raised`, because on device the chevrons were nearly invisible
-     against the surface — the shape has to read before the word does, and it cannot do
-     that at 1.2:1. Still well below the blue, so the selected block is unambiguous.
-     */
-    static let control = Color(hex: 0x232b34)
-    static let hairline = Color(hex: 0x2a323b)
-
-    /**
-     `#3d4956` and `#20449b`. The lit facet of a direction block, per fill.
-
-     **Not white.** The emboss was built with `paper` at part opacity, and on device that
-     is a white line drawn on a dark shape rather than light falling across it — the whole
-     effect reads as an outline. Light on a surface is that surface, lifted: each of these
-     is its own fill taken a few steps up, so the edge belongs to the block it sits on.
-
-     Decorative only. State is carried by the fill beneath — blue, grey, or black — so
-     these never have to reach a contrast ratio.
-     */
     static let controlLit = Color(hex: 0x3d4956)
-    static let serviceBlueLit = Color(hex: 0x20449b)
-
-    /// `#f8325a`. The same lift on the last train's red. Still red — a facet of the block
-    /// it lights, never a second signal.
-    static let lastTrainRedLit = Color(hex: 0xf8325a)
+    static let serviceBlueLit = Color(hex: 0x2d62d0)
+    static let lastTrainRedLit = Color(hex: 0xff365a)
 
     static let text = Color(hex: 0xf2f5f8)
     static let textDim = Color(hex: 0x9aa7b4)
-    static let textFaint = Color(hex: 0x6b7885)
+    static let textFaint = Color(hex: 0x65717d)
 
-    /// `#012169`. Every service block that is not the last train.
     static let serviceBlue = Color(hex: 0x012169)
     static let paper = Color(hex: 0xffffff)
-
-    /**
-     `#E4002B`. **The last train, and nothing else, ever.**
-
-     Not flag red — chosen by measurement against the blue beneath it. Colour is never
-     the only signal either: the block carries a visible LAST TRAIN label as well, for
-     anyone who cannot separate the two hues.
-     */
     static let lastTrainRed = Color(hex: 0xe4002b)
 
-    // MARK: - Type
-
     enum Font {
-        /// The departure time. The largest thing on screen, and tabular.
         static let time = SwiftUI.Font.system(.largeTitle, design: .monospaced).weight(.bold)
-        /// Direction words, section titles.
-        static let heading = SwiftUI.Font.system(.title3, design: .default).weight(.bold)
-        /// Where a train is going.
-        static let destination = SwiftUI.Font.system(.subheadline).weight(.bold)
-        static let body = SwiftUI.Font.system(.body).weight(.semibold)
-        /// Uppercase labels. Pair with `Theme.tracking`.
-        static let label = SwiftUI.Font.system(.caption2).weight(.bold)
-        /// Platform, operator, headcode.
-        static let meta = SwiftUI.Font.system(.caption).weight(.semibold)
+        static let heading = SwiftUI.Font.system(.title2, design: .rounded).weight(.semibold)
+        static let destination = SwiftUI.Font.system(.headline, design: .rounded).weight(.semibold)
+        static let body = SwiftUI.Font.system(.body, design: .rounded).weight(.medium)
+        static let label = SwiftUI.Font.system(.caption2, design: .rounded).weight(.bold)
+        static let meta = SwiftUI.Font.system(.caption, design: .rounded).weight(.semibold)
     }
 
-    /// Uppercase labels are letter-spaced; body text is not.
-    static let tracking: CGFloat = 1.3
+    static let tracking: CGFloat = 1.8
 
     enum Space {
-        static let gutter: CGFloat = 16
-        /// Blocks are separated by colour change alone, so the stack reads as one object.
+        static let gutter: CGFloat = 22
         static let blockGap: CGFloat = 0
-        /// Minimum comfortable target for a thumb, one-handed.
         static let tap: CGFloat = 48
+        static let section: CGFloat = 28
     }
 }
 
 extension Color {
-    /// `0xRRGGBB`, so the values in `DESIGN.md` can be pasted in unchanged.
     init(hex: UInt32) {
         self.init(
             .sRGB,
@@ -118,63 +58,196 @@ extension Color {
     }
 }
 
-/**
- What a tap looks like before anything has loaded.
-
- Every control in this app was `.buttonStyle(.plain)`, which draws **nothing** on touch
- down. On a board where the answer to a tap arrives over the network a second later, that
- left the screen inert at exactly the moment it needed to say "yes, I felt that" — and the
- date control had already been misread as broken once for a related reason.
-
- Two styles, because the surfaces are two kinds. A filled block is a slab and lifts toward
- the light; a text control has nothing to light, so it recedes instead. Neither scales:
- a departure board is printed on something, and printed things do not shrink when pressed.
- */
 struct PressLift: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .brightness(configuration.isPressed ? 0.07 : 0)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .brightness(configuration.isPressed ? 0.08 : 0)
+            .offset(y: configuration.isPressed && !reduceMotion ? 1 : 0)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 
 struct PressDim: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .opacity(configuration.isPressed ? 0.55 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+        configuration.label.opacity(configuration.isPressed ? 0.52 : 1)
+    }
+}
+
+/// Fine phosphor grid used behind every major surface. It is deliberately subtle: the
+/// information remains crisp while the unlit field carries the approved gauze texture.
+struct CathodeGauze: View {
+    var tint: Color = Theme.serviceBlueLit
+    var density: CGFloat = 12
+
+    var body: some View {
+        ZStack {
+            Image("CathodeGauze")
+                .resizable(resizingMode: .tile)
+                .opacity(0.58)
+                .blendMode(.screen)
+
+            Canvas(opaque: false, rendersAsynchronously: true) { context, size in
+                var path = Path()
+                var x: CGFloat = 0
+                while x <= size.width {
+                    path.move(to: CGPoint(x: x, y: 0))
+                    path.addLine(to: CGPoint(x: x, y: size.height))
+                    x += density
+                }
+                var y: CGFloat = 0
+                while y <= size.height {
+                    path.move(to: CGPoint(x: 0, y: y))
+                    path.addLine(to: CGPoint(x: size.width, y: y))
+                    y += density
+                }
+                context.stroke(path, with: .color(tint.opacity(0.09)), lineWidth: 0.5)
+            }
+        }
+        .clipped()
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
+    }
+}
+
+struct CathodeBackdrop: View {
+    var tint: Color = Theme.serviceBlueLit
+
+    var body: some View {
+        ZStack {
+            Theme.ink
+            LinearGradient(
+                colors: [tint.opacity(0.09), .clear, Theme.ink.opacity(0.9)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            CathodeGauze(tint: tint)
+            RadialGradient(
+                colors: [.clear, Theme.ink.opacity(0.76)],
+                center: .center,
+                startRadius: 80,
+                endRadius: 430
+            )
+        }
+        .ignoresSafeArea()
+    }
+}
+
+/// A luminous machine-readable clock. The embedded OCR-A face gives timetable values
+/// their distinctive hardware voice, while the offset copy retains the phosphor depth
+/// of the approved visual system.
+struct CathodeNumber: View {
+    let text: String
+    let colour: Color
+    var scale: Scale = .row
+    var alignment: Alignment = .leading
+
+    enum Scale { case hero, row, compact }
+
+    @ScaledMetric(relativeTo: .largeTitle) private var heroSize: CGFloat = 112
+    @ScaledMetric(relativeTo: .title) private var rowSize: CGFloat = 48
+    @ScaledMetric(relativeTo: .headline) private var compactSize: CGFloat = 28
+
+    private var size: CGFloat {
+        switch scale {
+        case .hero: min(heroSize, 148)
+        case .row: min(rowSize, 72)
+        case .compact: min(compactSize, 42)
+        }
+    }
+
+    private var display: ServiceDay.ClockDisplay {
+        ServiceDay.formatClock(text)
+    }
+
+    private var terminalFont: SwiftUI.Font {
+        clockFont(size: size)
+    }
+
+    private var periodFont: SwiftUI.Font {
+        clockFont(size: max(11, size * (scale == .hero ? 0.18 : 0.24)))
+    }
+
+    private func clockFont(size: CGFloat) -> SwiftUI.Font {
+        guard UIFont(name: "WPOCRA-Regular", size: size) != nil else {
+            return .system(size: size, weight: .medium, design: .monospaced)
+        }
+        return .custom("WPOCRA-Regular", fixedSize: size)
+    }
+
+    var body: some View {
+        HStack(alignment: .lastTextBaseline, spacing: max(4, size * 0.045)) {
+            ZStack(alignment: .leading) {
+                terminalText
+                    .foregroundStyle(colour.opacity(0.1))
+                    .offset(x: max(1, size * 0.018), y: max(2, size * 0.045))
+                    .blur(radius: max(0.8, size * 0.014))
+
+                terminalText
+                    .foregroundStyle(colour)
+                    .shadow(color: colour.opacity(0.72), radius: scale == .hero ? 7 : 3)
+                    .shadow(color: colour.opacity(0.26), radius: scale == .hero ? 18 : 8)
+            }
+            .layoutPriority(1)
+
+            if let dayPeriod = display.dayPeriod {
+                Text(dayPeriod)
+                    .font(periodFont)
+                    .tracking(size * 0.008)
+                    .foregroundStyle(colour)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+        }
+        .frame(maxWidth: scale == .hero ? .infinity : nil, alignment: alignment)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(display.spoken)
+    }
+
+    private var terminalText: some View {
+        Text(display.time)
+            .font(terminalFont)
+            .monospacedDigit()
+            .tracking(-size * 0.02)
+            .lineLimit(1)
+            .minimumScaleFactor(0.72)
+    }
+}
+
+struct CathodeRule: View {
+    var colour: Color = Theme.serviceBlueLit
+
+    var body: some View {
+        Rectangle()
+            .fill(
+                LinearGradient(
+                    colors: [colour.opacity(0.8), colour.opacity(0.08)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .frame(height: 1)
+            .accessibilityHidden(true)
     }
 }
 
 extension View {
-    /**
-     A lit top edge and a shaded bottom one, in the surface's own colour.
-
-     The direction blocks light their arrow's facets by hand because the shape has facets
-     to light. A departure block is a rectangle, so the same idea is two rules: the top
-     catches the light, the bottom falls away from it. Stacked at zero spacing, each block's
-     shadow meets the next block's highlight and the join becomes a ridge — which separates
-     the rows as a side effect, without a divider that would have to be drawn in something
-     other than the blocks' own colours.
-
-     `lit` is always the surface's fill lifted, never white. White reads as an outline drawn
-     on a block; the block's own hue reads as the block, folded.
-     */
     func embossed(lit: Color, weight: CGFloat = 1) -> some View {
-        overlay(alignment: .top) {
-            Rectangle().fill(lit).frame(height: weight)
-        }
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(Theme.ink.opacity(0.4)).frame(height: weight)
-        }
+        overlay(alignment: .top) { Rectangle().fill(lit).frame(height: weight) }
+            .overlay(alignment: .bottom) { Rectangle().fill(Theme.ink.opacity(0.45)).frame(height: weight) }
     }
 
-    /// An uppercase, letter-spaced label in the house style.
     func labelStyle(_ colour: Color = Theme.textFaint) -> some View {
-        self
-            .font(Theme.Font.label)
+        font(Theme.Font.label)
             .tracking(Theme.tracking)
             .textCase(.uppercase)
             .foregroundStyle(colour)
+    }
+
+    func cathodeSection(_ colour: Color = Theme.serviceBlueLit) -> some View {
+        HStack(spacing: 12) {
+            self.labelStyle(colour)
+            CathodeRule(colour: colour)
+        }
     }
 }

@@ -23,6 +23,8 @@ struct ServiceSheet: View {
     let service: BoardDeparture
     let station: Station
     let direction: Compass
+    /// The genuine final service, not any member of the last-trains group.
+    let isLastTrain: Bool
     /// Whether this train is the one the widget is following.
     let isPinned: Bool
     let onPin: (Bool) -> Void
@@ -36,16 +38,18 @@ struct ServiceSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    header
-                    pinControl
-                    routeSection
+            ZStack {
+                CathodeBackdrop(tint: Theme.serviceBlueLit)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        header
+                        pinControl
+                        routeSection
+                    }
+                    .padding(.bottom, 24)
                 }
-                .padding(.bottom, 24)
             }
-            .background(Theme.surface)
-            .navigationTitle(service.dep)
+            .navigationTitle("Service detail")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -53,15 +57,23 @@ struct ServiceSheet: View {
                 }
             }
         }
+        .preferredColorScheme(.dark)
         .task { await load() }
     }
 
     // MARK: - Parts
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 7) {
+            CathodeNumber(text: service.dep, colour: serviceColour, scale: .hero)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if isLastTrain {
+                Text("Last train").cathodeSection(Theme.lastTrainRedLit)
+            }
+
             Text(service.destination.withoutLondonPrefix)
-                .font(Theme.Font.heading)
+                .font(.system(.title, design: .rounded).weight(.medium))
                 .foregroundStyle(Theme.text)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -72,7 +84,7 @@ struct ServiceSheet: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Theme.Space.gutter)
-        .padding(.top, 14)
+        .padding(.top, 10)
     }
 
     /**
@@ -98,10 +110,11 @@ struct ServiceSheet: View {
                 .foregroundStyle(isPinned ? Theme.paper : Theme.text)
                 .padding(.horizontal, 13)
                 .padding(.vertical, 12)
-                .background(isPinned ? Theme.serviceBlue : Theme.raised)
+                .background(CathodeGauze(tint: Theme.serviceBlueLit, density: 10))
+                .overlay(Rectangle().stroke(Theme.serviceBlueLit.opacity(isPinned ? 0.8 : 0.35), lineWidth: 1))
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressLift())
             .padding(.horizontal, Theme.Space.gutter)
             .padding(.top, 14)
 
@@ -142,7 +155,7 @@ struct ServiceSheet: View {
 
     @ViewBuilder
     private var routeSection: some View {
-        Text("Then calls at").labelStyle()
+        Text("Then calls at").cathodeSection(Theme.serviceBlueLit)
             .padding(.horizontal, Theme.Space.gutter)
             .padding(.top, 22)
             .padding(.bottom, 6)
@@ -175,7 +188,7 @@ struct ServiceSheet: View {
 
     private func callRow(_ call: ServiceCall) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(call.time ?? "--:--")
+            Text(call.time.map { ServiceDay.formatClock($0).spoken } ?? "--:--")
                 .font(Theme.Font.meta.monospacedDigit())
                 .foregroundStyle(Theme.textDim)
                 // A *minimum*, not a width. `.caption` scales with the text size, so a
@@ -207,6 +220,7 @@ struct ServiceSheet: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Theme.Space.gutter)
         .padding(.vertical, 9)
+        .overlay(alignment: .bottom) { CathodeRule(colour: Theme.serviceBlueLit.opacity(0.24)) }
     }
 
     private var skeleton: some View {
@@ -224,6 +238,10 @@ struct ServiceSheet: View {
         if let platform = service.platform { parts.append("plat \(platform)") }
         if service.isReplacementBus { parts.append("replacement bus") }
         return parts.joined(separator: " · ")
+    }
+
+    private var serviceColour: Color {
+        isLastTrain ? Theme.lastTrainRedLit : Theme.serviceBlueLit
     }
 
     private func load() async {

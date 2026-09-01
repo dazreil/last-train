@@ -2,6 +2,8 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
+import LastTrainCore
+
 /**
  The pinned train, in the four shapes the system asks for.
 
@@ -16,15 +18,21 @@ struct TrainLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: TrainActivity.self) { context in
             lockScreen(context)
-                .activityBackgroundTint(Theme.ink)
+                .activityBackgroundTint(Theme.surface)
                 .activitySystemActionForegroundColor(Theme.paper)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(context.attributes.departureText)
-                            .font(.system(.title2, design: .monospaced).weight(.bold))
-                            .foregroundStyle(Theme.paper)
+                        Text(context.attributes.isLastTrain ? "LAST TRAIN" : "FAST TRAIN")
+                            .font(.caption2.weight(.bold))
+                            .tracking(Theme.tracking)
+                            .foregroundStyle(activityColour(context))
+                        CathodeNumber(
+                            text: context.attributes.departureText,
+                            colour: activityColour(context),
+                            scale: .compact
+                        )
                         Text(context.attributes.destination)
                             .font(.caption)
                             .foregroundStyle(Theme.textDim)
@@ -33,7 +41,7 @@ struct TrainLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.trailing) {
                     countdown(to: context.state.departure)
                         .font(.system(.title2, design: .monospaced).weight(.bold))
-                        .foregroundStyle(context.attributes.isLastTrain ? Theme.lastTrainRed : Theme.paper)
+                        .foregroundStyle(Theme.paper)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack(spacing: 6) {
@@ -49,9 +57,11 @@ struct TrainLiveActivity: Widget {
                     .font(.caption2.weight(.semibold))
                 }
             } compactLeading: {
-                Text(context.attributes.departureText)
+                Text(ServiceDay.formatClock(context.attributes.departureText).spoken)
                     .font(.system(.caption, design: .monospaced).weight(.bold))
-                    .foregroundStyle(context.attributes.isLastTrain ? Theme.lastTrainRed : Theme.paper)
+                    .foregroundStyle(activityColour(context))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             } compactTrailing: {
                 countdown(to: context.state.departure)
                     .font(.system(.caption, design: .monospaced).weight(.bold))
@@ -59,35 +69,43 @@ struct TrainLiveActivity: Widget {
             } minimal: {
                 countdown(to: context.state.departure)
                     .font(.system(.caption2, design: .monospaced).weight(.bold))
-                    .foregroundStyle(context.attributes.isLastTrain ? Theme.lastTrainRed : Theme.paper)
+                    .foregroundStyle(activityColour(context))
             }
             .widgetURL(URL(string: "lasttrain://board"))
         }
     }
 
     private func lockScreen(_ context: ActivityViewContext<TrainActivity>) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                if context.attributes.isLastTrain {
-                    Text("Last train")
+        ZStack {
+            CathodeGauze(tint: activityColour(context), density: 10)
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(context.attributes.isLastTrain ? "LAST TRAIN" : "FAST TRAIN")
                         .font(.caption2.weight(.bold))
-                        .foregroundStyle(Theme.lastTrainRed)
+                        .tracking(Theme.tracking)
+                        .foregroundStyle(activityColour(context))
+                    CathodeNumber(
+                        text: context.attributes.departureText,
+                        colour: activityColour(context),
+                        scale: .row
+                    )
+                    Text(caption(context))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.textDim)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                Text(context.attributes.departureText)
-                    .font(.system(.largeTitle, design: .monospaced).weight(.bold))
+                Spacer(minLength: 0)
+                countdown(to: context.state.departure)
+                    .font(.system(.title, design: .monospaced).weight(.bold))
                     .foregroundStyle(Theme.paper)
-                Text(caption(context))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.textDim)
-                    .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer(minLength: 0)
-            countdown(to: context.state.departure)
-                .font(.system(.title, design: .monospaced).weight(.bold))
-                .foregroundStyle(Theme.paper)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+    }
+
+    private func activityColour(_ context: ActivityViewContext<TrainActivity>) -> Color {
+        context.attributes.isLastTrain ? Theme.lastTrainRedLit : Theme.serviceBlueLit
     }
 
     /// `Shoeburyness from Upminster · plat 2`, with the platform only when it is known.

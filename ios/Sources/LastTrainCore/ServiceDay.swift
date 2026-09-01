@@ -257,6 +257,76 @@ public enum ServiceDay {
 
     // MARK: - Display
 
+    public struct ClockDisplay: Equatable, Sendable {
+        public let time: String
+        public let dayPeriod: String?
+
+        public var spoken: String {
+            guard let dayPeriod else { return time }
+            return "\(time) \(dayPeriod)"
+        }
+    }
+
+    /**
+     A railway wall-clock value rendered in the device's chosen hour cycle.
+
+     The source remains the API's `HH:mm` London wall time: this changes presentation
+     only, never service-day ordering or absolute instants. The `j` skeleton is the
+     Foundation-supported way to respect the user's 12/24-hour setting rather than
+     guessing from region. Numerals stay Latin because the cathode display is a numeric
+     hardware face; the localized day-period marker is rendered beside it as normal text.
+     */
+    public static func formatClock(
+        _ value: String,
+        locale: Locale = .autoupdatingCurrent
+    ) -> ClockDisplay {
+        let parts = value.split(separator: ":", omittingEmptySubsequences: false)
+        guard parts.count == 2,
+              let hour = Int(parts[0]),
+              let minute = Int(parts[1]),
+              (0..<24).contains(hour),
+              (0..<60).contains(minute)
+        else { return ClockDisplay(time: value, dayPeriod: nil) }
+
+        let hourPattern = DateFormatter.dateFormat(
+            fromTemplate: "j",
+            options: 0,
+            locale: locale
+        ) ?? "HH"
+        let usesTwelveHours = hourPattern.contains("h")
+            || hourPattern.contains("K")
+            || hourPattern.contains("a")
+
+        guard usesTwelveHours else {
+            return ClockDisplay(
+                time: String(format: "%02d:%02d", hour, minute),
+                dayPeriod: nil
+            )
+        }
+
+        let twelveHour = hour % 12 == 0 ? 12 : hour % 12
+        var components = DateComponents()
+        components.calendar = utcCalendar
+        components.timeZone = utc
+        components.year = 2001
+        components.month = 1
+        components.day = 1
+        components.hour = hour
+        components.minute = minute
+
+        let periodFormatter = DateFormatter()
+        periodFormatter.locale = locale
+        periodFormatter.calendar = Calendar(identifier: .gregorian)
+        periodFormatter.timeZone = utc
+        periodFormatter.dateFormat = "a"
+        let period = components.date.map(periodFormatter.string(from:))
+
+        return ClockDisplay(
+            time: String(format: "%d:%02d", twelveHour, minute),
+            dayPeriod: period?.isEmpty == false ? period : nil
+        )
+    }
+
     private static let serviceDateDisplay: DateFormatter = {
         let formatter = DateFormatter()
         formatter.timeZone = utc

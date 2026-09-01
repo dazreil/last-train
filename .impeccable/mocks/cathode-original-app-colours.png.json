@@ -1,0 +1,11 @@
+{
+  "approved": true,
+  "title": "Cathode Gauze in the original Last Train palette",
+  "reference": "cathode-original-app-colours.png",
+  "implementationNotes": [
+    "Keep the interface edge-to-edge, dark, sparse, and card-free.",
+    "Use service blue for ordinary trains, last-train red only for the final departure, and white for primary labels.",
+    "Make departure time the dominant information and preserve the gauze and ghost-numeral depth treatment.",
+    "Carry the same visual language through Fast Train, sheets, widgets, Lock Screen, and Dynamic Island."
+  ]
+}

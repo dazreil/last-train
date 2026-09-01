@@ -75,6 +75,8 @@ targets:
       # screen was falling back to the system default, which is white, in front of a
       # deliberately near-black app.
       - path: App/Resources/Assets.xcassets
+      - path: App/Resources/Fonts
+        buildPhase: resources
     dependencies:
       - package: LastTrainCore
         product: LastTrainCore
@@ -88,6 +90,8 @@ targets:
       path: App/LastTrain/Info.plist
       properties:
         CFBundleDisplayName: Last Train
+        UIAppFonts:
+          - WPOCRA-Regular.ttf
         # Where a widget tap lands. `BoardModel.open` refuses anything it cannot
         # resolve to a real station and a real compass point.
         CFBundleURLTypes:
@@ -148,6 +152,8 @@ targets:
     sources:
       - path: App/Widget
       - path: App/Shared
+      - path: App/Resources/Fonts
+        buildPhase: resources
     dependencies:
       - package: LastTrainCore
         product: LastTrainCore
@@ -159,6 +165,8 @@ targets:
       path: App/Widget/Info.plist
       properties:
         CFBundleDisplayName: Last Train
+        UIAppFonts:
+          - WPOCRA-Regular.ttf
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
         # `Bundle.main` inside an extension is the *extension's* bundle, so this has to

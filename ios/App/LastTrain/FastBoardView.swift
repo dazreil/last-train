@@ -2,18 +2,6 @@ import SwiftUI
 
 import LastTrainCore
 
-/**
- Fast Train.
-
- The same station and the same direction as the board behind it, plus one thing the board
- refuses to ask for: where you are going. That is why it is a separate mode reached by a
- deliberate tap, and why `PRODUCT.md` records the exception rather than quietly widening
- the promise.
-
- **No red here.** Red means the last train of the service day and nothing else. Nothing on
- this screen is that, so nothing on this screen is red — not even the train that gets you
- there first.
- */
 struct FastBoardView: View {
     let station: Station
     let direction: Compass
@@ -24,7 +12,7 @@ struct FastBoardView: View {
             destinationField
 
             if model.destination == nil {
-                whereTo
+                emptyPrompt
             } else {
                 results
             }
@@ -32,85 +20,69 @@ struct FastBoardView: View {
         .sheet(isPresented: $model.isChoosing) {
             DestinationPicker(station: station, direction: direction, model: model)
         }
-        // The remembered destination belongs to one station and one direction, so it is
-        // re-read whenever either changes.
         .task(id: "\(station.crs):\(direction.rawValue)") {
             model.adopt(station: station, direction: direction)
         }
     }
 
-    // MARK: - Where you are going
-
     private var destinationField: some View {
-        Button {
-            model.askWhereTo()
-        } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("To").labelStyle()
-                Text(model.destination?.name ?? "Choose a destination")
-                    .font(Theme.Font.heading)
-                    .foregroundStyle(model.destination == nil ? Theme.textFaint : Theme.text)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+        Button { model.askWhereTo() } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Fast to").labelStyle(Theme.serviceBlueLit)
+                    Text(model.destination?.name.withoutLondonPrefix ?? "Choose destination")
+                        .font(.system(.title, design: .rounded).weight(.medium))
+                        .foregroundStyle(model.destination == nil ? Theme.textDim : Theme.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Theme.serviceBlueLit)
             }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 13)
-            .background(Theme.raised)
-            .overlay(Rectangle().strokeBorder(Theme.hairline, lineWidth: 1))
+            .padding(.horizontal, Theme.Space.gutter)
+            .padding(.top, 24)
+            .padding(.bottom, 12)
             .contentShape(Rectangle())
         }
-        .buttonStyle(PressLift())
-        .padding(.horizontal, Theme.Space.gutter)
-        .padding(.top, 8)
+        .buttonStyle(PressDim())
+        .accessibilityHint("Choose from direct destinations")
     }
 
-    private var whereTo: some View {
-        VStack(alignment: .leading, spacing: 8) {
+    private var emptyPrompt: some View {
+        VStack(alignment: .leading, spacing: 9) {
             Text("Where are you going?").font(Theme.Font.heading)
-            Text(
-                "Pick a destination \(direction.rawValue) of \(station.name.withoutLondonPrefix). "
-                    + "Fast Train shows the three that get you there soonest."
-            )
-            .font(Theme.Font.body)
-            .foregroundStyle(Theme.textDim)
-            .fixedSize(horizontal: false, vertical: true)
+            Text("Choose a direct destination. Fast Train ranks the next services by when they get you there.")
+                .font(Theme.Font.body)
+                .foregroundStyle(Theme.textDim)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(Theme.Space.gutter)
-        .padding(.top, 8)
-        .foregroundStyle(Theme.text)
+        .padding(.horizontal, Theme.Space.gutter)
+        .padding(.top, 26)
     }
-
-    // MARK: - What is coming
 
     @ViewBuilder
     private var results: some View {
         if let message = model.errorMessage {
-            Text(message)
-                .font(Theme.Font.body)
-                .foregroundStyle(Theme.textDim)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(Theme.Space.gutter)
+            status(title: "Fast Train unavailable", body: message)
         } else if model.isLoading && model.services.isEmpty {
-            skeleton
+            loading
         } else if model.services.isEmpty {
-            // A real answer. Nothing direct is left tonight, which is worth saying
-            // plainly rather than dressing as a fault.
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Nothing direct left").font(Theme.Font.heading)
-                Text("No more direct trains today. The last one has gone.")
-                    .font(Theme.Font.body)
-                    .foregroundStyle(Theme.textDim)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(Theme.Space.gutter)
-            .foregroundStyle(Theme.text)
+            status(title: "Nothing direct left", body: "No more direct trains remain on this service day.")
         } else {
-            heading
+            Text(model.isOnFirstPage ? "Fastest from now" : "Later direct trains")
+                .cathodeSection(Theme.serviceBlueLit)
+                .padding(.horizontal, Theme.Space.gutter)
+                .padding(.top, 18)
+                .padding(.bottom, 7)
 
             if let message = model.activityMessage {
-                activityNotice(message)
+                Text(message)
+                    .font(Theme.Font.meta)
+                    .foregroundStyle(Theme.textDim)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, Theme.Space.gutter)
+                    .padding(.vertical, 10)
             }
 
             ForEach(model.shown) { service in
@@ -119,233 +91,175 @@ struct FastBoardView: View {
                     isSelected: model.activityServiceId == service.serviceId,
                     isBusy: model.isChangingActivity
                 ) {
-                    Task {
-                        await model.toggleActivity(service, at: station, direction: direction)
-                    }
+                    Task { await model.toggleActivity(service, at: station, direction: direction) }
                 }
             }
         }
     }
 
-    private func activityNotice(_ message: String) -> some View {
-        Text(message)
-            .font(Theme.Font.meta)
-            .foregroundStyle(Theme.textDim)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, Theme.Space.gutter)
-            .padding(.vertical, 9)
-            .background(Theme.raised)
-            .overlay(alignment: .top) {
-                Rectangle().fill(Theme.hairline).frame(height: 1)
-            }
-            .overlay(alignment: .bottom) {
-                Rectangle().fill(Theme.hairline).frame(height: 1)
-            }
+    private func status(title: String, body: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(Theme.Font.heading)
+            Text(body).font(Theme.Font.body).foregroundStyle(Theme.textDim)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, Theme.Space.gutter)
+        .padding(.top, 26)
     }
 
-    /**
-     Which three these are.
-
-     The count and the way forward moved to the masthead, where §11 put them — this says
-     only which of the two answers you are reading. Paging used to live at the foot of the
-     list, which put it below the fold on a phone.
-     */
-    private var heading: some View {
-        Text(model.isOnFirstPage ? "Fastest from now" : "Later still")
-            .labelStyle()
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, Theme.Space.gutter)
-            .padding(.top, 18)
-            .padding(.bottom, 5)
-    }
-
-    private var skeleton: some View {
-        VStack(spacing: 1) {
+    private var loading: some View {
+        VStack(spacing: 14) {
             ForEach(0..<3, id: \.self) { _ in
-                Rectangle().fill(Theme.raised).frame(height: 74)
+                Rectangle().fill(Theme.control.opacity(0.44)).frame(height: 104)
             }
         }
-        .padding(.top, 20)
-        .accessibilityHidden(true)
+        .padding(.horizontal, Theme.Space.gutter)
+        .padding(.top, 18)
+        .accessibilityLabel("Loading fast trains")
     }
 }
 
-/**
- One way of getting there.
-
- The arrival is the point, so it is said out loud rather than left for you to work out
- from a departure and a journey time.
- */
 struct FastRow: View {
     let service: FastService
     let isSelected: Bool
     let isBusy: Bool
     let onSelect: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: 3) {
-                timingHeader
+            VStack(alignment: .leading, spacing: 10) {
+                times
 
-                Text(details)
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Text("Arrives in \(service.journeyMinutes) min")
+                        Spacer(minLength: 4)
+                        activityLabel
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Arrives in \(service.journeyMinutes) min")
+                        activityLabel
+                    }
+                }
+                .font(Theme.Font.meta)
+                .foregroundStyle(Theme.textDim)
+
+                Text("Towards \(service.destination.withoutLondonPrefix) · \(service.toc)")
                     .font(Theme.Font.meta)
-                    .foregroundStyle(Theme.paper.opacity(0.78))
+                    .foregroundStyle(Theme.textFaint)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Theme.Space.gutter)
-            .padding(.vertical, 11)
-            .background(Theme.serviceBlue)
-            .embossed(lit: Theme.serviceBlueLit)
-            .foregroundStyle(Theme.paper)
+            .padding(.vertical, 14)
+            .background(CathodeGauze(tint: Theme.serviceBlueLit, density: 11).opacity(0.62))
+            .overlay(alignment: .bottom) { CathodeRule(colour: Theme.serviceBlueLit.opacity(0.45)) }
+            .overlay(alignment: .leading) {
+                if isSelected {
+                    Rectangle()
+                        .fill(Theme.serviceBlueLit)
+                        .frame(width: 3)
+                        .shadow(color: Theme.serviceBlueLit, radius: 7)
+                        .transition(reduceMotion ? .identity : .move(edge: .top).combined(with: .opacity))
+                }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(PressLift())
         .disabled(isBusy)
-        .accessibilityElement(children: .combine)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.28), value: isSelected)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(spoken)
         .accessibilityHint(
             isSelected
-                ? "Stops showing this train on the Dynamic Island."
-                : "Shows this train on the Dynamic Island when it departs within four hours."
+                ? "Stops showing this train on the Dynamic Island"
+                : "Shows this train on the Dynamic Island when it departs within four hours"
         )
     }
 
-    private var details: String {
-        let journey = "\(service.journeyMinutes) min · towards \(service.destination.withoutLondonPrefix)"
-        return isSelected ? "YOUR TRAIN · \(journey)" : journey
-    }
-
-    /**
-     Keep both clock readings indivisible at every Dynamic Type size.
-
-     At ordinary sizes the operator stays on the same baseline. Once that composition no
-     longer fits, `ViewThatFits` moves only the badge down; it never solves the pressure by
-     turning `19:28` into `19:2` over `8`, which reads like a broken clock.
-     */
-    private var timingHeader: some View {
+    private var times: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                times
-                Spacer(minLength: 0)
-                operatorBadge
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                CathodeNumber(text: service.departure, colour: Theme.serviceBlueLit, scale: .row)
+                Image(systemName: "arrow.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Theme.textFaint)
+                CathodeNumber(text: service.arrival, colour: Theme.text, scale: .row)
             }
 
             VStack(alignment: .leading, spacing: 5) {
-                times
-                operatorBadge
+                clock(label: "Departs", time: service.departure, colour: Theme.serviceBlueLit)
+                clock(label: "Arrives", time: service.arrival, colour: Theme.text)
             }
         }
     }
 
-    private var times: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text(service.departure)
-                .font(Theme.Font.time)
-                .monospacedDigit()
-                .fixedSize(horizontal: true, vertical: false)
-
-            Image(systemName: "arrow.right")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(Theme.paper.opacity(0.7))
-
-            Text(service.arrival)
-                .font(Theme.Font.time)
-                .monospacedDigit()
-                .fixedSize(horizontal: true, vertical: false)
+    private func clock(label: String, time: String, colour: Color) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(label).labelStyle(Theme.textFaint).frame(minWidth: 64, alignment: .leading)
+            CathodeNumber(text: time, colour: colour, scale: .compact)
         }
     }
 
-    private var operatorBadge: some View {
-        Text(service.toc)
-            .font(Theme.Font.label)
-            .tracking(Theme.tracking)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 3)
-            .overlay(Rectangle().strokeBorder(Theme.paper.opacity(0.7), lineWidth: 1))
-            .fixedSize(horizontal: true, vertical: false)
+    private var activityLabel: some View {
+        Label(
+            isSelected ? "On Dynamic Island" : "Show on Dynamic Island",
+            systemImage: isSelected ? "checkmark.circle.fill" : "wave.3.right"
+        )
+        .foregroundStyle(isSelected ? Theme.serviceBlueLit : Theme.textDim)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var spoken: String {
         (isSelected ? "Your train. " : "")
-            + "Departs \(service.departure), arrives \(service.arrival), "
-            + "\(service.journeyMinutes) minutes"
+            + "Departs \(ServiceDay.formatClock(service.departure).spoken), arrives \(ServiceDay.formatClock(service.arrival).spoken), \(service.journeyMinutes) minutes"
     }
 }
 
-/**
- The places this direction goes.
-
- A list, never a search box. Everything offered is reachable by a direct train, because
- the list is built from direct trains — which is what stops the mode inheriting the
- "no direct service" dead end `PRODUCT.md` §1 removed.
-
- Ordered by journey time, which on a railway is the order you pass through them.
- */
 struct DestinationPicker: View {
     let station: Station
     let direction: Compass
     @Bindable var model: FastModel
-
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    if model.isLoading && model.destinations.isEmpty {
-                        skeleton
-                    } else if let message = model.errorMessage, model.destinations.isEmpty {
-                        Text(message)
-                            .font(Theme.Font.body)
-                            .foregroundStyle(Theme.textDim)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(Theme.Space.gutter)
-                    } else if model.destinations.isEmpty {
-                        Text("Nothing runs \(direction.rawValue) from here today.")
-                            .font(Theme.Font.body)
-                            .foregroundStyle(Theme.textDim)
-                            .padding(Theme.Space.gutter)
-                    } else {
-                        ForEach(model.destinations) { destination in
-                            row(destination)
-                        }
-
-                        if model.listIsProvisional {
-                            // Said rather than hidden. The server compares a direction's
-                            // list against the others to drop places another direction
-                            // reaches sooner, and it can only compare against what it has
-                            // already looked up.
-                            Text(
-                                "This list may include places another direction reaches "
-                                    + "sooner."
-                            )
-                            .font(Theme.Font.meta)
-                            .foregroundStyle(Theme.textFaint)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.horizontal, Theme.Space.gutter)
-                            .padding(.top, 16)
+            ZStack {
+                CathodeBackdrop()
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        if model.isLoading && model.destinations.isEmpty {
+                            loading
+                        } else if let message = model.errorMessage, model.destinations.isEmpty {
+                            messageView(message)
+                        } else if model.destinations.isEmpty {
+                            messageView("Nothing runs \(direction.rawValue) from here today.")
+                        } else {
+                            ForEach(model.destinations) { destination in row(destination) }
+                            if model.listIsProvisional {
+                                Text("Some places may be quicker in another direction.")
+                                    .font(Theme.Font.meta)
+                                    .foregroundStyle(Theme.textFaint)
+                                    .padding(Theme.Space.gutter)
+                            }
                         }
                     }
                 }
-                .padding(.bottom, 24)
             }
-            .background(Theme.surface)
             .navigationTitle("\(direction.rawValue.capitalized) of \(station.name.withoutLondonPrefix)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             }
         }
+        .preferredColorScheme(.dark)
         .task { await model.loadDestinations(at: station, direction: direction) }
     }
 
     private func row(_ destination: Destination) -> some View {
         let chosen = model.destination?.crs == destination.crs
-
         return Button {
             model.choose(Stations.find(destination.crs), at: station, direction: direction)
             dismiss()
@@ -353,30 +267,38 @@ struct DestinationPicker: View {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 Text(destination.name.withoutLondonPrefix)
                     .font(Theme.Font.body)
+                    .foregroundStyle(Theme.text)
                     .fixedSize(horizontal: false, vertical: true)
-
-                Spacer(minLength: 0)
-
+                Spacer(minLength: 8)
                 Text("\(destination.minutes) min")
                     .font(Theme.Font.meta.monospacedDigit())
-                    .foregroundStyle(chosen ? Theme.paper : Theme.textDim)
+                    .foregroundStyle(Theme.serviceBlueLit)
+                    .fixedSize(horizontal: true, vertical: false)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Theme.Space.gutter)
-            .padding(.vertical, 12)
-            .background(chosen ? Theme.serviceBlue : Color.clear)
-            .foregroundStyle(chosen ? Theme.paper : Theme.text)
+            .padding(.vertical, 14)
+            .background(chosen ? Theme.serviceBlue.opacity(0.45) : Color.clear)
+            .overlay(alignment: .bottom) { CathodeRule(colour: Theme.serviceBlueLit.opacity(0.3)) }
             .contentShape(Rectangle())
         }
         .buttonStyle(PressDim())
+        .accessibilityAddTraits(chosen ? .isSelected : [])
     }
 
-    private var skeleton: some View {
+    private func messageView(_ message: String) -> some View {
+        Text(message)
+            .font(Theme.Font.body)
+            .foregroundStyle(Theme.textDim)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(Theme.Space.gutter)
+    }
+
+    private var loading: some View {
         VStack(spacing: 1) {
             ForEach(0..<8, id: \.self) { _ in
-                Rectangle().fill(Theme.raised).frame(height: 44)
+                Rectangle().fill(Theme.control.opacity(0.42)).frame(height: 50)
             }
         }
-        .accessibilityHidden(true)
+        .accessibilityLabel("Loading destinations")
     }
 }
