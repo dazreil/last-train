@@ -44,9 +44,14 @@ struct FastBoardView: View {
         } else if model.isLoading && model.services.isEmpty {
             loading
         } else if model.services.isEmpty {
-            status(title: "Nothing direct left", body: "No more direct trains remain on this service day.")
+            // Reached only when the next service day is empty too, since `load` rolls on
+            // to it rather than stopping here.
+            status(
+                title: "Nothing direct left",
+                body: "No direct trains remain today, and none run tomorrow either."
+            )
         } else {
-            Text(model.isOnFirstPage ? "Fastest from now" : "Later direct trains")
+            Text(sectionTitle)
                 .cathodeSection(Theme.serviceBlueLit)
                 .padding(.horizontal, Theme.Space.gutter)
                 .padding(.top, 18)
@@ -71,6 +76,16 @@ struct FastBoardView: View {
                 }
             }
         }
+    }
+
+    /// Names what is on the board. Tomorrow's first trains must say so, or the times
+    /// read as tonight's — the one misreading this mode cannot afford at half past
+    /// midnight.
+    private var sectionTitle: String {
+        if model.showsNextServiceDay {
+            return model.isOnFirstPage ? "First trains tomorrow" : "Later tomorrow"
+        }
+        return model.isOnFirstPage ? "Fastest from now" : "Later direct trains"
     }
 
     private func status(title: String, body: String) -> some View {

@@ -407,14 +407,22 @@ struct BoardView: View {
             )
         case .fast:
             if !fast.isOnFirstPage && !fast.pageWrapsToNow { nowButton }
-            stepLabel(Self.pageName(fast.page))
+            stepLabel(fastPageName(fast.page))
             stepButton(
-                label: fast.pageWrapsToNow ? "Now" : Self.pageName(fast.page + 1),
+                label: fast.pageWrapsToNow ? fastPageName(0) : fastPageName(fast.page + 1),
                 action: { fast.advance() },
-                accessibility: fast.pageWrapsToNow ? "Back to the trains from now" : "Show the next three trains",
+                accessibility: fast.pageWrapsToNow ? "Back to the first trains" : "Show the next three trains",
                 value: "Page \(fast.page + 1) of \(fast.pageCount)"
             )
         }
+    }
+
+    /// The first page is "Now" on a live board and "First" once the day is spent and the
+    /// board has rolled on to tomorrow — where nothing is departing now, and saying so
+    /// would contradict the heading directly above it.
+    private func fastPageName(_ index: Int) -> String {
+        if index == 0 && fast.showsNextServiceDay { return "First" }
+        return Self.pageName(index)
     }
 
     private static let pageWords = ["Now", "Two", "Three", "Four", "Five"]
@@ -459,7 +467,7 @@ struct BoardView: View {
     }
 
     private var nowButton: some View {
-        Button { fast.now() } label: { wayBackLabel("Now") }
+        Button { fast.now() } label: { wayBackLabel(fastPageName(0)) }
             .buttonStyle(PressLift())
             .accessibilityLabel("Back to the trains from now")
     }

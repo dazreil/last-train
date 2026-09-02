@@ -55,6 +55,10 @@ final class FastModel {
     private(set) var services: [FastService] = []
     private(set) var truncated = false
 
+    /// True when today is spent and the board is showing the next service day's first
+    /// trains instead. The header says so; without that the times read as tonight's.
+    private(set) var showsNextServiceDay = false
+
     private(set) var isLoading = false
     private(set) var errorMessage: String?
     /// When the shown services were last fetched, for the "Updated HH:mm" trust stamp.
@@ -107,6 +111,7 @@ final class FastModel {
         destination = nil
         page = 0
         services = []
+        showsNextServiceDay = false
         activityMessage = nil
         selectionToken += 1
     }
@@ -126,6 +131,7 @@ final class FastModel {
         destination = chosen
         page = 0
         services = []
+        showsNextServiceDay = false
         updatedAt = nil
         activityMessage = nil
         // Force the board's reload even when `chosen` is the destination already showing:
@@ -169,6 +175,7 @@ final class FastModel {
         guard let heading = destination else {
             services = []
             updatedAt = nil
+            showsNextServiceDay = false
             return
         }
 
@@ -180,11 +187,43 @@ final class FastModel {
             let board = try await client.fast(from: station.crs, to: heading.crs)
             // The server priced them; the order is ours. `FastBoard` is the only place
             // that rule lives, on either platform.
-            services = FastBoard.rank(
+            var ranked = FastBoard.rank(
                 FastBoard.upcoming(board.services),
                 limit: Self.perPage * Self.maximumPages
             )
-            truncated = board.truncated
+            var boardTruncated = board.truncated
+            var rolled = false
+
+            /**
+             Nothing left today, so answer with tomorrow rather than with nothing.
+
+             Last Train has a day stepper and an explicit first-train section; Fast Train
+             has neither, so at the end of a service day it had only "Nothing direct left"
+             to offer — true, and useless at half past midnight, which is exactly when this
+             mode is opened. The next service day's first trains are the answer to the
+             question actually being asked, and the board says so above them.
+             */
+            if ranked.isEmpty,
+               let tomorrow = ServiceDay.addDays(ServiceDay.currentServiceDate(), 1) {
+                let next = try await client.fast(
+                    from: station.crs,
+                    to: heading.crs,
+                    date: tomorrow
+                )
+                let first = FastBoard.rank(
+                    next.services,
+                    limit: Self.perPage * Self.maximumPages
+                )
+                if !first.isEmpty {
+                    ranked = first
+                    boardTruncated = next.truncated
+                    rolled = true
+                }
+            }
+
+            services = ranked
+            truncated = boardTruncated
+            showsNextServiceDay = rolled
             page = 0
             updatedAt = Date()
         } catch is CancellationError {
@@ -194,6 +233,7 @@ final class FastModel {
         } catch {
             services = []
             updatedAt = nil
+            showsNextServiceDay = false
             errorMessage = (error as? BoardClientError)?.errorDescription
                 ?? error.localizedDescription
         }
