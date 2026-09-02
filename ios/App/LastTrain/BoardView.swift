@@ -17,7 +17,6 @@ struct BoardView: View {
     @State private var pickingStart = false
     @State private var inspecting: BoardDeparture?
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         ZStack {
@@ -143,66 +142,48 @@ struct BoardView: View {
 
     // MARK: - Header
 
+    /**
+     The mode, and the only place it is named.
+
+     `PRODUCT.md` always had Fast Train reached "by a deliberate tap on the title"; the
+     segmented pill came later, and then the screen said the same word twice — once as a
+     heading and once as a control. This is the two merged back into one: the mode you are
+     in reads in full, and the one you are not sits beside it, dim and a tap away.
+
+     Same grammar as the direction row below it — the choices inline, the live one lit,
+     the rest quiet — so the header, the journey and the compass read as one instrument
+     instead of three unrelated controls.
+     */
     private var masthead: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 16) {
-                wordmark
-                Spacer(minLength: 10)
-                modeControl
+        HStack(alignment: .firstTextBaseline, spacing: 14) {
+            Text(mode == .last ? "LAST TRAIN" : "FAST TRAIN")
+                .font(.system(.headline, design: .rounded).weight(.semibold))
+                .tracking(4.2)
+                .foregroundStyle(mode == .last ? Theme.text : Theme.serviceBlueLit)
+                .shadow(color: Theme.serviceBlue.opacity(0.6), radius: 8)
+                .fixedSize(horizontal: true, vertical: false)
+                .accessibilityAddTraits(.isHeader)
+
+            Button {
+                withAnimation(.snappy(duration: 0.24)) { mode = mode.other }
+            } label: {
+                Text(mode.other.shortName)
+                    .font(.system(.subheadline, design: .rounded).weight(.bold))
+                    .tracking(Theme.tracking)
+                    .foregroundStyle(Theme.textFaint)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
             }
-            VStack(alignment: .leading, spacing: 12) {
-                wordmark
-                modeControl.frame(maxWidth: .infinity, alignment: .trailing)
-            }
+            .buttonStyle(PressDim())
+            .accessibilityLabel(
+                mode.other == .last ? "Switch to Last Train" : "Switch to Fast Train"
+            )
+
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, Theme.Space.gutter)
         .padding(.top, 18)
-    }
-
-    private var wordmark: some View {
-        Text(mode == .last ? "LAST TRAIN" : "FAST TRAIN")
-            .font(.system(.headline, design: .rounded).weight(.semibold))
-            .tracking(4.2)
-            .foregroundStyle(mode == .last ? Theme.text : Theme.serviceBlueLit)
-            .shadow(color: Theme.serviceBlue.opacity(0.6), radius: 8)
-            .fixedSize(horizontal: true, vertical: false)
-    }
-
-    private var modeControl: some View {
-        HStack(spacing: 0) {
-            modeButton(.last, icon: "tram.fill")
-            modeButton(.fast, icon: "bolt.fill")
-        }
-        .padding(3)
-        .background(Theme.surface.opacity(0.82))
-        .overlay(Capsule().stroke(Theme.hairline, lineWidth: 1))
-        .clipShape(Capsule())
-        .accessibilityElement(children: .contain)
-    }
-
-    @ViewBuilder
-    private func modeButton(_ target: AppMode, icon: String) -> some View {
-        Button {
-            mode = target
-        } label: {
-            Group {
-                if typeSize.isAccessibilitySize {
-                    Image(systemName: icon)
-                        .font(.title3.weight(.semibold))
-                } else {
-                    Label(target == .last ? "Last" : "Fast", systemImage: icon)
-                        .font(Theme.Font.label)
-                }
-            }
-            .foregroundStyle(mode == target ? Theme.text : Theme.textFaint)
-            .padding(.horizontal, typeSize.isAccessibilitySize ? 14 : 12)
-            .frame(minWidth: 48, minHeight: 42)
-            .background(mode == target ? Theme.control : Color.clear, in: Capsule())
-            .contentShape(Capsule())
-        }
-        .buttonStyle(PressDim())
-        .accessibilityLabel(target == .last ? "Last Train" : "Fast Train")
-        .accessibilityAddTraits(mode == target ? .isSelected : [])
     }
 
     /// The directions, inline under the station name. The chosen one leads, lit blue; the
