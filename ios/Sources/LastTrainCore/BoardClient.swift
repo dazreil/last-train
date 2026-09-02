@@ -168,6 +168,9 @@ public struct BoardClient: Sendable {
     public func board(
         from crs: String,
         direction: Compass,
+        /// Where you are going, when it is known. Narrows the board to the trains that
+        /// reach there; absent, it answers by direction as it always has.
+        to: String? = nil,
         date: String? = nil,
         /// Set when this day was stepped on to because the previous one is spent.
         advanced: Bool = false,
@@ -182,6 +185,7 @@ public struct BoardClient: Sendable {
             URLQueryItem(name: "from", value: crs),
             URLQueryItem(name: "direction", value: direction.rawValue),
         ]
+        if let to { query.append(URLQueryItem(name: "to", value: to)) }
         if let date { query.append(URLQueryItem(name: "date", value: date)) }
         if advanced { query.append(URLQueryItem(name: "advanced", value: "1")) }
         if refresh { query.append(URLQueryItem(name: "refresh", value: "1")) }

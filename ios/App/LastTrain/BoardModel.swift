@@ -34,6 +34,20 @@ final class BoardModel {
         }
     }
 
+    /**
+     Where you are going, when the bar has both halves.
+
+     Reloads on change for the same reason `direction` does: it is half of the question,
+     and a board answering the previous one is worse than no board. Held as a code rather
+     than a `Station` because it is only ever passed through to the query.
+     */
+    var destinationCrs: String? {
+        didSet {
+            guard destinationCrs != oldValue else { return }
+            Task { await load() }
+        }
+    }
+
     private(set) var board: DepartureBoard?
     private(set) var isLoading = false
     private(set) var errorMessage: String?
@@ -144,6 +158,7 @@ final class BoardModel {
                 let result = try await client.board(
                     from: station.crs,
                     direction: direction,
+                    to: destinationCrs,
                     date: requestedDate,
                     // Only the *automatic* step past a spent day counts as advanced.
                     // `requestedDate` is also set by `stepForward`, and conflating the

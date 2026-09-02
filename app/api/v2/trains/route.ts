@@ -66,9 +66,18 @@ export const runtime = 'nodejs';
  * Namespaced so it cannot collide with `/api/trains` in the same answer store, and
  * keyed on `advanced` because the same day answers differently depending on whether
  * the reader has stepped on to it or is browsing ahead to it.
+ *
+ * Keyed on `to` for a blunter reason: a board filtered to a destination is a different
+ * answer to the same station and direction, and serving one for the other would drop
+ * trains silently — the worst shape of wrong this route can produce.
  */
-const answerKey = (crs: string, direction: string, date: IsoDate, advanced: boolean) =>
-  `v2:${crs}:${direction}:${date}${advanced ? ':advanced' : ''}`;
+const answerKey = (
+  crs: string,
+  direction: string,
+  date: IsoDate,
+  advanced: boolean,
+  to: string | null
+) => `v2:${crs}:${direction}:${date}${advanced ? ':advanced' : ''}${to ? `:to:${to}` : ''}`;
 
 const json = (body: unknown, init?: ResponseInit) =>
   new Response(JSON.stringify(body), {
@@ -141,6 +150,25 @@ export async function GET(request: Request) {
   const refresh = params.get('refresh') === '1';
 
   /**
+   * Where you are going, when the caller knows.
+   *
+   * Optional, and absent it changes nothing — the board still answers "what leaves this
+   * way", which is the question the app opens on. Given, it narrows the board to the
+   * trains that actually reach there, which is the question the two-code bar asks.
+   *
+   * This is the same upstream filter the branch waypoint below already uses, pointed at
+   * a destination the reader chose instead of one the route table inferred. It does the
+   * waypoint's job better wherever it is present: a service that calls at your
+   * destination is on your branch by definition.
+   */
+  const toCrs = (params.get('to') ?? '').trim().toUpperCase();
+  const to = toCrs ? findStationByCrs(toCrs) : null;
+  if (toCrs && !to) return badRequest(`Unknown station code "${toCrs}".`);
+  if (to && to.crs === from.crs) {
+    return badRequest('Origin and destination must be different stations.');
+  }
+
+  /**
    * "I have stepped on to this day because the last one is spent."
    *
    * Between a service day's last train and 03:00 the current day is still today's, but
@@ -153,7 +181,7 @@ export async function GET(request: Request) {
    */
   const advanced = params.get('advanced') === '1' && date === addDays(today, 1);
   const diagnosticsOn = process.env.DEBUG_DIAGNOSTICS === '1';
-  const key = answerKey(from.crs, direction, date, advanced);
+  const key = answerKey(from.crs, direction, date, advanced, to?.crs ?? null);
   const ttl = ttlSecondsFor(date);
 
   if (!refresh) {
@@ -191,11 +219,25 @@ export async function GET(request: Request) {
     const waypoint = waypointFor(from.crs, direction);
 
     /**
+     * What the upstream line-up is filtered to, if anything.
+     *
+     * A chosen destination outranks an inferred waypoint. The waypoint exists only to
+     * tell two branches apart when all we know is a bearing; a destination tells them
+     * apart exactly, and narrows the board to the trains that get you there as well.
+     */
+    const filterTo = to?.crs ?? waypoint;
+
+    /**
      * One service day: the whole line-up, then every boardable departure classified
      * by the bearing to where it is going.
      *
-     * Unfiltered on purpose. There is no destination to filter to, and filtering to a
-     * line's far terminus would drop the services that terminate short — often
+     * The line-up itself is unfiltered on purpose, and stays that way even when a
+     * destination is given: it is what the compass row is counted from, and a filtered
+     * one would report the other three directions as empty. Only `candidates` — the
+     * services the board actually lists — narrows.
+     *
+     * Note what is *not* done here: filtering to a line's far terminus when no
+     * destination was asked for. That would drop the services terminating short, often
      * including the last one out.
      */
     const loadDay = async (forDate: IsoDate) => {
@@ -226,8 +268,8 @@ export async function GET(request: Request) {
        * which is to say only where the cheap answer was wrong.
        */
       let directional: LocationLineUpResponse | null = null;
-      if (waypoint) {
-        const filteredKey = `${rawKey}:${waypoint}`;
+      if (filterTo) {
+        const filteredKey = `${rawKey}:${filterTo}`;
         const cachedFiltered = refresh
           ? null
           : getCachedLineUp<LocationLineUpResponse | null>(filteredKey);
@@ -237,7 +279,7 @@ export async function GET(request: Request) {
         } else {
           directional = await locationLineUp({
             code: from.crs,
-            filterTo: waypoint,
+            filterTo,
             ...serviceDayWindow(forDate),
           });
           requestsSpent += 1;
@@ -262,8 +304,9 @@ export async function GET(request: Request) {
         fromCache,
         boardable,
         classified,
-        // Where a waypoint answered, the filter *is* the classification and nothing is
-        // inferred. Otherwise the destination bearing, as before.
+        // Where the upstream filter answered — a chosen destination, or a waypoint
+        // standing in for one — it *is* the classification and nothing is inferred.
+        // Otherwise the destination bearing, as before.
         candidates: directional
           ? sortedDepartures(directional)
           : classified

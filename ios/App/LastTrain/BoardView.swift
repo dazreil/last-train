@@ -84,6 +84,12 @@ struct BoardView: View {
         .task(id: "\(model.station?.crs ?? "-"):\(model.direction.rawValue)") {
             guard let station = model.station else { return }
             fast.adopt(station: station, direction: model.direction)
+            model.destinationCrs = fast.destination?.crs
+        }
+        // Both modes ask the same pair now, so the destination has to reach the Last
+        // Train query too — not only Fast Train's.
+        .onChange(of: fast.destination?.crs) { _, latest in
+            model.destinationCrs = latest
         }
         .sheet(isPresented: $pickingStart) {
             if let end = fast.destination {
