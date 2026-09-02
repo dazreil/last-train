@@ -8,29 +8,31 @@ struct ServiceRow: View {
     let isLastTrain: Bool
     var isPinned = false
 
+    @Environment(\.dynamicTypeSize) private var typeSize
+
     private var colour: Color { isLastTrain ? Theme.lastTrainRedLit : Theme.serviceBlueLit }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ViewThatFits(in: .horizontal) {
+            // A long destination wraps beside the time; it does not drop to a second line
+            // under it. `ViewThatFits` used to stack them the moment a name like Fenchurch
+            // Street stopped fitting on one line, which pushed the board past a screen. Only
+            // an accessibility type size — where the time itself is huge — stacks now.
+            if typeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 6) {
+                    time
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        destination
+                        Spacer(minLength: 8)
+                        chevron
+                    }
+                }
+            } else {
                 HStack(alignment: .firstTextBaseline, spacing: 13) {
                     time
                     destination
-                    Spacer(minLength: 6)
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(colour)
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    time
-                    HStack(alignment: .firstTextBaseline) {
-                        destination
-                        Spacer(minLength: 8)
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(colour)
-                    }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    chevron
                 }
             }
 
@@ -50,6 +52,12 @@ struct ServiceRow: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(spoken)
         .accessibilityHint("Shows calling points and widget controls")
+    }
+
+    private var chevron: some View {
+        Image(systemName: "chevron.right")
+            .font(.caption.weight(.bold))
+            .foregroundStyle(colour)
     }
 
     private var time: some View {
