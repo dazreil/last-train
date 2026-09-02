@@ -379,7 +379,7 @@ struct BoardView: View {
 
     /// The date stepper (Last) and the page stepper (Fast), named the way the main design
     /// names them: three slots — the way back, where you are, and where the next tap lands.
-    /// Days read Today · Wed · Thurs; pages read Now · Two · Three.
+    /// Days read Today · Wed · Thurs; pages read 1st · 2nd · 3rd.
     @ViewBuilder
     private var dayControl: some View {
         HStack(alignment: .center, spacing: 7) {
@@ -407,27 +407,40 @@ struct BoardView: View {
             )
         case .fast:
             if !fast.isOnFirstPage && !fast.pageWrapsToNow { nowButton }
-            stepLabel(fastPageName(fast.page))
+            stepLabel(Self.pageName(fast.page))
             stepButton(
-                label: fast.pageWrapsToNow ? fastPageName(0) : fastPageName(fast.page + 1),
+                label: fast.pageWrapsToNow ? Self.pageName(0) : Self.pageName(fast.page + 1),
                 action: { fast.advance() },
-                accessibility: fast.pageWrapsToNow ? "Back to the first trains" : "Show the next three trains",
+                accessibility: fast.pageWrapsToNow ? "Back to the first three trains" : "Show the next three trains",
                 value: "Page \(fast.page + 1) of \(fast.pageCount)"
             )
         }
     }
 
-    /// The first page is "Now" on a live board and "First" once the day is spent and the
-    /// board has rolled on to tomorrow — where nothing is departing now, and saying so
-    /// would contradict the heading directly above it.
-    private func fastPageName(_ index: Int) -> String {
-        if index == 0 && fast.showsNextServiceDay { return "First" }
-        return Self.pageName(index)
-    }
+    /**
+     Pages count themselves: 1st, 2nd, 3rd.
 
-    private static let pageWords = ["Now", "Two", "Three", "Four", "Five"]
+     They used to read Now · Two · Three, which mixed a position with a time and then
+     needed a special case the moment the board rolled on to tomorrow — where nothing
+     departs "now" and the word contradicted the heading above it. An ordinal says only
+     where you are in the list, which is true on a live board and a next-day one alike.
+     */
     private static func pageName(_ index: Int) -> String {
-        index >= 0 && index < pageWords.count ? pageWords[index] : "\(index + 1)"
+        let n = index + 1
+        let suffix: String
+        // 11th, 12th and 13th break the units rule and are the usual bug here, so they
+        // are excluded before it is applied rather than after.
+        if (11...13).contains(n % 100) {
+            suffix = "th"
+        } else {
+            switch n % 10 {
+            case 1: suffix = "st"
+            case 2: suffix = "nd"
+            case 3: suffix = "rd"
+            default: suffix = "th"
+            }
+        }
+        return "\(n)\(suffix)"
     }
 
     /// The middle slot: where you are, and not a control.
@@ -467,7 +480,7 @@ struct BoardView: View {
     }
 
     private var nowButton: some View {
-        Button { fast.now() } label: { wayBackLabel(fastPageName(0)) }
+        Button { fast.now() } label: { wayBackLabel(Self.pageName(0)) }
             .buttonStyle(PressLift())
             .accessibilityLabel("Back to the trains from now")
     }
