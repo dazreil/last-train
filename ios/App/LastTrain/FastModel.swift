@@ -303,7 +303,7 @@ enum AppMode: String {
     /// The one you are not reading, named beside the one you are.
     var other: AppMode { self == .last ? .fast : .last }
 
-    /// Just the word that changes. The header spells the live mode out in full and sets
-    /// this one quietly beside it, so "TRAIN" is not printed twice to say one thing.
-    var shortName: String { self == .last ? "LAST" : "FAST" }
+    /// The header spells both modes out and separates them by light rather than by
+    /// length: the live one lit, the other dim beside it.
+    var wordmark: String { self == .last ? "LAST TRAIN" : "FAST TRAIN" }
 }

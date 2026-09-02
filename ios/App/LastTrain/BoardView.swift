@@ -156,10 +156,12 @@ struct BoardView: View {
      */
     private var masthead: some View {
         HStack(alignment: .firstTextBaseline, spacing: 14) {
-            Text(mode == .last ? "LAST TRAIN" : "FAST TRAIN")
+            Text(mode.wordmark)
                 .font(.system(.headline, design: .rounded).weight(.semibold))
                 .tracking(4.2)
-                .foregroundStyle(mode == .last ? Theme.text : Theme.serviceBlueLit)
+                // Blue in both modes. The lit word is the one you are in; which question
+                // it is, the word itself already says.
+                .foregroundStyle(Theme.serviceBlueLit)
                 .shadow(color: Theme.serviceBlue.opacity(0.6), radius: 8)
                 .fixedSize(horizontal: true, vertical: false)
                 .accessibilityAddTraits(.isHeader)
@@ -167,7 +169,7 @@ struct BoardView: View {
             Button {
                 withAnimation(.snappy(duration: 0.24)) { mode = mode.other }
             } label: {
-                Text(mode.other.shortName)
+                Text(mode.other.wordmark)
                     .font(.system(.subheadline, design: .rounded).weight(.bold))
                     .tracking(Theme.tracking)
                     .foregroundStyle(Theme.textFaint)
