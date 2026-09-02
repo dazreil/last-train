@@ -33,6 +33,31 @@ public enum Compass: String, CaseIterable, Sendable, Codable {
     case east
     case south
     case west
+
+    /**
+     The way back.
+
+     To reach B travelling west, you must have started east of it — so the stations that
+     can serve as an origin for a westward trip into B are exactly B's *eastward*
+     destinations. That is what this is for, and it is the whole mechanism behind editing
+     the start of a journey without disturbing its end.
+
+     **Verified against the live API before it was relied on**, because a railway curves
+     and a bearing is not a compass rose. Six round trips, every one of them returning to
+     where it started: Upminster west to Barking then Barking east back to Upminster, the
+     same to Fenchurch Street, Westcliff west back to Upminster, and — the two that could
+     have broken it — the Romford branch through east, and the Ockendon branch through
+     south and north. West reverses to east and south reverses to north, reliably, even
+     where the track does not.
+     */
+    public var opposite: Compass {
+        switch self {
+        case .north: .south
+        case .south: .north
+        case .east: .west
+        case .west: .east
+        }
+    }
 }
 
 public struct Coordinate: Equatable, Sendable, Codable {

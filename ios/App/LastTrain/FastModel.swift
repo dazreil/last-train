@@ -98,7 +98,17 @@ final class FastModel {
         destination = SharedSelection.destination(for: station.crs, direction: direction)
         syncActivityState()
         activityMessage = nil
-        if destination == nil { isChoosing = true }
+    }
+
+    /// Forget where this pair was going. The compass row calls this: choosing a direction
+    /// again is choosing a new journey, and the old destination belonged to the old one.
+    func clearDestination(at station: Station, direction: Compass) {
+        SharedSelection.setDestination(nil, crs: station.crs, direction: direction)
+        destination = nil
+        page = 0
+        services = []
+        activityMessage = nil
+        selectionToken += 1
     }
 
     /// A Live Activity can be dismissed or ended outside this process. Re-read the

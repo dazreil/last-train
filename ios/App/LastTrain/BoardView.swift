@@ -14,7 +14,7 @@ struct BoardView: View {
     @State private var model = BoardModel()
     @State private var fast = FastModel()
     @State private var mode: AppMode = .last
-    @State private var pickingStation = false
+    @State private var pickingStart = false
     @State private var inspecting: BoardDeparture?
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -79,7 +79,41 @@ struct BoardView: View {
             }
         }
         .onOpenURL { model.open($0) }
-        .sheet(isPresented: $pickingStation) { StationPicker(selection: $model.station) }
+        // The destination is half the bar in both modes now, so it is read here rather
+        // than inside Fast Train's view — Last Train shows it too.
+        .task(id: "\(model.station?.crs ?? "-"):\(model.direction.rawValue)") {
+            guard let station = model.station else { return }
+            fast.adopt(station: station, direction: model.direction)
+        }
+        .sheet(isPresented: $pickingStart) {
+            if let end = fast.destination {
+                // Editing the start: the valid origins are exactly the places that reach
+                // your destination from the other side.
+                LinePicker(
+                    from: end,
+                    direction: model.direction.opposite,
+                    title: "\(model.direction.opposite.rawValue.capitalized) of \(end.crs)",
+                    selectedCrs: model.station?.crs
+                ) { picked, onLine in
+                    adoptStart(picked, keepingDestination: onLine)
+                }
+            } else {
+                // Nothing to work back from yet, so this is the plain search.
+                StationPicker(selection: $model.station)
+            }
+        }
+        .sheet(isPresented: $fast.isChoosing) {
+            if let start = model.station {
+                LinePicker(
+                    from: start,
+                    direction: model.direction,
+                    title: "\(model.direction.rawValue.capitalized) of \(start.crs)",
+                    selectedCrs: fast.destination?.crs
+                ) { picked, onLine in
+                    adoptEnd(picked, from: start, onLine: onLine)
+                }
+            }
+        }
         .sheet(item: $inspecting) { service in
             if let station = model.station {
                 ServiceSheet(
@@ -184,7 +218,12 @@ struct BoardView: View {
                 if avail.contains(direction) {
                     Button {
                         withAnimation(.snappy(duration: 0.28)) { model.direction = direction }
-                        if mode == .fast { fast.askWhereTo() }
+                        // Choosing a direction is choosing a new journey, so the old
+                        // destination goes and the list opens on the new one.
+                        if let station = model.station {
+                            fast.clearDestination(at: station, direction: direction)
+                            fast.askWhereTo()
+                        }
                     } label: {
                         directionLabel(direction, selected: selected)
                     }
@@ -219,31 +258,101 @@ struct BoardView: View {
             .contentShape(Rectangle())
     }
 
+    /**
+     Where you are and where you are going, as two codes.
+
+     `UPM → BKG`. The name is gone from the title because the code is what the railway
+     prints on its own signage, it is read at a glance in the dark, and two of them fit
+     where one name did. Either half is its own tap target and edits without disturbing
+     the other; the full name is always one tap away in the list that opens.
+     */
+    private var journeyBar: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            codeButton(
+                model.station?.crs,
+                placeholder: "Where?",
+                label: "Departure station, \(model.station?.name ?? "not set")"
+            ) {
+                model.clearNearby()
+                pickingStart = true
+            }
+
+            if model.station != nil {
+                Image(systemName: "arrow.right")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(Theme.textFaint)
+                    .accessibilityHidden(true)
+
+                codeButton(
+                    fast.destination?.crs,
+                    placeholder: "—",
+                    label: "Destination, \(fast.destination?.name ?? "not set")"
+                ) {
+                    fast.askWhereTo()
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            if model.station != nil { locateButton }
+        }
+    }
+
+    /**
+     A new start, keeping the destination only if a train still runs between them.
+
+     `onLine` is the whole reset rule. It is true when the station came from the list,
+     which was built from the destination's own reachable set — so the pair is valid by
+     construction, and the destination is simply re-filed under the new pair. It is false
+     when the station came from the search box, which knows all 2,619 stations and nothing
+     about this journey: that is a new journey, and the destination goes.
+
+     The destination is stored per start-and-direction, so keeping it means writing it
+     under the new start rather than merely not deleting it.
+     */
+    private func adoptStart(_ picked: Station, keepingDestination: Bool) {
+        if keepingDestination, let end = fast.destination {
+            fast.choose(end, at: picked, direction: model.direction)
+        } else {
+            fast.clearDestination(at: picked, direction: model.direction)
+        }
+        model.station = picked
+    }
+
+    /// A new destination — or, when it is somewhere this journey cannot reach, a new
+    /// journey starting there. Same rule, read from the other end.
+    private func adoptEnd(_ picked: Station, from start: Station, onLine: Bool) {
+        if onLine {
+            fast.choose(picked, at: start, direction: model.direction)
+        } else {
+            fast.clearDestination(at: picked, direction: model.direction)
+            model.station = picked
+        }
+    }
+
+    /// One half of the bar. Dim and named while empty, lit and coded once set.
+    private func codeButton(
+        _ crs: String?,
+        placeholder: String,
+        label: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(crs ?? placeholder)
+                .font(.system(.largeTitle, design: .rounded).weight(.medium))
+                .monospacedDigit()
+                .foregroundStyle(crs == nil ? Theme.textDim : Theme.text)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressDim())
+        .accessibilityLabel(label)
+    }
+
     private var stationHeader: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center, spacing: 12) {
-                Button {
-                    model.clearNearby()
-                    pickingStation = true
-                } label: {
-                    HStack(alignment: .center, spacing: 9) {
-                        Text(model.station?.name.withoutLondonPrefix ?? "Choose station")
-                            .font(.system(.largeTitle, design: .rounded).weight(.medium))
-                            .foregroundStyle(model.station == nil ? Theme.textDim : Theme.text)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Image(systemName: "chevron.down")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(Theme.textDim)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(PressDim())
-                .accessibilityLabel("Departure station, \(model.station?.name ?? "not selected")")
-
-                Spacer(minLength: 8)
-
-                locateButton
-            }
+            journeyBar
 
             if model.station != nil { directionPicker }
 
