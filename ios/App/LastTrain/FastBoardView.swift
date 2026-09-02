@@ -146,7 +146,7 @@ struct FastRow: View {
                 .font(Theme.Font.meta)
                 .foregroundStyle(Theme.textDim)
 
-                Text("Towards \(service.destination.withoutLondonPrefix) · \(service.toc)")
+                Text("Towards \(Stations.code(forName: service.destination) ?? service.destination.withoutLondonPrefix) · \(service.toc)")
                     .font(Theme.Font.meta)
                     .foregroundStyle(Theme.textFaint)
                     .fixedSize(horizontal: false, vertical: true)
@@ -265,10 +265,19 @@ struct DestinationPicker: View {
             dismiss()
         } label: {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(destination.name.withoutLondonPrefix)
-                    .font(Theme.Font.body)
-                    .foregroundStyle(Theme.text)
-                    .fixedSize(horizontal: false, vertical: true)
+                // Code *and* name here, unlike the board rows. A list is where you are
+                // deciding rather than reading a known answer, and two codes a letter
+                // apart — BKG and BGV — are different places entirely.
+                HStack(alignment: .firstTextBaseline, spacing: 9) {
+                    Text(destination.crs)
+                        .font(Theme.Font.body.monospacedDigit())
+                        .foregroundStyle(Theme.serviceBlueLit)
+                        .fixedSize(horizontal: true, vertical: false)
+                    Text(destination.name.withoutLondonPrefix)
+                        .font(Theme.Font.body)
+                        .foregroundStyle(Theme.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Spacer(minLength: 8)
                 Text("\(destination.minutes) min")
                     .font(Theme.Font.meta.monospacedDigit())

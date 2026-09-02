@@ -107,6 +107,37 @@ public enum Stations {
         byCrs[crs.trimmingCharacters(in: .whitespaces).uppercased()]
     }
 
+    /**
+     Name to station, for the one direction the API does not answer.
+
+     A board row carries its destination as a name — `London Fenchurch Street` — and no
+     code, because the upstream line-up names the terminus rather than coding it. Showing
+     `FST` on the row therefore needs this way round.
+
+     **Checked against live boards before it was written**: every destination name six real
+     boards produced resolved here. It is still a lookup that can miss, so every caller
+     falls back to the name rather than to nothing — a row that says Fenchurch Street is
+     merely wider than one that says FST, while a row that says nothing is a bug.
+
+     Case- and whitespace-insensitive, since the two datasets agree on spelling but there
+     is no reason to depend on their agreeing on either of those.
+     */
+    private static let byName: [String: Station] = {
+        Dictionary(
+            all.map { ($0.name.lowercased(), $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+    }()
+
+    public static func named(_ name: String) -> Station? {
+        byName[name.trimmingCharacters(in: .whitespaces).lowercased()]
+    }
+
+    /// The three-letter code for a destination name, or `nil` when it cannot be resolved.
+    public static func code(forName name: String) -> String? {
+        named(name)?.crs
+    }
+
     /// Built once. Rebuilding per location update would cost more than the scan it replaces.
     public static let index = SpatialIndex(all)
 

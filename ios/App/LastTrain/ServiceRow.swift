@@ -65,9 +65,21 @@ struct ServiceRow: View {
             .frame(maxWidth: 190, alignment: .leading)
     }
 
+    /**
+     Where it goes, as a code.
+
+     `FST` rather than `London Fenchurch Street`. The board is read standing up, in the
+     dark, in a couple of seconds, and a code is the form the railway already prints on
+     its own signage — so it reads faster and costs a fraction of the width. The full name
+     is one tap away in the sheet, which is where the calling points live anyway.
+
+     **Falls back to the name.** `Stations.code(forName:)` can miss, and a wide row is a
+     far better failure than an empty one.
+     */
     private var destination: some View {
-        Text(service.destination.withoutLondonPrefix)
+        Text(Stations.code(forName: service.destination) ?? service.destination.withoutLondonPrefix)
             .font(Theme.Font.destination)
+            .monospacedDigit()
             .foregroundStyle(Theme.text)
             .fixedSize(horizontal: false, vertical: true)
     }
