@@ -178,8 +178,8 @@ struct FastRow: View {
         .accessibilityLabel(spoken)
         .accessibilityHint(
             isSelected
-                ? "Stops counting this train down"
-                : "Counts this train down on the lock screen once it departs within four hours"
+                ? "Stops following this train"
+                : "Follows this train on the lock screen once it departs within four hours"
         )
     }
 
@@ -194,7 +194,7 @@ struct FastRow: View {
 
     private var activityLabel: some View {
         Label(
-            isSelected ? "Counting down" : "Countdown",
+            isSelected ? "Following" : "Follow",
             systemImage: isSelected ? "checkmark.circle.fill" : "wave.3.right"
         )
         .foregroundStyle(isSelected ? Theme.serviceBlueLit : Theme.textDim)
