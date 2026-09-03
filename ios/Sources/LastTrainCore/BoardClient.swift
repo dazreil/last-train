@@ -31,6 +31,19 @@ public struct BoardDeparture: Decodable, Sendable, Identifiable, Equatable {
     /// the calling pattern could not answer.
     public let journeyMinutes: Int?
 
+    /**
+     What a pin stores to find this exact departure again.
+
+     Headcode alone is not enough: replacement buses on an engineering night share one, so
+     a pin on the 00:17 bus matched the 23:54 too and only the first could ever be chosen.
+     The departure time disambiguates them, and is as stable day to day as the headcode is
+     for an ordinary train — the same scheduled service recurs at the same time.
+     */
+    public var pinToken: String? {
+        guard let headcode else { return nil }
+        return "\(headcode)|\(dep)"
+    }
+
     public var id: String { serviceId }
 
     /// The departure as an absolute instant, for counting down to.

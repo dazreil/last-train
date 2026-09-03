@@ -98,7 +98,7 @@ public struct Glance: Sendable, Equatable {
          red. Pinning the last train should not quietly disarm the warning.
          */
         if let pinned, !pinned.isEmpty,
-           let mine = remaining.first(where: { $0.headcode == pinned }) {
+           let mine = remaining.first(where: { $0.pinToken == pinned }) {
             let isLast = board.lastTrain.map { $0.id == mine.id } ?? false
             return Glance(
                 label: isLast ? .lastTrain : .pinned,

@@ -277,8 +277,8 @@ final class BoardModel {
     }
 
     func isPinned(_ service: BoardDeparture) -> Bool {
-        guard let headcode = service.headcode else { return false }
-        return headcode == pinnedHeadcode
+        guard let token = service.pinToken else { return false }
+        return token == pinnedHeadcode
     }
 
     /**
@@ -306,7 +306,7 @@ final class BoardModel {
         pinChanges += 1
         guard let station else { return }
         SharedSelection.setPin(
-            following ? service.headcode : nil,
+            following ? service.pinToken : nil,
             crs: station.crs,
             direction: direction
         )
