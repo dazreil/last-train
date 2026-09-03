@@ -155,6 +155,8 @@ export interface FastService {
   /** London clock at the chosen destination. */
   arrival: string;
   arrivalInstant: string;
+  /** The platform it leaves the origin from, when the line-up knows one. */
+  platform: string | null;
 }
 
 /** Every direct train from A to B in the window, with arrivals worked out. */

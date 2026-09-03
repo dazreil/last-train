@@ -444,10 +444,25 @@ struct BoardView: View {
     }
 
     /// The middle slot: where you are, and not a control.
-    private func stepLabel(_ text: String) -> some View {
+    /**
+     One word in the day or page row, set exactly as a direction is.
+
+     The two rows sit one above the other and were reading at different sizes in
+     different colours, which made them look like different kinds of control rather than
+     the same one asked twice. Lit blue means the same thing here as it does there: this
+     is the one you are on.
+     */
+    private func stepText(_ text: String, lit: Bool) -> some View {
         Text(text)
-            .labelStyle(Theme.text)
+            .font(.system(.subheadline, design: .rounded).weight(.bold))
+            .tracking(Theme.tracking)
+            .textCase(.uppercase)
+            .foregroundStyle(lit ? Theme.serviceBlueLit : Theme.textDim)
             .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private func stepLabel(_ text: String) -> some View {
+        stepText(text, lit: true)
             .padding(.vertical, 4)
     }
 
@@ -459,11 +474,12 @@ struct BoardView: View {
         value: String? = nil
     ) -> some View {
         Button(action: action) {
-            HStack(spacing: 5) {
-                Text(label).fixedSize(horizontal: true, vertical: false)
-                Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
+            HStack(spacing: 6) {
+                stepText(label, lit: false)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(Theme.textDim)
             }
-            .labelStyle(Theme.textDim)
             .padding(.vertical, 4)
             .contentShape(Rectangle())
         }
@@ -486,9 +502,7 @@ struct BoardView: View {
     }
 
     private func wayBackLabel(_ text: String) -> some View {
-        Text(text)
-            .labelStyle(Theme.textDim)
-            .fixedSize(horizontal: true, vertical: false)
+        stepText(text, lit: false)
             .padding(.vertical, 4)
     }
 

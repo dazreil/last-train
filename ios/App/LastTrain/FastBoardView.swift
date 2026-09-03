@@ -186,8 +186,10 @@ struct FastRow: View {
     /// `18 min · c2c`. The journey length leads, because on this board it is the figure
     /// that decides between two trains.
     private var meta: String {
-        let operatorName = service.tocName.isEmpty ? service.toc : service.tocName
-        return "\(service.journeyMinutes) min · \(operatorName)"
+        var parts = ["\(service.journeyMinutes) min"]
+        parts.append(service.tocName.isEmpty ? service.toc : service.tocName)
+        if let platform = service.platform { parts.append("Platform \(platform)") }
+        return parts.joined(separator: " · ")
     }
 
     private var activityLabel: some View {

@@ -27,6 +27,8 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
     public let departure: String
     /// London clock at the chosen destination, for reading.
     public let arrival: String
+    /// The platform it leaves the origin from, when the line-up knows one.
+    public let platform: String?
     /// Both as moments, for ordering. Never re-derived from the strings above.
     public let departsAt: Date
     public let arrivesAt: Date
@@ -46,6 +48,7 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         destination: String,
         departure: String,
         arrival: String,
+        platform: String? = nil,
         departsAt: Date,
         arrivesAt: Date
     ) {
@@ -56,13 +59,14 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         self.destination = destination
         self.departure = departure
         self.arrival = arrival
+        self.platform = platform
         self.departsAt = departsAt
         self.arrivesAt = arrivesAt
     }
 
     private enum CodingKeys: String, CodingKey {
         case serviceId, headcode, toc, tocName, destination
-        case departure, departureInstant, arrival, arrivalInstant
+        case departure, departureInstant, arrival, arrivalInstant, platform
     }
 
     /**
@@ -82,6 +86,8 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         destination = try container.decode(String.self, forKey: .destination)
         departure = try container.decode(String.self, forKey: .departure)
         arrival = try container.decode(String.self, forKey: .arrival)
+        // Optional: a deployment that predates it simply has no platform to give.
+        platform = try container.decodeIfPresent(String.self, forKey: .platform)
 
         let departureInstant = try container.decode(String.self, forKey: .departureInstant)
         let arrivalInstant = try container.decode(String.self, forKey: .arrivalInstant)

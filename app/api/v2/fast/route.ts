@@ -30,7 +30,7 @@ import {
 import { findStationByCrs } from '@/lib/nationalStations';
 import { getCached, getCachedLocations, setCached, setCachedLocations, ttlSecondsFor } from '@/lib/cache';
 import type { FastBoard, FastService } from '@/lib/nationalContract';
-import type { ServiceLocation } from '@/lib/rtt';
+import type { LocationLineUpObject, ServiceLocation } from '@/lib/rtt';
 
 export const runtime = 'nodejs';
 
@@ -56,6 +56,19 @@ export const runtime = 'nodejs';
  * dropped.
  */
 const PATTERN_BUDGET = 15;
+
+/**
+ * Which platform it leaves from.
+ *
+ * Free here: the filtered line-up already carries it for the origin, so this costs no
+ * request on a route where every arrival costs one. A local copy for the same reason
+ * `/api/v2/trains` keeps one — the shared helper in `lib/journeys` is private to the
+ * module that answers the old web route.
+ */
+const platformOf = (service: LocationLineUpObject): string | null =>
+  service.locationMetadata?.platform?.actual ??
+  service.locationMetadata?.platform?.planned ??
+  null;
 
 const answerKey = (from: string, to: string, date: IsoDate) => `fast:${from}:${to}:${date}`;
 
@@ -179,6 +192,7 @@ export async function GET(request: Request) {
       toc: candidate.scheduleMetadata?.operator?.code ?? '??',
       tocName: candidate.scheduleMetadata?.operator?.name ?? 'Unknown operator',
       destination: describe(candidate.destination),
+      platform: platformOf(candidate),
       ...service,
     });
   }
