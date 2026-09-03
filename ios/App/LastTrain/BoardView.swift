@@ -203,7 +203,7 @@ struct BoardView: View {
         let availableOrdered = [selected] + avail.filter { $0 != selected }
         let ordered = availableOrdered + Compass.allCases.filter { !avail.contains($0) }
 
-        return HStack(spacing: 0) {
+        return HStack(spacing: 20) {
             ForEach(ordered, id: \.self) { direction in
                 if avail.contains(direction) {
                     Button {
@@ -230,6 +230,8 @@ struct BoardView: View {
                         .accessibilityHidden(true)
                 }
             }
+            // Words are their own width now, so the row needs telling where to sit.
+            Spacer(minLength: 0)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Direction")
@@ -244,7 +246,13 @@ struct BoardView: View {
             .textCase(.uppercase)
             .foregroundStyle(direction == selected ? Theme.serviceBlueLit : Theme.textDim)
             .lineLimit(1)
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            // Sized to the word, not to a share of the row. Equal columns put an equal
+            // *box* around each, which is not the same as an equal gap between them:
+            // SOUTH is a letter longer than EAST and WEST, so leading the row it filled
+            // more of its column and the space after it closed up. The eye reads the gap,
+            // so the gap is what is held constant.
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
     }
 
