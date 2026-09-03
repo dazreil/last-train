@@ -125,6 +125,7 @@ struct BoardView: View {
                     service: service,
                     station: station,
                     direction: model.direction,
+                    destinationCrs: fast.destination?.crs,
                     isLastTrain: service.serviceId == model.board?.lastTrain?.serviceId,
                     isPinned: model.isPinned(service),
                     onPin: { following in

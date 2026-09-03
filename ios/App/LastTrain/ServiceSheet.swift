@@ -23,6 +23,9 @@ struct ServiceSheet: View {
     let service: BoardDeparture
     let station: Station
     let direction: Compass
+    /// Where the journey ends, when the bar has both halves. The sheet works without one
+    /// — it simply has no journey to time.
+    var destinationCrs: String?
     /// The genuine final service, not any member of the last-trains group.
     let isLastTrain: Bool
     /// Whether this train is the one the widget is following.
@@ -81,6 +84,13 @@ struct ServiceSheet: View {
                 .font(Theme.Font.meta)
                 .foregroundStyle(Theme.textDim)
                 .fixedSize(horizontal: false, vertical: true)
+
+            if let journey {
+                Text(journey)
+                    .font(Theme.Font.meta)
+                    .foregroundStyle(Theme.serviceBlueLit)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Theme.Space.gutter)
@@ -145,6 +155,36 @@ struct ServiceSheet: View {
      Falls back to the whole route if this station is not in the pattern at all, which
      should not happen: showing a route you have to read carefully beats showing nothing.
      */
+    /**
+     How long this train takes to reach where you are going.
+
+     Read off the calling pattern the sheet has already fetched, so it costs nothing. The
+     board deliberately does not show this: an arrival time is not on `/api/v2/trains`,
+     and putting one there would mean a calling pattern per row — four extra requests on
+     the screen that has two seconds to answer. Here the pattern is already in hand, and
+     you have asked about this train in particular.
+
+     Searched forward from the origin rather than across the whole route, so a service
+     that calls somewhere twice cannot time the journey backwards.
+     */
+    private var journey: String? {
+        guard let destinationCrs, let calls else { return nil }
+        guard let hereIndex = calls.calls.firstIndex(where: { $0.crs == station.crs }),
+              let departure = calls.calls[hereIndex].instant
+        else { return nil }
+
+        let onward = calls.calls[(hereIndex + 1)...]
+        guard let arrivalCall = onward.first(where: { $0.crs == destinationCrs }),
+              let arrival = arrivalCall.instant,
+              arrival > departure
+        else { return nil }
+
+        let minutes = Int((arrival.timeIntervalSince(departure) / 60).rounded())
+        let name = arrivalCall.name.withoutLondonPrefix
+        return "\(minutes) min to \(name), arriving \(arrivalCall.time ?? "")"
+            .trimmingCharacters(in: .whitespaces)
+    }
+
     private var onwardCalls: [ServiceCall] {
         guard let calls else { return [] }
         guard let here = calls.calls.firstIndex(where: { $0.crs == station.crs }) else {
