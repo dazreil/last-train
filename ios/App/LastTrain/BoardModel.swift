@@ -264,6 +264,18 @@ final class BoardModel {
         return SharedSelection.pinnedHeadcode(for: station.crs, direction: direction)
     }
 
+    /**
+     The train that has floated to the top, when one is pinned.
+
+     Nil when nothing is followed, in which case the board leads with the last train as it
+     always has. When a train *is* followed it takes the hero slot, red, and the last train
+     drops back into the list keeping its own red label.
+     */
+    var pinnedService: BoardDeparture? {
+        guard pinnedHeadcode != nil, let board else { return nil }
+        return board.services.first(where: { isPinned($0) })
+    }
+
     func isPinned(_ service: BoardDeparture) -> Bool {
         guard let headcode = service.headcode else { return false }
         return headcode == pinnedHeadcode

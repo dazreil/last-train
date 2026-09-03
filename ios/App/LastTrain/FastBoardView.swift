@@ -6,6 +6,9 @@ struct FastBoardView: View {
     let station: Station
     let direction: Compass
     @Bindable var model: FastModel
+    /// Opening a row hands the shared detail sheet up to `BoardView`, which owns it for
+    /// both boards.
+    let onInspect: (SheetService) -> Void
 
     var body: some View {
         // The destination used to be named again here. The two-code bar above shows it
@@ -73,14 +76,29 @@ struct FastBoardView: View {
     }
 
     private func row(_ service: FastService, isHero: Bool = false) -> some View {
-        FastRow(
+        let followed = model.activityServiceId == service.serviceId
+        return FastRow(
             service: service,
-            isSelected: model.activityServiceId == service.serviceId,
+            isFollowed: followed,
             isBusy: model.isChangingActivity,
-            isHero: isHero
-        ) {
-            Task { await model.toggleActivity(service, at: station, direction: direction) }
-        }
+            isHero: isHero,
+            onOpen: { onInspect(sheetService(service, isHero: isHero, followed: followed)) },
+            onFollow: { Task { await model.toggleActivity(service, at: station, direction: direction) } }
+        )
+    }
+
+    private func sheetService(_ service: FastService, isHero: Bool, followed: Bool) -> SheetService {
+        SheetService(
+            serviceId: service.serviceId,
+            dep: service.departure,
+            destination: service.destination,
+            tocName: service.tocName.isEmpty ? service.toc : service.tocName,
+            platform: service.platform,
+            isReplacementBus: false,
+            headcode: service.headcode,
+            topLabel: followed ? "Following" : nil,
+            isRed: isHero
+        )
     }
 
     private func sectionHeading(_ text: String, colour: Color = Theme.serviceBlueLit) -> some View {
@@ -141,31 +159,28 @@ struct FastBoardView: View {
 
 struct FastRow: View {
     let service: FastService
-    let isSelected: Bool
+    /// Whether this train is on the Dynamic Island, which the pill reflects.
+    let isFollowed: Bool
     let isBusy: Bool
     /// The one held at the top of the page. Lit red, as the last train is on the other
     /// board, so the row that matters most is the same colour on both.
     var isHero = false
-    let onSelect: () -> Void
+    let onOpen: () -> Void
+    let onFollow: () -> Void
 
     private var colour: Color { isHero ? Theme.lastTrainRedLit : Theme.serviceBlueLit }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Button(action: onSelect) {
-            // Read exactly like a Last Train row: the departure, where it goes, and one
-            // quiet line of detail beneath. The arrival time was the third clock on a row
-            // that answers "when do I leave" — it and the duration said the same thing
-            // twice, and Last Train never showed one at all.
-            VStack(alignment: .leading, spacing: 8) {
+        // The same two gestures as a Last Train row: tap the time or destination to open
+        // the detail sheet, tap the pill to follow on the Dynamic Island. Two buttons, so
+        // neither swallows the other.
+        VStack(alignment: .leading, spacing: 8) {
+            Button(action: onOpen) {
                 HStack(alignment: .firstTextBaseline, spacing: 13) {
-                    CathodeNumber(
-                        text: service.departure,
-                        colour: colour,
-                        scale: .row
-                    )
-                    .frame(maxWidth: 190, alignment: .leading)
+                    CathodeNumber(text: service.departure, colour: colour, scale: .row)
+                        .frame(maxWidth: 190, alignment: .leading)
 
                     Text(Stations.code(forName: service.destination)
                         ?? service.destination.withoutLondonPrefix)
@@ -173,48 +188,39 @@ struct FastRow: View {
                         .monospacedDigit()
                         .foregroundStyle(Theme.text)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                }
 
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Text(meta)
-                        Spacer(minLength: 4)
-                        activityLabel
-                    }
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(meta)
-                        activityLabel
-                    }
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(colour)
                 }
-                .font(Theme.Font.meta)
-                .foregroundStyle(Theme.textFaint)
+                .contentShape(Rectangle())
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, Theme.Space.gutter)
-            .padding(.vertical, 14)
-            .background(CathodeGauze(tint: colour, density: 11).opacity(0.62))
-            .overlay(alignment: .bottom) { CathodeRule(colour: colour.opacity(0.45)) }
-            .overlay(alignment: .leading) {
-                if isSelected {
-                    Rectangle()
-                        .fill(colour)
-                        .frame(width: 3)
-                        .shadow(color: colour, radius: 7)
-                        .transition(reduceMotion ? .identity : .move(edge: .top).combined(with: .opacity))
-                }
+            .buttonStyle(PressDim())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(spoken)
+            .accessibilityHint("Opens calling points")
+
+            HStack(spacing: 8) {
+                Text(meta).font(Theme.Font.meta).foregroundStyle(Theme.textFaint)
+                Spacer(minLength: 8)
+                FollowPill(isOn: isFollowed, colour: colour, isBusy: isBusy, action: onFollow)
             }
-            .contentShape(Rectangle())
         }
-        .buttonStyle(PressLift())
-        .disabled(isBusy)
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.28), value: isSelected)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(spoken)
-        .accessibilityHint(
-            isSelected
-                ? "Stops following this train"
-                : "Follows this train on the lock screen once it departs within four hours"
-        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, Theme.Space.gutter)
+        .padding(.vertical, 12)
+        .background(CathodeGauze(tint: colour, density: 11).opacity(0.55))
+        .overlay(alignment: .bottom) { CathodeRule(colour: colour.opacity(0.42)) }
+        .overlay(alignment: .leading) {
+            if isFollowed {
+                Rectangle()
+                    .fill(colour)
+                    .frame(width: 3)
+                    .shadow(color: colour, radius: 7)
+                    .transition(reduceMotion ? .identity : .move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.28), value: isFollowed)
     }
 
     /// `18 min · c2c`. The journey length leads, because on this board it is the figure
@@ -226,17 +232,8 @@ struct FastRow: View {
         return parts.joined(separator: " · ")
     }
 
-    private var activityLabel: some View {
-        Label(
-            isSelected ? "Following" : "Follow",
-            systemImage: isSelected ? "checkmark.circle.fill" : "wave.3.right"
-        )
-        .foregroundStyle(isSelected ? colour : Theme.textDim)
-        .fixedSize(horizontal: false, vertical: true)
-    }
-
     private var spoken: String {
-        (isSelected ? "Your train. " : "")
+        (isFollowed ? "Your train. " : "")
             + "Departs \(ServiceDay.formatClock(service.departure).spoken), arrives \(ServiceDay.formatClock(service.arrival).spoken), \(service.journeyMinutes) minutes"
     }
 }

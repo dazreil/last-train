@@ -15,7 +15,7 @@ struct BoardView: View {
     @State private var fast = FastModel()
     @State private var mode: AppMode = .last
     @State private var pickingStart = false
-    @State private var inspecting: BoardDeparture?
+    @State private var inspecting: SheetService?
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -31,7 +31,12 @@ struct BoardView: View {
                         switch mode {
                         case .last: lastTrainResults
                         case .fast:
-                            FastBoardView(station: station, direction: model.direction, model: fast)
+                            FastBoardView(
+                                station: station,
+                                direction: model.direction,
+                                model: fast,
+                                onInspect: { inspecting = $0 }
+                            )
                         }
                     } else {
                         notice(
@@ -119,19 +124,13 @@ struct BoardView: View {
                 }
             }
         }
-        .sheet(item: $inspecting) { service in
+        .sheet(item: $inspecting) { sheet in
             if let station = model.station {
                 ServiceSheet(
-                    service: service,
+                    service: sheet,
                     station: station,
                     direction: model.direction,
-                    destinationCrs: fast.destination?.crs,
-                    isLastTrain: service.serviceId == model.board?.lastTrain?.serviceId,
-                    isPinned: model.isPinned(service),
-                    onPin: { following in
-                        model.setPin(service, following: following)
-                        inspecting = nil
-                    }
+                    destinationCrs: fast.destination?.crs
                 )
             }
         }
@@ -561,35 +560,75 @@ struct BoardView: View {
 
     private func cathodeBoard(_ board: DepartureBoard) -> some View {
         let last = board.lastTrain
-        let remaining = board.services.filter { $0.serviceId != last?.serviceId }
+        let pinned = model.pinnedService
+        // The pinned train leads the board when there is one; otherwise the last train
+        // does, as it always has.
+        let hero = pinned ?? last
+        let heroIsPinnedNonLast = pinned != nil && pinned?.serviceId != last?.serviceId
+        let rest = board.services.filter { $0.serviceId != hero?.serviceId }
 
         return VStack(alignment: .leading, spacing: 0) {
-            if let last {
-                ServiceRow(service: last, isLastTrain: true, isPinned: model.isPinned(last))
-                    .contentShape(Rectangle())
-                    .onTapGesture { inspecting = last }
+            if let hero {
+                if heroIsPinnedNonLast {
+                    Text("Following")
+                        .cathodeSection(Theme.lastTrainRedLit)
+                        .padding(.horizontal, Theme.Space.gutter)
+                        .padding(.top, 16)
+                        .padding(.bottom, 6)
+                }
+                serviceRow(hero, board: board)
             }
 
-            ForEach(Array(remaining.enumerated()), id: \.element.id) { index, service in
-                if index == 0 || remaining[index - 1].role != service.role {
+            ForEach(Array(rest.enumerated()), id: \.element.id) { index, service in
+                if index == 0 || rest[index - 1].role != service.role {
                     Text(sectionTitle(for: service.role, board: board))
                         .cathodeSection(service.role == .first ? Theme.serviceBlueLit : Theme.textDim)
                         .padding(.horizontal, Theme.Space.gutter)
                         .padding(.top, 16)
                         .padding(.bottom, 6)
                 }
-                ServiceRow(
-                    service: service,
-                    isLastTrain: false,
-                    isPinned: model.isPinned(service)
-                )
-                .contentShape(Rectangle())
-                .onTapGesture { inspecting = service }
+                serviceRow(service, board: board)
             }
         }
         .padding(.top, 8)
         .opacity(model.isLoading ? 0.42 : 1)
         .animation(.easeOut(duration: 0.16), value: model.isLoading)
+    }
+
+    private func serviceRow(_ service: BoardDeparture, board: DepartureBoard) -> some View {
+        let isLast = service.serviceId == board.lastTrain?.serviceId
+        let heroId = (model.pinnedService ?? board.lastTrain)?.serviceId
+        let isHero = service.serviceId == heroId
+        // The pinned *departure*, not every train sharing its headcode: replacement buses
+        // can share one, and only the train that floated should read as followed.
+        let followed = service.serviceId == model.pinnedService?.serviceId
+        return ServiceRow(
+            service: service,
+            isLastTrain: isLast,
+            isRed: isHero,
+            isFollowed: followed,
+            onOpen: { inspecting = sheetService(service, board: board) },
+            onFollow: { model.setPin(service, following: !followed) }
+        )
+    }
+
+    private func sheetService(_ service: BoardDeparture, board: DepartureBoard) -> SheetService {
+        let isLast = service.serviceId == board.lastTrain?.serviceId
+        let heroId = (model.pinnedService ?? board.lastTrain)?.serviceId
+        let isHero = service.serviceId == heroId
+        let followed = service.serviceId == model.pinnedService?.serviceId
+        let topLabel: String? = isLast ? "Last train" : (followed ? "Following" : nil)
+        return SheetService(
+            serviceId: service.serviceId,
+            dep: service.dep,
+            destination: service.destination,
+            tocName: service.tocName,
+            platform: service.platform,
+            isReplacementBus: service.isReplacementBus,
+            headcode: service.headcode,
+            topLabel: topLabel,
+            isRed: isLast || isHero
+        )
     }
 
     private func sectionTitle(for role: ServiceRole, board: DepartureBoard) -> String {

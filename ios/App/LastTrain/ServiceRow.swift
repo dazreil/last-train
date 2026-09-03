@@ -3,45 +3,66 @@ import SwiftUI
 import LastTrainCore
 
 /// One departure rendered as a luminous line in the gauze rather than a filled card.
+///
+/// Two gestures, the same pair Fast Train's rows carry: tapping the time or destination
+/// opens the detail sheet, and the Follow pill pins this train to the lock-screen widget.
+/// They are separate buttons so neither swallows the other.
 struct ServiceRow: View {
     let service: BoardDeparture
+    /// The genuine last train of the day, wherever it sits — red, and labelled.
     let isLastTrain: Bool
-    var isPinned = false
+    /// Red although it is not the last train: the pinned train that has floated to the
+    /// top of the board and now leads it.
+    var isRed: Bool = false
+    /// Whether the widget is following this one, which the pill reflects.
+    var isFollowed: Bool = false
+    var onOpen: () -> Void = {}
+    var onFollow: (() -> Void)? = nil
 
     @Environment(\.dynamicTypeSize) private var typeSize
 
-    private var colour: Color { isLastTrain ? Theme.lastTrainRedLit : Theme.serviceBlueLit }
+    private var colour: Color {
+        (isLastTrain || isRed) ? Theme.lastTrainRedLit : Theme.serviceBlueLit
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // A long destination wraps beside the time; it does not drop to a second line
-            // under it. `ViewThatFits` used to stack them the moment a name like Fenchurch
-            // Street stopped fitting on one line, which pushed the board past a screen. Only
-            // an accessibility type size — where the time itself is huge — stacks now.
-            if typeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 6) {
-                    time
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        destination
-                        Spacer(minLength: 8)
-                        chevron
+            Button(action: onOpen) {
+                Group {
+                    // A long destination wraps beside the time; it does not drop under it.
+                    // Only an accessibility type size, where the numeral is huge, stacks.
+                    if typeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: 6) {
+                            time
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                destination
+                                Spacer(minLength: 8)
+                                chevron
+                            }
+                        }
+                    } else {
+                        HStack(alignment: .firstTextBaseline, spacing: 13) {
+                            time
+                            destination
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            chevron
+                        }
                     }
                 }
-            } else {
-                HStack(alignment: .firstTextBaseline, spacing: 13) {
-                    time
-                    destination
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    chevron
-                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(PressDim())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(spoken)
+            .accessibilityHint("Opens calling points")
 
             HStack(spacing: 8) {
                 if isLastTrain { Text("Last train").labelStyle(Theme.lastTrainRedLit) }
-                if isPinned {
-                    Label("In widget", systemImage: "pin.fill").labelStyle(Theme.textDim)
-                }
                 if let meta { Text(meta).font(Theme.Font.meta).foregroundStyle(Theme.textFaint) }
+                Spacer(minLength: 8)
+                if let onFollow, service.headcode != nil {
+                    FollowPill(isOn: isFollowed, colour: colour, action: onFollow)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -49,9 +70,6 @@ struct ServiceRow: View {
         .padding(.vertical, 12)
         .background(CathodeGauze(tint: colour, density: 11).opacity(0.55))
         .overlay(alignment: .bottom) { CathodeRule(colour: colour.opacity(0.42)) }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(spoken)
-        .accessibilityHint("Shows calling points and widget controls")
     }
 
     private var chevron: some View {
@@ -98,6 +116,5 @@ struct ServiceRow: View {
         (isLastTrain ? "Last train. " : "")
             + "\(service.tocName) service departing \(ServiceDay.formatClock(service.dep).spoken), towards \(service.destination)"
             + (service.isReplacementBus ? ", replacement bus" : "")
-            + (isPinned ? ", in the widget" : "")
     }
 }

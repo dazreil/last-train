@@ -1,5 +1,4 @@
 import SwiftUI
-import WidgetKit
 
 import LastTrainCore
 
@@ -20,17 +19,12 @@ import LastTrainCore
  of this.
  */
 struct ServiceSheet: View {
-    let service: BoardDeparture
+    let service: SheetService
     let station: Station
     let direction: Compass
     /// Where the journey ends, when the bar has both halves. The sheet works without one
     /// — it simply has no journey to time.
     var destinationCrs: String?
-    /// The genuine final service, not any member of the last-trains group.
-    let isLastTrain: Bool
-    /// Whether this train is the one the widget is following.
-    let isPinned: Bool
-    let onPin: (Bool) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var calls: ServiceCalls?
@@ -46,7 +40,6 @@ struct ServiceSheet: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         header
-                        pinControl
                         routeSection
                     }
                     .padding(.bottom, 24)
@@ -71,8 +64,8 @@ struct ServiceSheet: View {
             CathodeNumber(text: service.dep, colour: serviceColour, scale: .hero)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            if isLastTrain {
-                Text("Last train").cathodeSection(Theme.lastTrainRedLit)
+            if let topLabel = service.topLabel {
+                Text(topLabel).cathodeSection(serviceColour)
             }
 
             Text(service.destination.withoutLondonPrefix)
@@ -95,52 +88,6 @@ struct ServiceSheet: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Theme.Space.gutter)
         .padding(.top, 10)
-    }
-
-    /**
-     The one action, and it is deliberately not a gesture.
-
-     A swipe would be faster once known and invisible until then, on a block with no
-     affordance to suggest it. This is read at night, in a hurry, one-handed — the tap
-     that was already happening is the right place to put it.
-     */
-    @ViewBuilder
-    private var pinControl: some View {
-        if service.headcode != nil {
-            Button {
-                onPin(!isPinned)
-            } label: {
-                HStack(spacing: 9) {
-                    Image(systemName: isPinned ? "checkmark.circle.fill" : "square.and.arrow.up.on.square")
-                    Text(isPinned ? "Following this train" : "Show this train in the widget")
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 0)
-                }
-                .font(Theme.Font.body)
-                .foregroundStyle(isPinned ? Theme.paper : Theme.text)
-                .padding(.horizontal, 13)
-                .padding(.vertical, 12)
-                .background(CathodeGauze(tint: Theme.serviceBlueLit, density: 10))
-                .overlay(Rectangle().stroke(Theme.serviceBlueLit.opacity(isPinned ? 0.8 : 0.35), lineWidth: 1))
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(PressLift())
-            .padding(.horizontal, Theme.Space.gutter)
-            .padding(.top, 14)
-
-            Text(
-                isPinned
-                    // Says the handover out loud, because it is the part that stops this
-                    // being a widget quietly showing a train that has gone.
-                    ? "The widget shows this train until it leaves, then goes back to the last one."
-                    : "The widget follows the last train unless you choose one."
-            )
-            .font(Theme.Font.meta)
-            .foregroundStyle(Theme.textFaint)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, Theme.Space.gutter)
-            .padding(.top, 6)
-        }
     }
 
     /**
@@ -281,7 +228,7 @@ struct ServiceSheet: View {
     }
 
     private var serviceColour: Color {
-        isLastTrain ? Theme.lastTrainRedLit : Theme.serviceBlueLit
+        service.isRed ? Theme.lastTrainRedLit : Theme.serviceBlueLit
     }
 
     private func load() async {
