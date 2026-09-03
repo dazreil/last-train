@@ -60,11 +60,18 @@ struct ServiceRow: View {
             .accessibilityHint("Opens calling points")
 
             HStack(spacing: 8) {
-                if isLastTrain { Text("Last train").labelStyle(Theme.lastTrainRedLit) }
-                if let meta { Text(meta).font(Theme.Font.meta).foregroundStyle(Theme.textFaint) }
+                if let meta {
+                    Text(meta)
+                        .font(Theme.Font.meta)
+                        .foregroundStyle(Theme.textFaint)
+                        .lineLimit(1)
+                }
                 Spacer(minLength: 8)
                 if let onFollow, service.headcode != nil {
+                    // Pinned to one line: the last-train marker moved to a heading, so
+                    // nothing shares this line but the detail, and the pill never wraps.
                     FollowPill(isOn: isFollowed, colour: colour, action: onFollow)
+                        .fixedSize()
                 }
             }
         }

@@ -201,9 +201,11 @@ struct FastRow: View {
             .accessibilityHint("Opens calling points")
 
             HStack(spacing: 8) {
-                Text(meta).font(Theme.Font.meta).foregroundStyle(Theme.textFaint)
+                Text(meta).font(Theme.Font.meta).foregroundStyle(Theme.textFaint).lineLimit(1)
                 Spacer(minLength: 8)
+                // Never wraps: the detail yields, the pill keeps its line.
                 FollowPill(isOn: isFollowed, colour: colour, isBusy: isBusy, action: onFollow)
+                    .fixedSize()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

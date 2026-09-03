@@ -569,23 +569,23 @@ struct BoardView: View {
 
         return VStack(alignment: .leading, spacing: 0) {
             if let hero {
-                if heroIsPinnedNonLast {
-                    Text("Following")
-                        .cathodeSection(Theme.lastTrainRedLit)
-                        .padding(.horizontal, Theme.Space.gutter)
-                        .padding(.top, 16)
-                        .padding(.bottom, 6)
-                }
+                // The hero always names itself above the numerals — "Last train", or
+                // "Following" once a different train is pinned — so its detail line carries
+                // only the detail and the pill, never a tag as well.
+                heading(heroIsPinnedNonLast ? "Following" : "Last train", colour: Theme.lastTrainRedLit)
                 serviceRow(hero, board: board)
             }
 
             ForEach(Array(rest.enumerated()), id: \.element.id) { index, service in
-                if index == 0 || rest[index - 1].role != service.role {
-                    Text(sectionTitle(for: service.role, board: board))
-                        .cathodeSection(service.role == .first ? Theme.serviceBlueLit : Theme.textDim)
-                        .padding(.horizontal, Theme.Space.gutter)
-                        .padding(.top, 16)
-                        .padding(.bottom, 6)
+                if service.serviceId == last?.serviceId {
+                    // The last train, displaced by a followed one, keeps a heading of its
+                    // own rather than a tag crammed onto its detail line.
+                    heading("Last train", colour: Theme.lastTrainRedLit)
+                } else if index == 0 || rest[index - 1].role != service.role {
+                    heading(
+                        sectionTitle(for: service.role, board: board),
+                        colour: service.role == .first ? Theme.serviceBlueLit : Theme.textDim
+                    )
                 }
                 serviceRow(service, board: board)
             }
@@ -593,6 +593,14 @@ struct BoardView: View {
         .padding(.top, 8)
         .opacity(model.isLoading ? 0.42 : 1)
         .animation(.easeOut(duration: 0.16), value: model.isLoading)
+    }
+
+    private func heading(_ text: String, colour: Color) -> some View {
+        Text(text)
+            .cathodeSection(colour)
+            .padding(.horizontal, Theme.Space.gutter)
+            .padding(.top, 16)
+            .padding(.bottom, 6)
     }
 
     private func serviceRow(_ service: BoardDeparture, board: DepartureBoard) -> some View {
