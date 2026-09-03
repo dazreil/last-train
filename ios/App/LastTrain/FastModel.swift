@@ -280,7 +280,7 @@ final class FastModel {
             activityServiceId = service.serviceId
             activityChanges += 1
         case .tooFar:
-            activityMessage = "Available on the Dynamic Island within four hours."
+            activityMessage = "A countdown starts once the train is within four hours."
         case .departed:
             activityMessage = "That train has already departed. Refresh Fast Train for the latest services."
         case .activitiesDisabled:
@@ -289,7 +289,7 @@ final class FastModel {
             activityMessage = "That departure time could not be read. Refresh Fast Train and try again."
         case .failed:
             activityServiceId = TrainActivityController.activeServiceId
-            activityMessage = "The Dynamic Island could not be started. Try again."
+            activityMessage = "The countdown could not be started. Try again."
         }
     }
 

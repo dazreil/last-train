@@ -178,8 +178,8 @@ struct FastRow: View {
         .accessibilityLabel(spoken)
         .accessibilityHint(
             isSelected
-                ? "Stops showing this train on the Dynamic Island"
-                : "Shows this train on the Dynamic Island when it departs within four hours"
+                ? "Stops counting this train down"
+                : "Counts this train down on the lock screen once it departs within four hours"
         )
     }
 
@@ -188,13 +188,13 @@ struct FastRow: View {
     private var meta: String {
         var parts = ["\(service.journeyMinutes) min"]
         parts.append(service.tocName.isEmpty ? service.toc : service.tocName)
-        if let platform = service.platform { parts.append("Platform \(platform)") }
+        if let platform = service.platform { parts.append("plat \(platform)") }
         return parts.joined(separator: " · ")
     }
 
     private var activityLabel: some View {
         Label(
-            isSelected ? "On Dynamic Island" : "Show on Dynamic Island",
+            isSelected ? "Counting down" : "Countdown",
             systemImage: isSelected ? "checkmark.circle.fill" : "wave.3.right"
         )
         .foregroundStyle(isSelected ? Theme.serviceBlueLit : Theme.textDim)

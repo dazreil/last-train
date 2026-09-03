@@ -86,7 +86,7 @@ struct ServiceRow: View {
 
     private var meta: String? {
         var parts = [service.tocName]
-        if let platform = service.platform { parts.append("Platform \(platform)") }
+        if let platform = service.platform { parts.append("plat \(platform)") }
         if service.isReplacementBus { parts.append("Replacement bus") }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
