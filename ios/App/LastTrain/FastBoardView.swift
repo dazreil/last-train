@@ -51,11 +51,10 @@ struct FastBoardView: View {
                 body: "No direct trains remain today, and none run tomorrow either."
             )
         } else {
-            Text(sectionTitle)
-                .cathodeSection(Theme.serviceBlueLit)
-                .padding(.horizontal, Theme.Space.gutter)
-                .padding(.top, 18)
-                .padding(.bottom, 7)
+            if let hero = model.hero {
+                sectionHeading(heroTitle)
+                row(hero)
+            }
 
             if let message = model.activityMessage {
                 Text(message)
@@ -66,26 +65,46 @@ struct FastBoardView: View {
                     .padding(.vertical, 10)
             }
 
-            ForEach(model.shown) { service in
-                FastRow(
-                    service: service,
-                    isSelected: model.activityServiceId == service.serviceId,
-                    isBusy: model.isChangingActivity
-                ) {
-                    Task { await model.toggleActivity(service, at: station, direction: direction) }
-                }
+            if !model.shown.isEmpty {
+                sectionHeading(restTitle)
+                ForEach(model.shown) { row($0) }
             }
         }
     }
 
-    /// Names what is on the board. Tomorrow's first trains must say so, or the times
-    /// read as tonight's — the one misreading this mode cannot afford at half past
-    /// midnight.
-    private var sectionTitle: String {
-        if model.showsNextServiceDay {
-            return model.isOnFirstPage ? "First trains tomorrow" : "Later tomorrow"
+    private func row(_ service: FastService) -> some View {
+        FastRow(
+            service: service,
+            isSelected: model.activityServiceId == service.serviceId,
+            isBusy: model.isChangingActivity
+        ) {
+            Task { await model.toggleActivity(service, at: station, direction: direction) }
         }
-        return model.isOnFirstPage ? "Fastest from now" : "Later direct trains"
+    }
+
+    private func sectionHeading(_ text: String) -> some View {
+        Text(text)
+            .cathodeSection(Theme.serviceBlueLit)
+            .padding(.horizontal, Theme.Space.gutter)
+            .padding(.top, 18)
+            .padding(.bottom, 7)
+    }
+
+    /**
+     What the pinned train is.
+
+     A followed train says so, because that is why it is up there and not where the
+     ranking would have put it. Otherwise it is simply the head of the ranking — the
+     first train you can be at your destination on. Tomorrow's board says tomorrow, or
+     the times read as tonight's.
+     */
+    private var heroTitle: String {
+        if model.hero?.serviceId == model.activityServiceId { return "Following" }
+        return model.showsNextServiceDay ? "First tomorrow" : "Fastest from now"
+    }
+
+    private var restTitle: String {
+        model.showsNextServiceDay ? "Later tomorrow" : "Later direct trains"
     }
 
     private func status(title: String, body: String) -> some View {

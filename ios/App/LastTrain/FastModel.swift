@@ -296,16 +296,40 @@ final class FastModel {
     // MARK: - Paging
 
     /// However many pages the trains fill, never padded and never more than five.
+    /**
+     The train held at the top of every page.
+
+     By default the one at the head of the ranking — the first you can be at your
+     destination on, which is the question this mode exists to answer. Once you follow a
+     train it becomes the hero instead and stays there whatever page you turn to, because
+     a train you have chosen to watch is no use to you three pages back.
+
+     Nil only when there are no services at all.
+     */
+    var hero: FastService? {
+        if let activityServiceId,
+           let followed = services.first(where: { $0.serviceId == activityServiceId }) {
+            return followed
+        }
+        return services.first
+    }
+
+    /// Everything the hero is not. Paged; the hero never is.
+    private var rest: [FastService] {
+        guard let heroId = hero?.serviceId else { return [] }
+        return services.filter { $0.serviceId != heroId }
+    }
+
     var pageCount: Int {
-        guard !services.isEmpty else { return 0 }
-        let full = (services.count + Self.perPage - 1) / Self.perPage
+        guard !rest.isEmpty else { return 0 }
+        let full = (rest.count + Self.perPage - 1) / Self.perPage
         return min(full, Self.maximumPages)
     }
 
     var shown: [FastService] {
         let start = page * Self.perPage
-        guard start < services.count else { return [] }
-        return Array(services[start..<min(start + Self.perPage, services.count)])
+        guard start < rest.count else { return [] }
+        return Array(rest[start..<min(start + Self.perPage, rest.count)])
     }
 
     var canPage: Bool { pageCount > 1 }
