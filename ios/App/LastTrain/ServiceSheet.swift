@@ -65,7 +65,9 @@ struct ServiceSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             if let topLabel = service.topLabel {
-                Text(topLabel).cathodeSection(serviceColour)
+                // The last-train label is the marker, so it stays red even on a demoted
+                // train the number has turned blue.
+                Text(topLabel).cathodeSection(topLabel == "Last train" ? Theme.lastTrainRedLit : serviceColour)
             }
 
             Text(service.destination.withoutLondonPrefix)

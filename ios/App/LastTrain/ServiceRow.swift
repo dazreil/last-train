@@ -21,8 +21,11 @@ struct ServiceRow: View {
 
     @Environment(\.dynamicTypeSize) private var typeSize
 
+    /// Red is the train that leads the board — the last train when nothing is followed,
+    /// or the followed train once one is. Demoted into the list it goes blue like any
+    /// other row; the red "LAST TRAIN" tag stays as the marker, which is what finds it.
     private var colour: Color {
-        (isLastTrain || isRed) ? Theme.lastTrainRedLit : Theme.serviceBlueLit
+        isRed ? Theme.lastTrainRedLit : Theme.serviceBlueLit
     }
 
     var body: some View {

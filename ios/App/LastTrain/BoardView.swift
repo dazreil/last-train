@@ -627,7 +627,7 @@ struct BoardView: View {
             isReplacementBus: service.isReplacementBus,
             headcode: service.headcode,
             topLabel: topLabel,
-            isRed: isLast || isHero
+            isRed: isHero
         )
     }
 
