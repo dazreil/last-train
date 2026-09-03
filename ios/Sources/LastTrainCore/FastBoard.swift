@@ -18,6 +18,9 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
     /// Stable day to day, unlike `serviceId`. What the pattern cache keys on.
     public let headcode: String?
     public let toc: String
+    /// The operator as a person names it — `c2c`, not `CC`. The board rows read this;
+    /// `toc` stays for the compact surfaces where two letters have to do.
+    public let tocName: String
     /// Where the train finishes, which is often past where you get off.
     public let destination: String
     /// London clock at the origin, for reading.
@@ -39,6 +42,7 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         serviceId: String,
         headcode: String?,
         toc: String,
+        tocName: String = "",
         destination: String,
         departure: String,
         arrival: String,
@@ -48,6 +52,7 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         self.serviceId = serviceId
         self.headcode = headcode
         self.toc = toc
+        self.tocName = tocName
         self.destination = destination
         self.departure = departure
         self.arrival = arrival
@@ -56,7 +61,7 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case serviceId, headcode, toc, destination
+        case serviceId, headcode, toc, tocName, destination
         case departure, departureInstant, arrival, arrivalInstant
     }
 
@@ -72,6 +77,8 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         serviceId = try container.decode(String.self, forKey: .serviceId)
         headcode = try container.decodeIfPresent(String.self, forKey: .headcode)
         toc = try container.decode(String.self, forKey: .toc)
+        // Optional so an older deployment, which sent only the code, still decodes.
+        tocName = try container.decodeIfPresent(String.self, forKey: .tocName) ?? ""
         destination = try container.decode(String.self, forKey: .destination)
         departure = try container.decode(String.self, forKey: .departure)
         arrival = try container.decode(String.self, forKey: .arrival)

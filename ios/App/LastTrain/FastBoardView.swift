@@ -120,27 +120,40 @@ struct FastRow: View {
 
     var body: some View {
         Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: 10) {
-                times
+            // Read exactly like a Last Train row: the departure, where it goes, and one
+            // quiet line of detail beneath. The arrival time was the third clock on a row
+            // that answers "when do I leave" — it and the duration said the same thing
+            // twice, and Last Train never showed one at all.
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 13) {
+                    CathodeNumber(
+                        text: service.departure,
+                        colour: Theme.serviceBlueLit,
+                        scale: .row
+                    )
+                    .frame(maxWidth: 190, alignment: .leading)
+
+                    Text(Stations.code(forName: service.destination)
+                        ?? service.destination.withoutLondonPrefix)
+                        .font(Theme.Font.destination)
+                        .monospacedDigit()
+                        .foregroundStyle(Theme.text)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Text("Arrives in \(service.journeyMinutes) min")
+                        Text(meta)
                         Spacer(minLength: 4)
                         activityLabel
                     }
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Arrives in \(service.journeyMinutes) min")
+                        Text(meta)
                         activityLabel
                     }
                 }
                 .font(Theme.Font.meta)
-                .foregroundStyle(Theme.textDim)
-
-                Text("Towards \(Stations.code(forName: service.destination) ?? service.destination.withoutLondonPrefix) · \(service.toc)")
-                    .font(Theme.Font.meta)
-                    .foregroundStyle(Theme.textFaint)
-                    .fixedSize(horizontal: false, vertical: true)
+                .foregroundStyle(Theme.textFaint)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Theme.Space.gutter)
@@ -170,28 +183,11 @@ struct FastRow: View {
         )
     }
 
-    private var times: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                CathodeNumber(text: service.departure, colour: Theme.serviceBlueLit, scale: .row)
-                Image(systemName: "arrow.right")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Theme.textFaint)
-                CathodeNumber(text: service.arrival, colour: Theme.text, scale: .row)
-            }
-
-            VStack(alignment: .leading, spacing: 5) {
-                clock(label: "Departs", time: service.departure, colour: Theme.serviceBlueLit)
-                clock(label: "Arrives", time: service.arrival, colour: Theme.text)
-            }
-        }
-    }
-
-    private func clock(label: String, time: String, colour: Color) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(label).labelStyle(Theme.textFaint).frame(minWidth: 64, alignment: .leading)
-            CathodeNumber(text: time, colour: colour, scale: .compact)
-        }
+    /// `18 min · c2c`. The journey length leads, because on this board it is the figure
+    /// that decides between two trains.
+    private var meta: String {
+        let operatorName = service.tocName.isEmpty ? service.toc : service.tocName
+        return "\(service.journeyMinutes) min · \(operatorName)"
     }
 
     private var activityLabel: some View {
