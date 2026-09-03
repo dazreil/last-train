@@ -32,9 +32,11 @@
 import {
   RttError,
   locationLineUp,
+  serviceDetail,
   rateLimitSnapshot,
   API_VERSION,
   type LocationLineUpResponse,
+  type ServiceLocation,
 } from '@/lib/rtt';
 import { sortedDepartures, destinationNames, destinationCodes, type Departure } from '@/lib/journeys';
 import { boardHasExpired, boardMode, selectBoard } from '@/lib/board';
@@ -56,6 +58,8 @@ import {
   setCached,
   getCachedLineUp,
   setCachedLineUp,
+  getCachedLocations,
+  setCachedLocations,
   ttlSecondsFor,
 } from '@/lib/cache';
 import type { Diagnostics, NationalBoard, NationalService } from '@/lib/nationalContract';
@@ -71,6 +75,40 @@ export const runtime = 'nodejs';
  * answer to the same station and direction, and serving one for the other would drop
  * trains silently — the worst shape of wrong this route can produce.
  */
+/**
+ * Minutes from the origin to the destination, off one calling pattern.
+ *
+ * Nil whenever the pattern cannot answer — the train does not call at both, the times
+ * are missing, or the arithmetic comes out backwards, which is a parsing failure wearing
+ * a plausible face. A board row without a journey time is merely quieter; a wrong one
+ * would be trusted.
+ */
+function journeyMinutesFrom(
+  origin: string,
+  destination: string,
+  locations: ServiceLocation[] | null
+): number | null {
+  if (!locations) return null;
+
+  const boarding = locations.findIndex((stop) => stop.location?.shortCodes?.[0] === origin);
+  if (boarding === -1) return null;
+
+  const offset = locations
+    .slice(boarding)
+    .findIndex((stop) => stop.location?.shortCodes?.[0] === destination);
+  if (offset === -1) return null;
+
+  const alighting = boarding + offset;
+  const departs = locations[boarding].temporalData?.departure?.scheduleAdvertised;
+  const arrives =
+    locations[alighting].temporalData?.arrival?.scheduleAdvertised ??
+    locations[alighting].temporalData?.departure?.scheduleAdvertised;
+  if (!departs || !arrives) return null;
+
+  const minutes = Math.round((toInstantMillis(arrives) - toInstantMillis(departs)) / 60000);
+  return minutes > 0 ? minutes : null;
+}
+
 const answerKey = (
   crs: string,
   direction: string,
@@ -334,6 +372,41 @@ export async function GET(request: Request) {
       return picked;
     });
 
+    /**
+     How long each of these takes to reach the destination.
+     *
+     * Only when a destination was asked for, only for the four services actually shown,
+     * and **in parallel** — which is the whole reason this is affordable. Fetched in
+     * series it would be four round trips on the screen PRODUCT.md gives two seconds to
+     * answer; fetched together it is one, and patterns are cached by service id so a
+     * second look at the same board pays nothing.
+     *
+     * A pattern that fails leaves its row without a time rather than failing the board.
+     */
+    const journeyById = new Map<string, number>();
+    if (to) {
+      const patterns = await Promise.all(
+        selected.map(async ({ item }) => {
+          const cached = getCachedLocations<ServiceLocation[] | null>(item.id);
+          if (cached) return cached.value;
+          try {
+            const detail = await serviceDetail(item.id);
+            requestsSpent += 1;
+            const locations = detail?.service?.locations ?? null;
+            if (locations) setCachedLocations(item.id, locations, ttl);
+            return locations;
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      selected.forEach(({ item }, index) => {
+        const minutes = journeyMinutesFrom(from.crs, to.crs, patterns[index]);
+        if (minutes !== null) journeyById.set(item.id, minutes);
+      });
+    }
+
     const services: NationalService[] = selected.map(({ item, role }) => ({
       dep: formatLondonTime(item.depInstant),
       // Emitted as a true UTC instant, not the API's timezone-less original, so
@@ -350,6 +423,7 @@ export async function GET(request: Request) {
       headcode: item.service.scheduleMetadata?.trainReportingIdentity ?? null,
       serviceId: item.id,
       role,
+      journeyMinutes: journeyById.get(item.id) ?? null,
     }));
 
     // Availability, free with the query that was being made anyway.

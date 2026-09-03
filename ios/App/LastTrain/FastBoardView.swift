@@ -104,8 +104,17 @@ struct FastBoardView: View {
         return model.showsNextServiceDay ? "First tomorrow" : "Fastest from now"
     }
 
+    /**
+     Everything the hero is not.
+
+     Not "later": follow a train and the hero is wherever the ranking put it, so the rows
+     beneath can perfectly well leave before it — 04:53 and 05:00 sitting under a followed
+     05:30, with a heading calling them later. "Other" is true whichever train is held at
+     the top, and the times are on the rows anyway, so the word was carrying no
+     information it had not already given away.
+     */
     private var restTitle: String {
-        model.showsNextServiceDay ? "Later tomorrow" : "Later direct trains"
+        model.showsNextServiceDay ? "Other trains tomorrow" : "Other direct trains"
     }
 
     private func status(title: String, body: String) -> some View {

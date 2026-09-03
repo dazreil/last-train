@@ -85,7 +85,10 @@ struct ServiceRow: View {
     }
 
     private var meta: String? {
-        var parts = [service.tocName]
+        var parts: [String] = []
+        // The journey leads when there is one, as it does on the Fast Train row.
+        if let minutes = service.journeyMinutes { parts.append("\(minutes) min") }
+        parts.append(service.tocName)
         if let platform = service.platform { parts.append("plat \(platform)") }
         if service.isReplacementBus { parts.append("Replacement bus") }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")

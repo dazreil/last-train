@@ -27,6 +27,9 @@ public struct BoardDeparture: Decodable, Sendable, Identifiable, Equatable {
     public let headcode: String?
     public let serviceId: String
     public let role: ServiceRole
+    /// Minutes to the destination the board was asked for. Nil when none was, or when
+    /// the calling pattern could not answer.
+    public let journeyMinutes: Int?
 
     public var id: String { serviceId }
 

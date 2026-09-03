@@ -28,6 +28,8 @@ export interface NationalService {
   headcode: string | null;
   serviceId: string;
   role: ServiceRole;
+  /** Minutes to the requested destination. Null without a `to`, or when unreadable. */
+  journeyMinutes: number | null;
 }
 
 export interface SystemStatusView {
