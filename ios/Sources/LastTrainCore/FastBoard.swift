@@ -192,7 +192,15 @@ public enum FastBoard {
     public static func rank(_ services: [FastService], limit: Int = shown) -> [FastService] {
         guard limit > 0 else { return [] }
 
-        return services
+        // One train, one row. `serviceId` is what the board keys its rows on, so a
+        // repeated id does not merely duplicate a line — it hands SwiftUI two rows
+        // claiming to be the same object, which is how an identical pair appeared on a
+        // page: same time, same operator, same platform, same journey. Two genuinely
+        // different trains sharing a departure minute have different ids and both stay.
+        var seen = Set<String>()
+        let unique = services.filter { seen.insert($0.serviceId).inserted }
+
+        return unique
             .sorted { left, right in
                 if left.arrivesAt != right.arrivesAt { return left.arrivesAt < right.arrivesAt }
                 return left.departsAt < right.departsAt

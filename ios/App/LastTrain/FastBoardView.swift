@@ -52,8 +52,8 @@ struct FastBoardView: View {
             )
         } else {
             if let hero = model.hero {
-                sectionHeading(heroTitle)
-                row(hero)
+                sectionHeading(heroTitle, colour: Theme.lastTrainRedLit)
+                row(hero, isHero: true)
             }
 
             if let message = model.activityMessage {
@@ -72,19 +72,20 @@ struct FastBoardView: View {
         }
     }
 
-    private func row(_ service: FastService) -> some View {
+    private func row(_ service: FastService, isHero: Bool = false) -> some View {
         FastRow(
             service: service,
             isSelected: model.activityServiceId == service.serviceId,
-            isBusy: model.isChangingActivity
+            isBusy: model.isChangingActivity,
+            isHero: isHero
         ) {
             Task { await model.toggleActivity(service, at: station, direction: direction) }
         }
     }
 
-    private func sectionHeading(_ text: String) -> some View {
+    private func sectionHeading(_ text: String, colour: Color = Theme.serviceBlueLit) -> some View {
         Text(text)
-            .cathodeSection(Theme.serviceBlueLit)
+            .cathodeSection(colour)
             .padding(.horizontal, Theme.Space.gutter)
             .padding(.top, 18)
             .padding(.bottom, 7)
@@ -133,7 +134,12 @@ struct FastRow: View {
     let service: FastService
     let isSelected: Bool
     let isBusy: Bool
+    /// The one held at the top of the page. Lit red, as the last train is on the other
+    /// board, so the row that matters most is the same colour on both.
+    var isHero = false
     let onSelect: () -> Void
+
+    private var colour: Color { isHero ? Theme.lastTrainRedLit : Theme.serviceBlueLit }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -147,7 +153,7 @@ struct FastRow: View {
                 HStack(alignment: .firstTextBaseline, spacing: 13) {
                     CathodeNumber(
                         text: service.departure,
-                        colour: Theme.serviceBlueLit,
+                        colour: colour,
                         scale: .row
                     )
                     .frame(maxWidth: 190, alignment: .leading)
@@ -177,14 +183,14 @@ struct FastRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Theme.Space.gutter)
             .padding(.vertical, 14)
-            .background(CathodeGauze(tint: Theme.serviceBlueLit, density: 11).opacity(0.62))
-            .overlay(alignment: .bottom) { CathodeRule(colour: Theme.serviceBlueLit.opacity(0.45)) }
+            .background(CathodeGauze(tint: colour, density: 11).opacity(0.62))
+            .overlay(alignment: .bottom) { CathodeRule(colour: colour.opacity(0.45)) }
             .overlay(alignment: .leading) {
                 if isSelected {
                     Rectangle()
-                        .fill(Theme.serviceBlueLit)
+                        .fill(colour)
                         .frame(width: 3)
-                        .shadow(color: Theme.serviceBlueLit, radius: 7)
+                        .shadow(color: colour, radius: 7)
                         .transition(reduceMotion ? .identity : .move(edge: .top).combined(with: .opacity))
                 }
             }
@@ -216,7 +222,7 @@ struct FastRow: View {
             isSelected ? "Following" : "Follow",
             systemImage: isSelected ? "checkmark.circle.fill" : "wave.3.right"
         )
-        .foregroundStyle(isSelected ? Theme.serviceBlueLit : Theme.textDim)
+        .foregroundStyle(isSelected ? colour : Theme.textDim)
         .fixedSize(horizontal: false, vertical: true)
     }
 
