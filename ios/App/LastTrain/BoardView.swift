@@ -567,6 +567,16 @@ struct BoardView: View {
         let heroIsPinnedNonLast = pinned != nil && pinned?.serviceId != last?.serviceId
         let rest = board.services.filter { $0.serviceId != hero?.serviceId }
 
+        // The trains of this service day that are neither the hero nor the last train.
+        // Their heading is relative to the hero, not absolute: follow an early train and
+        // the ones beneath it leave *later*, so a fixed "Earlier trains" would lie — and
+        // it counts itself, so one train is not plural. `depInstant` is UTC ISO, hence
+        // ordered by plain string comparison.
+        let otherLast = rest.filter { $0.role == .last && $0.serviceId != last?.serviceId }
+        let othersAreLater = otherLast.first.map { $0.depInstant > (hero?.depInstant ?? "") } ?? false
+        let otherLastTitle =
+            "\(othersAreLater ? "Later" : "Earlier") train\(otherLast.count == 1 ? "" : "s")"
+
         return VStack(alignment: .leading, spacing: 0) {
             if let hero {
                 // The hero always names itself above the numerals — "Last train", or
@@ -582,10 +592,11 @@ struct BoardView: View {
                     // own rather than a tag crammed onto its detail line.
                     heading("Last train", colour: Theme.lastTrainRedLit)
                 } else if index == 0 || rest[index - 1].role != service.role {
-                    heading(
-                        sectionTitle(for: service.role, board: board),
-                        colour: service.role == .first ? Theme.serviceBlueLit : Theme.textDim
-                    )
+                    if service.role == .first {
+                        heading(sectionTitle(for: service.role, board: board), colour: Theme.serviceBlueLit)
+                    } else {
+                        heading(otherLastTitle, colour: Theme.textDim)
+                    }
                 }
                 serviceRow(service, board: board)
             }
@@ -641,6 +652,8 @@ struct BoardView: View {
 
     private func sectionTitle(for role: ServiceRole, board: DepartureBoard) -> String {
         switch role {
+        // The earlier/later group names itself relative to the hero in `cathodeBoard`;
+        // this stays for the first-back group, whose name is absolute.
         case .last: "Earlier trains"
         case .first: board.mode == .normal ? "First back" : "First trains"
         }
