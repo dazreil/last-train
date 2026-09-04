@@ -15,6 +15,7 @@ struct BoardView: View {
     @State private var fast = FastModel()
     @State private var mode: AppMode = .last
     @State private var pickingStart = false
+    @State private var showingNearby = false
     @State private var inspecting: SheetService?
     @Environment(\.scenePhase) private var scenePhase
 
@@ -109,8 +110,14 @@ struct BoardView: View {
                 }
             } else {
                 // Nothing to work back from yet, so this is the plain search.
-                StationPicker(selection: $model.station)
+                StationPicker(selection: $model.station, nearby: model.nearby)
             }
+        }
+        .sheet(isPresented: $showingNearby) {
+            // The stations found near you, offered to pick from — the same picker the code
+            // button opens, so location and search share one list rather than one adding a
+            // row of chips to the board.
+            StationPicker(selection: $model.station, nearby: model.nearby)
         }
         .sheet(isPresented: $fast.isChoosing) {
             if let start = model.station {
@@ -291,8 +298,35 @@ struct BoardView: View {
 
             Spacer(minLength: 8)
 
-            if model.station != nil { locateButton }
+            // Locate is always here — at "Where?" it is the fastest way to fill the box,
+            // which is exactly when it used to hide. Clear only appears once there is a
+            // journey to clear.
+            if model.station != nil { clearButton }
+            locateButton
         }
+    }
+
+    /// Wipes the chosen journey back to the "Where?" prompt. Sits next to the locate
+    /// button because clearing and re-finding are the two things you do to the pair.
+    private var clearButton: some View {
+        Button {
+            clearJourney()
+        } label: {
+            Image(systemName: "xmark")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(Theme.textDim)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressDim())
+        .accessibilityLabel("Clear journey")
+    }
+
+    private func clearJourney() {
+        guard let station = model.station else { return }
+        fast.clearDestination(at: station, direction: model.direction)
+        model.clearNearby()
+        model.station = nil
     }
 
     /**
@@ -358,8 +392,6 @@ struct BoardView: View {
             if let locateError = model.locateError {
                 Text(locateError).font(Theme.Font.meta).foregroundStyle(Theme.textDim)
             }
-
-            if model.nearby.count > 1 { nearbyStations }
         }
         .padding(.horizontal, Theme.Space.gutter)
         .padding(.top, 16)
@@ -369,7 +401,12 @@ struct BoardView: View {
     /// to save the room, the action did not.
     private var locateButton: some View {
         Button {
-            Task { await model.locate() }
+            Task {
+                await model.locate()
+                // Found some — offer them in the picker. A failure leaves the one-line
+                // reason under the bar instead.
+                if !model.nearby.isEmpty { showingNearby = true }
+            }
         } label: {
             Group {
                 if model.isLocating { ProgressView().tint(Theme.textDim) }
@@ -512,25 +549,6 @@ struct BoardView: View {
     private func wayBackLabel(_ text: String) -> some View {
         stepText(text, lit: false)
             .padding(.vertical, 4)
-    }
-
-    private var nearbyStations: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(model.nearby, id: \.station.crs) { candidate in
-                    Button {
-                        model.station = candidate.station
-                    } label: {
-                        Text("\(candidate.station.name.withoutLondonPrefix)  \(candidate.distanceLabel)")
-                            .font(Theme.Font.meta)
-                            .padding(.horizontal, 10)
-                            .frame(minHeight: 40)
-                            .background(Theme.control.opacity(0.72), in: Capsule())
-                    }
-                    .buttonStyle(PressDim())
-                }
-            }
-        }
     }
 
     // MARK: - Last Train
@@ -713,6 +731,9 @@ struct BoardView: View {
 
 struct StationPicker: View {
     @Binding var selection: Station?
+    /// The stations found near you, if you asked. Shown as a section above search until
+    /// you start typing, so nearby lives in the picker rather than as chips on the board.
+    var nearby: [Nearby<Station>] = []
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
 
@@ -720,24 +741,23 @@ struct StationPicker: View {
         NavigationStack {
             ZStack {
                 CathodeBackdrop()
-                List(matches, id: \.crs) { station in
-                    Button {
-                        selection = station
-                        dismiss()
-                    } label: {
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(station.name).font(Theme.Font.destination).foregroundStyle(Theme.text)
-                                if let locality = station.locality {
-                                    Text(locality).font(Theme.Font.meta).foregroundStyle(Theme.textFaint)
-                                }
+                List {
+                    if query.isEmpty && !nearby.isEmpty {
+                        Section {
+                            ForEach(nearby, id: \.station.crs) { candidate in
+                                row(candidate.station, trailing: candidate.distanceLabel, colour: Theme.textDim)
                             }
-                            Spacer(minLength: 0)
-                            Text(station.crs).font(Theme.Font.meta.monospaced()).foregroundStyle(Theme.serviceBlueLit)
+                        } header: {
+                            Text("Nearby").font(Theme.Font.meta).foregroundStyle(Theme.textDim)
                         }
-                        .padding(.vertical, 6)
                     }
-                    .listRowBackground(Theme.surface.opacity(0.62))
+                    if !matches.isEmpty {
+                        Section {
+                            ForEach(matches, id: \.crs) { station in
+                                row(station, trailing: station.crs, colour: Theme.serviceBlueLit)
+                            }
+                        }
+                    }
                 }
                 .scrollContentBackground(.hidden)
                 .listStyle(.plain)
@@ -747,6 +767,26 @@ struct StationPicker: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .preferredColorScheme(.dark)
+    }
+
+    private func row(_ station: Station, trailing: String, colour: Color) -> some View {
+        Button {
+            selection = station
+            dismiss()
+        } label: {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(station.name).font(Theme.Font.destination).foregroundStyle(Theme.text)
+                    if let locality = station.locality {
+                        Text(locality).font(Theme.Font.meta).foregroundStyle(Theme.textFaint)
+                    }
+                }
+                Spacer(minLength: 0)
+                Text(trailing).font(Theme.Font.meta.monospaced()).foregroundStyle(colour)
+            }
+            .padding(.vertical, 6)
+        }
+        .listRowBackground(Theme.surface.opacity(0.62))
     }
 
     private var matches: [Station] {

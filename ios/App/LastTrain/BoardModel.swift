@@ -243,9 +243,10 @@ final class BoardModel {
                 return
             }
 
+            // The picker shows these and the person chooses; `closest` is only proof that
+            // at least one station is in range, not a pick to make for them.
+            _ = closest
             nearby = found
-            // Setting this loads the board, through `station`'s observer.
-            station = closest.station
         } catch {
             nearby = []
             locateError = (error as? LocationFinder.Failure)?.errorDescription
