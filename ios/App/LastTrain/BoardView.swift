@@ -301,8 +301,8 @@ struct BoardView: View {
             // Locate is always here — at "Where?" it is the fastest way to fill the box,
             // which is exactly when it used to hide. Clear only appears once there is a
             // journey to clear.
-            if model.station != nil { clearButton }
             locateButton
+            if model.station != nil { clearButton }
         }
     }
 
