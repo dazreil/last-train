@@ -613,7 +613,7 @@ struct BoardView: View {
                     if service.role == .first {
                         heading(sectionTitle(for: service.role, board: board), colour: Theme.serviceBlueLit)
                     } else {
-                        heading(otherLastTitle, colour: Theme.textDim)
+                        heading(otherLastTitle, colour: Theme.serviceBlueLit)
                     }
                 }
                 serviceRow(service, board: board)

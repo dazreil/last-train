@@ -68,6 +68,13 @@ struct FastBoardView: View {
                     .padding(.vertical, 10)
             }
 
+            // The fastest train, once a later one is followed: kept below the hero under
+            // its own name, both heading and numerals blue now it is not the one you watch.
+            if let fastest = model.demotedFastest {
+                sectionHeading("Fastest train")
+                row(fastest)
+            }
+
             if !model.shown.isEmpty {
                 sectionHeading(restTitle)
                 ForEach(model.shown) { row($0) }
@@ -109,30 +116,38 @@ struct FastBoardView: View {
             .padding(.bottom, 7)
     }
 
-    /**
-     What the pinned train is.
-
-     A followed train says so, because that is why it is up there and not where the
-     ranking would have put it. Otherwise it is simply the head of the ranking — the
-     first train you can be at your destination on. Tomorrow's board says tomorrow, or
-     the times read as tonight's.
-     */
-    private var heroTitle: String {
-        if model.hero?.serviceId == model.activityServiceId { return "Following" }
-        return model.showsNextServiceDay ? "First tomorrow" : "Fastest from now"
+    /// Whether the hero is up there because you followed it, rather than because it is
+    /// the fastest. The two headings both turn on this.
+    private var isFollowingHero: Bool {
+        model.hero?.serviceId == model.activityServiceId
     }
 
     /**
-     Everything the hero is not.
+     What the pinned train is.
 
-     Not "later": follow a train and the hero is wherever the ranking put it, so the rows
-     beneath can perfectly well leave before it — 04:53 and 05:00 sitting under a followed
-     05:30, with a heading calling them later. "Other" is true whichever train is held at
-     the top, and the times are on the rows anyway, so the word was carrying no
-     information it had not already given away.
+     A followed train says so. Otherwise it is the fastest train to the destination — the
+     first you can be there on, which is the whole question this mode answers. "From now"
+     said nothing the board did not: every train on it is from now. Tomorrow's board names
+     itself instead.
+     */
+    private var heroTitle: String {
+        if isFollowingHero { return "Following" }
+        return model.showsNextServiceDay ? "First tomorrow" : "Fastest train"
+    }
+
+    /**
+     Everything beneath the hero.
+
+     Nothing followed, the hero is the fastest, so every row under it arrives later — they
+     are the "Later trains". Follow one and the hero drops down the ranking while the
+     fastest falls into this list ahead of it, so the rows are no longer all later: they
+     are simply the "Other trains". Tomorrow keeps its own name.
      */
     private var restTitle: String {
-        model.showsNextServiceDay ? "Other trains tomorrow" : "Other direct trains"
+        if model.showsNextServiceDay { return "Other trains tomorrow" }
+        // "Other" once the fastest is pulled out above; until then the rows are all later
+        // than it, so they are the later trains.
+        return model.demotedFastest != nil ? "Other trains" : "Later trains"
     }
 
     private func status(title: String, body: String) -> some View {
@@ -178,15 +193,16 @@ struct FastRow: View {
         // neither swallows the other.
         VStack(alignment: .leading, spacing: 8) {
             Button(action: onOpen) {
-                HStack(alignment: .firstTextBaseline, spacing: 13) {
+                HStack(alignment: .center, spacing: 13) {
                     CathodeNumber(text: service.departure, colour: colour, scale: .row)
                         .frame(maxWidth: 190, alignment: .leading)
 
-                    Text(Stations.code(forName: service.destination)
-                        ?? service.destination.withoutLondonPrefix)
+                    // The name rather than the code, wrapping to a second line where it must
+                    // and sitting within the height of the time beside it.
+                    Text(service.destination.withoutLondonPrefix)
                         .font(Theme.Font.destination)
-                        .monospacedDigit()
                         .foregroundStyle(Theme.text)
+                        .lineLimit(2)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     Image(systemName: "chevron.right")
@@ -201,7 +217,7 @@ struct FastRow: View {
             .accessibilityHint("Opens calling points")
 
             HStack(spacing: 8) {
-                Text(meta).font(Theme.Font.meta).foregroundStyle(Theme.textFaint).lineLimit(1)
+                Text(meta).font(Theme.Font.meta).foregroundStyle(Theme.textDim).lineLimit(1)
                 Spacer(minLength: 8)
                 // Never wraps: the detail yields, the pill keeps its line.
                 FollowPill(isOn: isFollowed, colour: colour, isBusy: isBusy, action: onFollow)

@@ -314,22 +314,44 @@ final class FastModel {
         return services.first
     }
 
-    /// Everything the hero is not. Paged; the hero never is.
+    /**
+     The fastest train when a slower one is followed.
+
+     Following a later train makes that train the hero, but the fastest is still the
+     answer this mode exists to give, so it keeps its name and sits just below — the way
+     the last train does on the other board when something else is pinned above it. Nil
+     when nothing is followed, or the train followed is the fastest itself.
+     */
+    var demotedFastest: FastService? {
+        guard let fastest = services.first, fastest.serviceId != hero?.serviceId else { return nil }
+        return fastest
+    }
+
+    /// Everything neither held at the top nor pinned as the fastest below it. Paged; those
+    /// two never are.
     private var rest: [FastService] {
         guard let heroId = hero?.serviceId else { return [] }
-        return services.filter { $0.serviceId != heroId }
+        let fastestId = demotedFastest?.serviceId
+        return services.filter { $0.serviceId != heroId && $0.serviceId != fastestId }
+    }
+
+    /// Paged rows shown at once. One fewer when the fastest is pinned below a followed
+    /// train, so the board still totals four: the hero, the fastest, and two more — not
+    /// five.
+    private var visiblePerPage: Int {
+        Self.perPage - (demotedFastest != nil ? 1 : 0)
     }
 
     var pageCount: Int {
         guard !rest.isEmpty else { return 0 }
-        let full = (rest.count + Self.perPage - 1) / Self.perPage
+        let full = (rest.count + visiblePerPage - 1) / visiblePerPage
         return min(full, Self.maximumPages)
     }
 
     var shown: [FastService] {
-        let start = page * Self.perPage
+        let start = page * visiblePerPage
         guard start < rest.count else { return [] }
-        return Array(rest[start..<min(start + Self.perPage, rest.count)])
+        return Array(rest[start..<min(start + visiblePerPage, rest.count)])
     }
 
     var canPage: Bool { pageCount > 1 }

@@ -213,12 +213,29 @@ struct CathodeNumber: View {
     }
 
     private var terminalText: some View {
-        Text(display.time)
+        Text(paddedTime)
             .font(terminalFont)
             .monospacedDigit()
             .tracking(-size * 0.02)
             .lineLimit(1)
             .minimumScaleFactor(0.72)
+    }
+
+    /// The time, held to a constant width whatever the hour.
+    ///
+    /// A twelve-hour clock drops the leading zero — `5:23`, not `05:23` — so a single-digit
+    /// hour is one glyph narrower than a two-digit one. The number is sized to fill its
+    /// width, so the narrower string was drawn larger, and the hero visibly grew and shrank
+    /// as the hour changed. A leading figure space (`\u{2007}`, a digit's width under
+    /// `monospacedDigit`) pads the hour back to two places, so `5:23` occupies exactly what
+    /// `12:41` does and the clock keeps one size. Twenty-four-hour times already carry the
+    /// zero, so they are untouched.
+    private var paddedTime: String {
+        let time = display.time
+        guard let colon = time.firstIndex(of: ":"),
+              time.distance(from: time.startIndex, to: colon) == 1
+        else { return time }
+        return "\u{2007}" + time
     }
 }
 

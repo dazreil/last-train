@@ -44,7 +44,7 @@ struct ServiceRow: View {
                             }
                         }
                     } else {
-                        HStack(alignment: .firstTextBaseline, spacing: 13) {
+                        HStack(alignment: .center, spacing: 13) {
                             time
                             destination
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -63,7 +63,7 @@ struct ServiceRow: View {
                 if let meta {
                     Text(meta)
                         .font(Theme.Font.meta)
-                        .foregroundStyle(Theme.textFaint)
+                        .foregroundStyle(Theme.textDim)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 8)
@@ -94,21 +94,17 @@ struct ServiceRow: View {
     }
 
     /**
-     Where it goes, as a code.
+     Where it goes, by name.
 
-     `FST` rather than `London Fenchurch Street`. The board is read standing up, in the
-     dark, in a couple of seconds, and a code is the form the railway already prints on
-     its own signage — so it reads faster and costs a fraction of the width. The full name
-     is one tap away in the sheet, which is where the calling points live anyway.
-
-     **Falls back to the name.** `Stations.code(forName:)` can miss, and a wide row is a
-     far better failure than an empty one.
+     `Shoeburyness`, not `SRY` — wrapping to a second line where it must, sitting within
+     the height of the time beside it. The code read faster and cost less width; the name
+     is what most people know a station by, and this is the trial of preferring it.
      */
     private var destination: some View {
-        Text(Stations.code(forName: service.destination) ?? service.destination.withoutLondonPrefix)
+        Text(service.destination.withoutLondonPrefix)
             .font(Theme.Font.destination)
-            .monospacedDigit()
             .foregroundStyle(Theme.text)
+            .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
     }
 
