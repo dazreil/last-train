@@ -66,7 +66,16 @@ struct BoardView: View {
                 errorMessage: model.errorMessage
             )
         )
-        .refreshable { await model.load(refresh: true) }
+        .refreshable {
+            // Refresh whichever board is on screen. It used to always refresh Last Train,
+            // so a pull in Fast Train refreshed a hidden board and its "Updated" stamp
+            // never moved.
+            if mode == .fast, let station = model.station {
+                await fast.load(at: station, direction: model.direction, refresh: true)
+            } else {
+                await model.load(refresh: true)
+            }
+        }
         .task { await model.load() }
         .task {
             await TrainActivityController.tidy()
@@ -284,7 +293,7 @@ struct BoardView: View {
             if model.station != nil {
                 Image(systemName: "arrow.right")
                     .font(.title3.weight(.bold))
-                    .foregroundStyle(Theme.textFaint)
+                    .foregroundStyle(Theme.textDim)
                     .accessibilityHidden(true)
 
                 codeButton(
@@ -712,7 +721,7 @@ struct BoardView: View {
         if let updated = mode == .last ? model.updatedAt : fast.updatedAt {
             Text("Updated \(ServiceDay.formatLondonTime(updated))")
                 .font(Theme.Font.meta)
-                .foregroundStyle(Theme.textFaint)
+                .foregroundStyle(Theme.textDim)
                 .padding(.horizontal, Theme.Space.gutter)
                 .padding(.top, 20)
                 .accessibilityLabel("Times updated at \(ServiceDay.formatLondonTime(updated))")
@@ -720,12 +729,21 @@ struct BoardView: View {
     }
 
     private var footnote: some View {
-        Text("Direct services only. Timetables follow the railway service day to 03:00.")
-            .font(Theme.Font.meta)
-            .foregroundStyle(Theme.textFaint)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, Theme.Space.gutter)
-            .padding(.top, 30)
+        VStack(alignment: .leading, spacing: 7) {
+            Text("Direct services only. Timetables follow the railway service day to 03:00.")
+                .foregroundStyle(Theme.textDim)
+
+            // Attribution for both feeds: Realtime Trains behind Last Train, National Rail
+            // (Darwin) behind Fast Train and the destinations list. The names are links.
+            Text("Powered by [Realtime Trains](https://www.realtimetrains.co.uk) and [National Rail Enquiries](https://www.nationalrail.co.uk).")
+                .foregroundStyle(Theme.textFaint)
+                .tint(Theme.serviceBlueLit)
+        }
+        .font(Theme.Font.meta)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, Theme.Space.gutter)
+        .padding(.top, 26)
+        .padding(.bottom, 12)
     }
 }
 

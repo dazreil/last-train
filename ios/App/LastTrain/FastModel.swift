@@ -171,7 +171,7 @@ final class FastModel {
      you online?"*. The request had already reached the server; only the answer was thrown
      away. `FastBoardView` adopts, this reads, and the key settles before the request goes.
      */
-    func load(at station: Station, direction: Compass) async {
+    func load(at station: Station, direction: Compass, refresh: Bool = false) async {
         guard let heading = destination else {
             services = []
             updatedAt = nil
@@ -184,7 +184,7 @@ final class FastModel {
         defer { isLoading = false }
 
         do {
-            let board = try await client.fast(from: station.crs, to: heading.crs)
+            let board = try await client.fast(from: station.crs, to: heading.crs, refresh: refresh)
             // The server priced them; the order is ours. `FastBoard` is the only place
             // that rule lives, on either platform.
             var ranked = FastBoard.rank(
@@ -208,7 +208,8 @@ final class FastModel {
                 let next = try await client.fast(
                     from: station.crs,
                     to: heading.crs,
-                    date: tomorrow
+                    date: tomorrow,
+                    refresh: refresh
                 )
                 let first = FastBoard.rank(
                     next.services,

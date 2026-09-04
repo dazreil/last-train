@@ -126,13 +126,14 @@ struct FastBoardView: View {
      What the pinned train is.
 
      A followed train says so. Otherwise it is the fastest train to the destination — the
-     first you can be there on, which is the whole question this mode answers. "From now"
-     said nothing the board did not: every train on it is from now. Tomorrow's board names
-     itself instead.
+     first you can be there on, which is the whole question this mode answers. It stays
+     "Fastest train" even when the board has rolled to tomorrow's first services: they are
+     still the fastest, and the earlier "First tomorrow" / "Other trains tomorrow" pair
+     wrapped to two lines where the shorter, still-true titles do not.
      */
     private var heroTitle: String {
         if isFollowingHero { return "Following" }
-        return model.showsNextServiceDay ? "First tomorrow" : "Fastest train"
+        return "Fastest train"
     }
 
     /**
@@ -144,9 +145,8 @@ struct FastBoardView: View {
      are simply the "Other trains". Tomorrow keeps its own name.
      */
     private var restTitle: String {
-        if model.showsNextServiceDay { return "Other trains tomorrow" }
         // "Other" once the fastest is pulled out above; until then the rows are all later
-        // than it, so they are the later trains.
+        // than it, so they are the later trains. Both stay true for tomorrow's board too.
         return model.demotedFastest != nil ? "Other trains" : "Later trains"
     }
 
