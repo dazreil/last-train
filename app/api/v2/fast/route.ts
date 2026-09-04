@@ -58,6 +58,17 @@ export const runtime = 'nodejs';
 const PATTERN_BUDGET = 15;
 
 /**
+ * How long a board thinned by rate limiting may be cached.
+ *
+ * A pattern fetch that throws drops its train, so when the upstream is rate limited the
+ * board comes back short — sometimes a single train out of seventy-odd. That is not the
+ * real board, and the day TTL would replay it for the hour. A minute lets it be served
+ * without hammering the upstream, and the next request recomputes against a pattern cache
+ * that each attempt leaves warmer, so a thin board fills itself in over a few opens.
+ */
+const RATE_LIMITED_TTL = 60;
+
+/**
  * Which platform it leaves from.
  *
  * Free here: the filtered line-up already carries it for the origin, so this costs no
@@ -159,6 +170,9 @@ export async function GET(request: Request) {
   const ttl = ttlSecondsFor(date);
 
   const services: FastService[] = [];
+  // Pattern fetches that threw rather than answering. Above zero means the upstream was
+  // rate limiting, so trains dropped out and this board is thinner than the real one.
+  let fetchFailures = 0;
 
   for (const candidate of priced) {
     const id = candidate.scheduleMetadata?.uniqueIdentity;
@@ -176,7 +190,9 @@ export async function GET(request: Request) {
         if (locations) setCachedLocations(id, locations, ttl);
       } catch {
         // One train that cannot be priced is not a failed lookup. It drops out and the
-        // rest still answer.
+        // rest still answer. But count it: a throw is the upstream refusing, not the
+        // train being unpriceable, and enough of them mean the board is short.
+        fetchFailures += 1;
         continue;
       }
     }
@@ -221,11 +237,28 @@ export async function GET(request: Request) {
    An empty board with no candidates is a real answer and is cached as one.
   */
   const pricedNothing = services.length === 0 && candidates > 0;
-  if (!pricedNothing) setCached(key, body, ttl);
 
-  return NextResponse.json(body, {
-    headers: { 'x-cache': pricedNothing ? 'SKIP' : 'MISS' },
-  });
+  /*
+   Cache the full board for the day, a rate-limited one for only a minute.
+
+   `pricedNothing` is the limit case — every fetch threw — and is never cached, so a
+   refresh is not the only way back from it. Short of that limit, a board with any thrown
+   fetch is still short of the trains rate limiting swallowed; caching it for the hour is
+   what pinned a single train to the top for an hour. A minute serves it without a
+   recompute per request, and lets the next open fill it in.
+  */
+  let outcome: 'MISS' | 'PARTIAL' | 'SKIP';
+  if (pricedNothing) {
+    outcome = 'SKIP';
+  } else if (fetchFailures > 0) {
+    setCached(key, body, RATE_LIMITED_TTL);
+    outcome = 'PARTIAL';
+  } else {
+    setCached(key, body, ttl);
+    outcome = 'MISS';
+  }
+
+  return NextResponse.json(body, { headers: { 'x-cache': outcome } });
 }
 
 /**
