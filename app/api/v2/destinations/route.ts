@@ -19,6 +19,7 @@
 import { NextResponse } from 'next/server';
 
 import { locationLineUp, serviceDetail } from '@/lib/rtt';
+import { DarwinError, departureBoard, normalize } from '@/lib/darwin';
 import {
   currentServiceDate,
   isValidIsoDate,
@@ -63,7 +64,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'direction must be a compass point.' }, { status: 400 });
   }
 
-  const date = params.get('date') ?? currentServiceDate();
+  const today = currentServiceDate();
+  const date = params.get('date') ?? today;
   if (!isValidIsoDate(date)) {
     return NextResponse.json({ error: 'date must be YYYY-MM-DD.' }, { status: 400 });
   }
@@ -72,6 +74,62 @@ export async function GET(request: Request) {
   if (params.get('refresh') !== '1') {
     const hit = getCached<DestinationList>(cacheKey);
     if (hit) return NextResponse.json(hit.value, { headers: { 'x-cache': 'HIT' } });
+  }
+
+  /*
+   Darwin first, live day only — one request, calling points attached.
+
+   The reachable set is read straight from the board's own calling points, so the list is
+   built without a pattern fetch per train. The waypoint filters the board to this
+   direction exactly as it filtered the RTT line-up; without one, the bearing rule sorts
+   the board by each train's terminus, as before. A future date or an empty board falls
+   through to the RTT path below.
+  */
+  if (date === today) {
+    try {
+      const waypoint = waypointFor(from.crs, direction);
+      const board = await departureBoard(
+        from.crs,
+        waypoint ? { filterCrs: waypoint, filterType: 'to', numRows: 40 } : { numRows: 40 }
+      );
+      let reachable = normalize(board);
+
+      if (!waypoint) {
+        const origin = coordinateFor([from.name], [from.crs]);
+        if (!origin) {
+          return NextResponse.json(
+            { error: 'That station has no position to work from.' },
+            { status: 422 }
+          );
+        }
+        reachable = reachable.filter((service) => {
+          const terminus = service.stops[service.stops.length - 1];
+          const to = coordinateFor([service.destinationName], terminus?.crs ? [terminus.crs] : []);
+          return classify(origin, to) === direction;
+        });
+      }
+
+      const best = new Map<string, number>();
+      for (const service of reachable) {
+        const boarding = service.stops[0];
+        if (!boarding?.timeInstant) continue;
+        for (const stop of service.stops.slice(1)) {
+          if (!stop.crs || !stop.timeInstant) continue;
+          const minutes = minutesBetween(boarding.timeInstant, stop.timeInstant);
+          if (!Number.isFinite(minutes) || minutes <= 0) continue;
+          const seen = best.get(stop.crs);
+          if (seen === undefined || minutes < seen) best.set(stop.crs, minutes);
+        }
+      }
+
+      if (best.size > 0) {
+        const body = assembleList(from, direction, date, best, false);
+        setCached(cacheKey, body, ttlSecondsFor(date));
+        return NextResponse.json(body, { headers: { 'x-cache': 'MISS', 'x-source': 'darwin' } });
+      }
+    } catch (error) {
+      if (!(error instanceof DarwinError)) throw error;
+    }
   }
 
   const window = serviceDayWindow(date);
@@ -193,6 +251,46 @@ export async function GET(request: Request) {
   setCached(cacheKey, body, ttl);
 
   return NextResponse.json(body, { headers: { 'x-cache': 'MISS' } });
+}
+
+/**
+ * The reachable set, filtered against the other directions and sorted, as the wire shape.
+ *
+ * §14's rule lives here: a destination another direction reaches faster drops out, and the
+ * comparison is against whatever sibling lists are cached — `comparedWith` says which. The
+ * Darwin and RTT paths both end here, so the rule is written once.
+ */
+function assembleList(
+  from: { crs: string; name: string },
+  direction: string,
+  date: IsoDate,
+  best: Map<string, number>,
+  truncated: boolean
+): DestinationList {
+  const comparedWith: string[] = [];
+  const beaten = new Map<string, number>();
+
+  for (const point of COMPASS_POINTS) {
+    if (point === direction) continue;
+    const sibling = getCached<DestinationList>(key(from.crs, point, date));
+    if (!sibling) continue;
+
+    comparedWith.push(point);
+    for (const other of sibling.value.destinations) {
+      const seen = beaten.get(other.crs);
+      if (seen === undefined || other.minutes < seen) beaten.set(other.crs, other.minutes);
+    }
+  }
+
+  const destinations: Destination[] = [...best.entries()]
+    .filter(([crs, minutes]) => {
+      const rival = beaten.get(crs);
+      return rival === undefined || minutes <= rival;
+    })
+    .map(([crs, minutes]) => ({ crs, name: findStationByCrs(crs)?.name ?? crs, minutes }))
+    .sort((a, b) => a.minutes - b.minutes || a.name.localeCompare(b.name));
+
+  return { from: { crs: from.crs, name: from.name }, direction, date, destinations, truncated, comparedWith };
 }
 
 /**

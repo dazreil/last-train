@@ -43,17 +43,29 @@ const describe = (list: { location?: { description?: string } }[] | undefined): 
 export async function GET(request: Request) {
   const id = (new URL(request.url).searchParams.get('id') ?? '').trim();
 
-  // Shape check only. `serviceDetail` strips the namespace itself, and RTT is the
-  // authority on whether the identity exists.
-  if (!id || !id.includes(':')) {
+  if (!id) {
     return NextResponse.json({ error: 'A service id is required.' }, { status: 400 });
   }
 
+  // Cache first, whatever the id's shape. A Fast Train tap carries a Darwin service id,
+  // and its stops were cached by the board that listed it — so the sheet is served from
+  // here with no request at all. A Last Train tap carries an RTT id, cached after its
+  // first lookup below.
   const cached = getCachedCalls<ServiceCalls>(id);
   if (cached) {
     return NextResponse.json(cached.value, {
       headers: { 'x-cache': 'HIT', 'cache-control': `public, max-age=${TTL_SECONDS}` },
     });
+  }
+
+  // Only RTT ids carry the `gb-nr:...:date` namespace. A colon-less id is Darwin's, and
+  // Darwin has no single-service lookup in this subscription — its stops live only in the
+  // board cache above. A miss there means the board has aged out; reopening it refills it.
+  if (!id.includes(':')) {
+    return NextResponse.json(
+      { error: 'Those stops have expired. Reopen the board to load them again.' },
+      { status: 404 }
+    );
   }
 
   let detail;

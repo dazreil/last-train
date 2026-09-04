@@ -18,6 +18,7 @@
 import { NextResponse } from 'next/server';
 
 import { locationLineUp, serviceDetail } from '@/lib/rtt';
+import { DarwinError, departureBoard, normalize, toFastService, toServiceCalls } from '@/lib/darwin';
 import {
   currentServiceDate,
   formatLondonTime,
@@ -28,7 +29,14 @@ import {
   type IsoDate,
 } from '@/lib/serviceDay';
 import { findStationByCrs } from '@/lib/nationalStations';
-import { getCached, getCachedLocations, setCached, setCachedLocations, ttlSecondsFor } from '@/lib/cache';
+import {
+  getCached,
+  getCachedLocations,
+  setCached,
+  setCachedCalls,
+  setCachedLocations,
+  ttlSecondsFor,
+} from '@/lib/cache';
 import type { FastBoard, FastService } from '@/lib/nationalContract';
 import type { LocationLineUpObject, ServiceLocation } from '@/lib/rtt';
 
@@ -67,6 +75,24 @@ const PATTERN_BUDGET = 15;
  * that each attempt leaves warmer, so a thin board fills itself in over a few opens.
  */
 const RATE_LIMITED_TTL = 60;
+
+/**
+ * How long a Darwin board is held.
+ *
+ * The board carries live times, so it is cached briefly — long enough to absorb a burst
+ * of opens, short enough that a delay shows within a couple of minutes. The 100k/month
+ * budget makes a frequent refetch affordable in a way the RTT minute never did.
+ */
+const DARWIN_TTL = 90;
+
+/**
+ * How long the calling points behind a Darwin service are kept.
+ *
+ * A timetabled pattern does not change through its service day, so the detail sheet can
+ * read the day's copy safely. The board id is day-scoped, so a stale entry cannot outlive
+ * the train it describes.
+ */
+const DARWIN_CALLS_TTL = 60 * 60 * 6;
 
 /**
  * Which platform it leaves from.
@@ -124,6 +150,58 @@ export async function GET(request: Request) {
     const cached = getCached<FastBoard>(key);
     if (cached) {
       return NextResponse.json(cached.value, { headers: { 'x-cache': 'HIT' } });
+    }
+  }
+
+  /*
+   Darwin first, and for the live day only.
+
+   `GetDepBoardWithDetails` brings the calling points with the board, so the whole screen
+   is one request instead of one per train — the fan-out that let a single user exhaust
+   the RTT minute. It looks about two hours ahead, which is what "the next trains from
+   here" means, so it answers the live day directly.
+
+   It cannot answer a future date, and near the end of the night the next direct train can
+   be tomorrow morning, past its two-hour horizon — an empty board. Both of those fall
+   through to the RTT path below, which reads to the end of the service day and rolls on
+   to tomorrow's first trains. RTT stays the fallback; Darwin carries the common case.
+  */
+  if (date === today) {
+    try {
+      const board = await departureBoard(from.crs, {
+        filterCrs: to.crs,
+        filterType: 'to',
+        numRows: 25,
+      });
+      const normalized = normalize(board);
+      const services: FastService[] = [];
+      for (const service of normalized) {
+        const priced = toFastService(service, to.crs);
+        if (!priced) continue;
+        services.push(priced);
+        // The tap that opens this train reads its stops from here; the board already
+        // fetched them, so the detail sheet costs no request of its own.
+        setCachedCalls(service.serviceId, toServiceCalls(service), DARWIN_CALLS_TTL);
+      }
+
+      if (services.length > 0) {
+        const body: FastBoard = {
+          from: { crs: from.crs, name: from.name, locality: from.locality },
+          to: { crs: to.crs, name: to.name, locality: to.locality },
+          date,
+          services,
+          candidates: normalized.length,
+          // The board returns every calling train in the window, so nothing was left
+          // unpriced for want of a budget.
+          truncated: false,
+        };
+        setCached(key, body, DARWIN_TTL);
+        return NextResponse.json(body, { headers: { 'x-cache': 'MISS', 'x-source': 'darwin' } });
+      }
+      // Empty window: the next direct train is beyond two hours. RTT answers it.
+    } catch (error) {
+      // Darwin down or misconfigured: the screen still works, on RTT.
+      if (!(error instanceof DarwinError)) throw error;
     }
   }
 
