@@ -39,6 +39,7 @@ import {
   type ServiceLocation,
 } from '@/lib/rtt';
 import { sortedDepartures, destinationNames, destinationCodes, type Departure } from '@/lib/journeys';
+import { DarwinError, departureBoard, normalize } from '@/lib/darwin';
 import { boardHasExpired, boardMode, selectBoard } from '@/lib/board';
 import { classify, COMPASS_POINTS, isCompass, tally, type Compass } from '@/lib/compass';
 import { routesFrom, waypointFor } from '@/lib/adjacency';
@@ -164,6 +165,58 @@ const platformOf = (departure: Departure): string | null =>
   departure.service.locationMetadata?.platform?.actual ??
   departure.service.locationMetadata?.platform?.planned ??
   null;
+
+/**
+ * Drop the near-term departures Darwin does not list.
+ *
+ * Darwin is the feed behind the platform displays, so where it and RTT disagree about a
+ * train in the next couple of hours, Darwin is the one to trust — RTT occasionally lists a
+ * phantom that never runs, and at the end of the day that phantom becomes the "last train".
+ *
+ * Only departures inside Darwin's ~2h horizon are checked; anything further off, a station
+ * with no direction waypoint (which would risk matching a train the other way at the same
+ * minute), or any Darwin outage — including the key not being set — leaves the list exactly
+ * as RTT gave it. Matched on the departure minute within the direction, which is enough to
+ * separate a real train from a slot Darwin has nothing in.
+ */
+async function confirmedAgainstDarwin(
+  originCrs: string,
+  waypoint: string | undefined,
+  candidates: Departure[]
+): Promise<Departure[]> {
+  if (!waypoint) return candidates;
+
+  const nowMs = Date.now();
+  const horizonMs = 110 * 60 * 1000;
+  const inWindow = (depInstant: string): boolean => {
+    const delta = toInstantMillis(depInstant) - nowMs;
+    return delta >= -60_000 && delta <= horizonMs;
+  };
+
+  if (!candidates.some((candidate) => inWindow(candidate.depInstant))) return candidates;
+
+  let listed: Set<string>;
+  try {
+    const board = await departureBoard(originCrs, {
+      filterCrs: waypoint,
+      filterType: 'to',
+      numRows: 100,
+    });
+    listed = new Set(
+      normalize(board)
+        .map((service) => service.stops[0]?.time)
+        .filter((time): time is string => Boolean(time))
+    );
+  } catch (error) {
+    if (error instanceof DarwinError) return candidates;
+    throw error;
+  }
+
+  return candidates.filter((candidate) => {
+    if (!inWindow(candidate.depInstant)) return true;
+    return listed.has(formatLondonTime(candidate.depInstant));
+  });
+}
 
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
@@ -355,6 +408,20 @@ export async function GET(request: Request) {
 
     const day = await loadDay(date);
 
+    // Near the end of the service day, the last train is within Darwin's horizon — so it
+    // can be checked against the feed the platform boards use, and a phantom RTT service
+    // dropped before it is picked as the last train. Away from the end of the day the last
+    // train is hours off and unverifiable, so this does nothing.
+    const lastDepInstant = day.candidates[day.candidates.length - 1]?.depInstant;
+    const lastTrainSoon =
+      date === today &&
+      lastDepInstant != null &&
+      toInstantMillis(lastDepInstant) - Date.now() <= 2 * 60 * 60 * 1000;
+
+    if (lastTrainSoon) {
+      day.candidates = await confirmedAgainstDarwin(from.crs, filterTo, day.candidates);
+    }
+
     const mode = boardMode({
       // A day stepped on to counts as live: it is the one with trains still ahead.
       isLiveServiceDay: date === today || advanced,
@@ -524,7 +591,11 @@ export async function GET(request: Request) {
     // An empty list is a real answer -- nothing runs that way today -- and is cached
     // like any other. At a terminus, three of the four directions are empty and always
     // will be.
-    setCached(key, body, ttl);
+    //
+    // Held only briefly when the last train is imminent: the schedule is most volatile
+    // then, so a late cancellation or a phantom that slipped the Darwin check should clear
+    // in a minute or two rather than sit for the hour.
+    setCached(key, body, lastTrainSoon ? 120 : ttl);
 
     return json(body, {
       headers: {
