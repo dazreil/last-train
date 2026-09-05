@@ -585,7 +585,36 @@ struct BoardView: View {
         }
     }
 
+    @ViewBuilder
     private func cathodeBoard(_ board: DepartureBoard) -> some View {
+        // Rolled past a spent service day into one not yet running: the next trains you can
+        // catch lead, the last train sits below. The follow-pill rewrite unified the board
+        // around a last-train hero and dropped this, so after the last train had gone the
+        // board showed the *next day's* last train — a whole day off — at the top.
+        if board.mode == .preService, model.pinnedService == nil {
+            preServiceBoard(board)
+        } else {
+            normalBoard(board)
+        }
+    }
+
+    private func preServiceBoard(_ board: DepartureBoard) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if !board.firstTrains.isEmpty {
+                heading("First trains", colour: Theme.serviceBlueLit)
+                ForEach(board.firstTrains, id: \.id) { serviceRow($0, board: board) }
+            }
+            if let last = board.lastTrain {
+                heading("Last train", colour: Theme.lastTrainRedLit)
+                serviceRow(last, board: board)
+            }
+        }
+        .padding(.top, 8)
+        .opacity(model.isLoading ? 0.42 : 1)
+        .animation(.easeOut(duration: 0.16), value: model.isLoading)
+    }
+
+    private func normalBoard(_ board: DepartureBoard) -> some View {
         let last = board.lastTrain
         let pinned = model.pinnedService
         // The pinned train leads the board when there is one; otherwise the last train
