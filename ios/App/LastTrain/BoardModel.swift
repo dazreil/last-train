@@ -55,6 +55,16 @@ final class BoardModel {
     /// hurried reader on poor signal can trust the answer without checking elsewhere.
     private(set) var updatedAt: Date?
 
+    /// Worth reloading on return to the app: the times are over a minute old, or the
+    /// service day has rolled under the board since it was fetched — the after-midnight
+    /// case where the header steps to the new day but the trains beneath it do not.
+    var isStale: Bool {
+        guard let board else { return false }
+        if board.date != ServiceDay.currentServiceDate() { return true }
+        guard let updatedAt else { return true }
+        return Date().timeIntervalSince(updatedAt) > 60
+    }
+
     /**
      What is around you, after the nearest-station button.
 
@@ -292,16 +302,13 @@ final class BoardModel {
     private(set) var pinChanges = 0
 
     /**
-     Follow this train, or stop following it. The widget is told either way — and so is the
-     Dynamic Island.
+     Follow this train on the lock-screen widget, or stop following it.
 
-     One action, two surfaces, deliberately. "This is my train" is a single thought, and
-     splitting it into *show it in the widget* and *count it down on the island* would be a
-     settings question wearing a button.
-
-     The countdown declines itself when it makes no sense: a train already gone, or one
-     further off than `TrainActivityController.horizon`. Nothing is said about that, because
-     the pin still did what it says — the widget is following it either way.
+     The widget only — not the Dynamic Island. A last train is usually hours off, and a Live
+     Activity cannot be started for a train beyond `TrainActivityController.horizon`, so it
+     would silently decline while the pill claimed to be following. The countdown belongs to
+     Fast Train, whose trains are near; here the pin is the whole action, and it always
+     takes. Following a train that is genuinely close still shows it on the widget.
      */
     func setPin(_ service: BoardDeparture, following: Bool) {
         pinChanges += 1
@@ -312,19 +319,6 @@ final class BoardModel {
             direction: direction
         )
         WidgetCenter.shared.reloadAllTimelines()
-
-        if following {
-            Task {
-                _ = await TrainActivityController.start(
-                    service: service,
-                    stationName: station.name.withoutLondonPrefix,
-                    direction: direction,
-                    isLastTrain: service.serviceId == board?.lastTrain?.serviceId
-                )
-            }
-        } else {
-            Task { await TrainActivityController.stop() }
-        }
     }
 
     /// Dismiss the alternatives once one has been taken, or the picker used.

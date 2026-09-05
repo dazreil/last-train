@@ -10,13 +10,32 @@ import LastTrainCore
  FORM: Cathode Gauze operating surface; the selected Fast Train receives one forward signal strike.
  FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
  */
+
+/// The one sheet the board presents, over one binding. SwiftUI is unreliable with several
+/// `.sheet` modifiers stacked on a single view — presenting and dismissing begin to fight,
+/// and a tap could wedge with nothing dismissable — so start, nearby, destination and the
+/// service detail all route through this instead.
+private enum PresentedSheet: Identifiable {
+    case start
+    case nearby
+    case destination
+    case service(SheetService)
+
+    var id: String {
+        switch self {
+        case .start: "start"
+        case .nearby: "nearby"
+        case .destination: "destination"
+        case .service(let service): "service-\(service.id)"
+        }
+    }
+}
+
 struct BoardView: View {
     @State private var model = BoardModel()
     @State private var fast = FastModel()
     @State private var mode: AppMode = .last
-    @State private var pickingStart = false
-    @State private var showingNearby = false
-    @State private var inspecting: SheetService?
+    @State private var presented: PresentedSheet?
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -36,7 +55,7 @@ struct BoardView: View {
                                 station: station,
                                 direction: model.direction,
                                 model: fast,
-                                onInspect: { inspecting = $0 }
+                                onInspect: { presented = .service($0) }
                             )
                         }
                     } else {
@@ -89,6 +108,14 @@ struct BoardView: View {
             Task {
                 await TrainActivityController.tidy()
                 fast.syncActivityState()
+                // Back in hand on the platform: reload if the board has aged or the service
+                // day has rolled under it, so it is never the stale times from your pocket.
+                if model.isStale {
+                    if mode == .fast, let station = model.station {
+                        await fast.load(at: station, direction: model.direction, refresh: true)
+                    }
+                    await model.load(refresh: true)
+                }
             }
         }
         .onOpenURL { model.open($0) }
@@ -104,49 +131,53 @@ struct BoardView: View {
         .onChange(of: fast.destination?.crs) { _, latest in
             model.destinationCrs = latest
         }
-        .sheet(isPresented: $pickingStart) {
-            if let end = fast.destination {
-                // Editing the start: the valid origins are exactly the places that reach
-                // your destination from the other side.
-                LinePicker(
-                    from: end,
-                    direction: model.direction.opposite,
-                    title: "\(model.direction.opposite.rawValue.capitalized) of \(end.crs)",
-                    selectedCrs: model.station?.crs
-                ) { picked, onLine in
-                    adoptStart(picked, keepingDestination: onLine)
+        // Fast Train sets `fast.isChoosing` when it needs a destination; bridge that into the
+        // single presentation so there is still only one sheet, and clear it on any dismiss.
+        .onChange(of: fast.isChoosing) { _, choosing in
+            if choosing { presented = .destination }
+        }
+        .sheet(item: $presented, onDismiss: { fast.isChoosing = false }) { which in
+            switch which {
+            case .start:
+                if let end = fast.destination {
+                    // Editing the start: the valid origins are exactly the places that reach
+                    // your destination from the other side.
+                    LinePicker(
+                        from: end,
+                        direction: model.direction.opposite,
+                        title: "\(model.direction.opposite.rawValue.capitalized) of \(end.crs)",
+                        selectedCrs: model.station?.crs
+                    ) { picked, onLine in
+                        adoptStart(picked, keepingDestination: onLine)
+                    }
+                } else {
+                    // Nothing to work back from yet, so this is the plain search.
+                    StationPicker(selection: $model.station, nearby: model.nearby)
                 }
-            } else {
-                // Nothing to work back from yet, so this is the plain search.
+            case .nearby:
+                // The stations found near you, the same picker the code button opens — so
+                // location and search share one list rather than one adding chips to the board.
                 StationPicker(selection: $model.station, nearby: model.nearby)
-            }
-        }
-        .sheet(isPresented: $showingNearby) {
-            // The stations found near you, offered to pick from — the same picker the code
-            // button opens, so location and search share one list rather than one adding a
-            // row of chips to the board.
-            StationPicker(selection: $model.station, nearby: model.nearby)
-        }
-        .sheet(isPresented: $fast.isChoosing) {
-            if let start = model.station {
-                LinePicker(
-                    from: start,
-                    direction: model.direction,
-                    title: "\(model.direction.rawValue.capitalized) of \(start.crs)",
-                    selectedCrs: fast.destination?.crs
-                ) { picked, onLine in
-                    adoptEnd(picked, from: start, onLine: onLine)
+            case .destination:
+                if let start = model.station {
+                    LinePicker(
+                        from: start,
+                        direction: model.direction,
+                        title: "\(model.direction.rawValue.capitalized) of \(start.crs)",
+                        selectedCrs: fast.destination?.crs
+                    ) { picked, onLine in
+                        adoptEnd(picked, from: start, onLine: onLine)
+                    }
                 }
-            }
-        }
-        .sheet(item: $inspecting) { sheet in
-            if let station = model.station {
-                ServiceSheet(
-                    service: sheet,
-                    station: station,
-                    direction: model.direction,
-                    destinationCrs: fast.destination?.crs
-                )
+            case .service(let sheet):
+                if let station = model.station {
+                    ServiceSheet(
+                        service: sheet,
+                        station: station,
+                        direction: model.direction,
+                        destinationCrs: fast.destination?.crs
+                    )
+                }
             }
         }
     }
@@ -286,7 +317,7 @@ struct BoardView: View {
                 label: "Departure station, \(model.station?.name ?? "not set")"
             ) {
                 model.clearNearby()
-                pickingStart = true
+                presented = .start
             }
 
             if model.station != nil {
@@ -334,6 +365,9 @@ struct BoardView: View {
         guard let station = model.station else { return }
         fast.clearDestination(at: station, direction: model.direction)
         model.clearNearby()
+        // Reset the direction as well, so clear is a genuine blank slate rather than one
+        // that drops the next pick straight back into the old direction.
+        model.direction = .west
         model.station = nil
     }
 
@@ -413,7 +447,7 @@ struct BoardView: View {
                 await model.locate()
                 // Found some — offer them in the picker. A failure leaves the one-line
                 // reason under the bar instead.
-                if !model.nearby.isEmpty { showingNearby = true }
+                if !model.nearby.isEmpty { presented = .nearby }
             }
         } label: {
             Group {
@@ -681,7 +715,7 @@ struct BoardView: View {
             isLastTrain: isLast,
             isRed: isHero,
             isFollowed: followed,
-            onOpen: { inspecting = sheetService(service, board: board) },
+            onOpen: { presented = .service(sheetService(service, board: board)) },
             onFollow: { model.setPin(service, following: !followed) }
         )
     }
@@ -810,6 +844,11 @@ struct StationPicker: View {
             .searchable(text: $query, prompt: "Station or code")
             .navigationTitle("From")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                // Same way out the destination picker has. Without it, opening this by
+                // mistake left no exit but choosing a station you did not want.
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+            }
         }
         .preferredColorScheme(.dark)
     }
