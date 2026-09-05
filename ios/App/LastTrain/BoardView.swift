@@ -46,7 +46,6 @@ struct BoardView: View {
                         )
                     }
 
-                    freshnessStamp
                     footnote
                 }
                 .padding(.bottom, 30)
@@ -743,36 +742,35 @@ struct BoardView: View {
         .padding(.top, 34)
     }
 
-    /// `Updated 23:41`, on the London clock. Shown only once an answer is actually on
-    /// screen, so it reassures rather than competing with the loading or empty states.
-    @ViewBuilder
-    private var freshnessStamp: some View {
-        if let updated = mode == .last ? model.updatedAt : fast.updatedAt {
-            Text("Updated \(ServiceDay.formatLondonTime(updated))")
-                .font(Theme.Font.meta)
-                .foregroundStyle(Theme.textDim)
-                .padding(.horizontal, Theme.Space.gutter)
-                .padding(.top, 20)
-                .accessibilityLabel("Times updated at \(ServiceDay.formatLondonTime(updated))")
-        }
-    }
-
     private var footnote: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text("Direct services only. Timetables follow the railway service day to 03:00.")
-                .foregroundStyle(Theme.textDim)
-
+        VStack(alignment: .leading, spacing: 6) {
             // Attribution for both feeds: Realtime Trains behind Last Train, National Rail
             // (Darwin) behind Fast Train and the destinations list. The names are links.
             Text("Powered by [Realtime Trains](https://www.realtimetrains.co.uk) and [National Rail Enquiries](https://www.nationalrail.co.uk).")
                 .foregroundStyle(Theme.textFaint)
                 .tint(Theme.serviceBlueLit)
+
+            Text(footnoteInfo)
+                .foregroundStyle(Theme.textDim)
         }
         .font(Theme.Font.meta)
         .fixedSize(horizontal: false, vertical: true)
         .padding(.horizontal, Theme.Space.gutter)
-        .padding(.top, 26)
+        .padding(.top, 22)
         .padding(.bottom, 12)
+    }
+
+    /// `Updated 23:41 · Direct trains only · Service day starts 03:00`. The freshness stamp
+    /// folded in here rather than given a line and a blank one of its own. The time is
+    /// present only once an answer is on screen.
+    private var footnoteInfo: String {
+        var parts: [String] = []
+        if let updated = mode == .last ? model.updatedAt : fast.updatedAt {
+            parts.append("Updated \(ServiceDay.formatLondonTime(updated))")
+        }
+        parts.append("Direct trains only")
+        parts.append("Service day starts 03:00")
+        return parts.joined(separator: " · ")
     }
 }
 
