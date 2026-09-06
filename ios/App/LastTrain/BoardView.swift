@@ -36,6 +36,10 @@ struct BoardView: View {
     @State private var fast = FastModel()
     @State private var mode: AppMode = .last
     @State private var presented: PresentedSheet?
+    /// Whether a direction has been chosen for the station on screen. True on open — the
+    /// remembered journey shows at once — and set false by a clear, so a freshly picked
+    /// station asks which way before it names a train rather than assuming west.
+    @State private var directionChosen = true
     /// The top safe-area inset, measured so the scroll-edge fade covers exactly the status
     /// bar and Dynamic Island — no more, so it never dims the masthead at rest.
     @State private var topInset: CGFloat = 0
@@ -52,7 +56,11 @@ struct BoardView: View {
 
                     if let station = model.station {
                         switch mode {
-                        case .last: lastTrainResults
+                        case .last:
+                            // A freshly picked station asks which way before it shows a
+                            // board — the same beat Fast Train has, where the destination is
+                            // chosen first. The remembered journey skips it: it opens chosen.
+                            if directionChosen { lastTrainResults } else { directionPrompt }
                         case .fast:
                             FastBoardView(
                                 station: station,
@@ -278,23 +286,25 @@ struct BoardView: View {
                 if avail.contains(direction) {
                     Button {
                         withAnimation(.snappy(duration: 0.28)) { model.direction = direction }
+                        directionChosen = true
                         // Choosing a direction is choosing a new journey, so the old
-                        // destination goes and the list opens on the new one.
+                        // destination goes. Fast then opens the list of where to; Last needs
+                        // no destination to name a last train, so it just shows this way.
                         if let station = model.station {
                             fast.clearDestination(at: station, direction: direction)
-                            fast.askWhereTo()
+                            if mode == .fast { fast.askWhereTo() }
                         }
                     } label: {
-                        directionLabel(direction, selected: selected)
+                        directionLabel(direction, isSelected: directionChosen && direction == selected)
                     }
                     .buttonStyle(PressDim())
                     .accessibilityLabel(direction.rawValue.capitalized)
                     .accessibilityValue(model.towards[direction].map { "towards \($0)" } ?? "")
-                    .accessibilityAddTraits(direction == selected ? .isSelected : [])
+                    .accessibilityAddTraits(directionChosen && direction == selected ? .isSelected : [])
                 } else {
                     // The slot is held, not filled: invisible and untappable, so a missing
                     // direction costs no realignment of the ones that are there.
-                    directionLabel(direction, selected: selected)
+                    directionLabel(direction, isSelected: false)
                         .opacity(0)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
@@ -309,12 +319,12 @@ struct BoardView: View {
 
     /// One direction word in its column: blue when it is the chosen one, grey otherwise,
     /// always the same size so a missing point never changes the layout.
-    private func directionLabel(_ direction: Compass, selected: Compass) -> some View {
+    private func directionLabel(_ direction: Compass, isSelected: Bool) -> some View {
         Text(direction.rawValue)
             .font(.system(.subheadline, design: .rounded).weight(.bold))
             .tracking(Theme.tracking)
             .textCase(.uppercase)
-            .foregroundStyle(direction == selected ? Theme.serviceBlueLit : Theme.textDim)
+            .foregroundStyle(isSelected ? Theme.serviceBlueLit : Theme.textDim)
             .lineLimit(1)
             // Sized to the word, not to a share of the row. Equal columns put an equal
             // *box* around each, which is not the same as an equal gap between them:
@@ -393,7 +403,19 @@ struct BoardView: View {
         // Reset the direction as well, so clear is a genuine blank slate rather than one
         // that drops the next pick straight back into the old direction.
         model.direction = .west
+        // The next station picked starts unchosen, so Last Train asks which way rather than
+        // showing west by default — the same first beat Fast Train has.
+        directionChosen = false
         model.station = nil
+    }
+
+    /// Shown when a station has been picked but no direction chosen yet. The compass row
+    /// above is where the answer is; this only names the question.
+    private var directionPrompt: some View {
+        notice(
+            title: "Which way?",
+            body: "Pick the direction your train is heading, above."
+        )
     }
 
     /**
