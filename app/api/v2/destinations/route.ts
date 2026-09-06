@@ -22,9 +22,12 @@ import { locationLineUp, serviceDetail } from '@/lib/rtt';
 import { DarwinError, departureBoard, normalize } from '@/lib/darwin';
 import {
   currentServiceDate,
+  formatLondonTime,
   isValidIsoDate,
+  londonDateOf,
   minutesBetween,
   serviceDayWindow,
+  toInstantMillis,
   type IsoDate,
 } from '@/lib/serviceDay';
 import { classify, COMPASS_POINTS, isCompass } from '@/lib/compass';
@@ -50,6 +53,24 @@ export const runtime = 'nodejs';
  * was the free tier's ceiling for both; raise or lower them together.
  */
 const PATTERN_BUDGET = 15;
+
+/** How far the RTT fallback reaches — the same two hours Darwin sees, so it stays cheap. */
+const FALLBACK_WINDOW_MINUTES = 120;
+
+const maxIso = (a: string, b: string): string => (a >= b ? a : b);
+const minIso = (a: string, b: string): string => (a <= b ? a : b);
+
+/** Now, as a naive London ISO string — the same shape the API's own times use. */
+function londonNow(now: Date = new Date()): string {
+  const iso = now.toISOString();
+  return `${londonDateOf(iso)}T${formatLondonTime(iso)}:00`;
+}
+
+/** A naive London ISO shifted by whole minutes, staying on the same clock. */
+function addMinutesLondon(naive: string, minutes: number): string {
+  const iso = new Date(toInstantMillis(naive) + minutes * 60_000).toISOString();
+  return `${londonDateOf(iso)}T${formatLondonTime(iso)}:00`;
+}
 
 const key = (crs: string, direction: string, date: IsoDate) => `dest:${crs}:${direction}:${date}`;
 
@@ -135,6 +156,15 @@ export async function GET(request: Request) {
   const window = serviceDayWindow(date);
   const waypoint = waypointFor(from.crs, direction);
 
+  // The RTT fallback matches Darwin's two-hour reach so it prices a handful of trains, not
+  // the whole day — the fan-out that could exhaust the rate limit when the picker is opened
+  // at a quiet station. On a future date the whole window stays, but that path is rare.
+  const timeFrom = date === today ? maxIso(window.timeFrom, londonNow()) : window.timeFrom;
+  const timeTo =
+    date === today
+      ? minIso(window.timeTo, addMinutesLondon(timeFrom, FALLBACK_WINDOW_MINUTES))
+      : window.timeTo;
+
   let lineUp;
   try {
     // The waypoint picks out this direction exactly, the same way the board does. Without
@@ -143,7 +173,8 @@ export async function GET(request: Request) {
     lineUp = await locationLineUp({
       code: from.crs,
       ...(waypoint ? { filterTo: waypoint } : {}),
-      ...window,
+      timeFrom,
+      timeTo,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not look that up.';

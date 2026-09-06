@@ -116,6 +116,26 @@ function londonNow(now: Date = new Date()): string {
 }
 
 const maxIso = (a: string, b: string): string => (a >= b ? a : b);
+const minIso = (a: string, b: string): string => (a <= b ? a : b);
+
+/** A naive London ISO shifted by whole minutes, staying on the same clock. */
+function addMinutesLondon(naive: string, minutes: number): string {
+  const iso = new Date(toInstantMillis(naive) + minutes * 60_000).toISOString();
+  return `${londonDateOf(iso)}T${formatLondonTime(iso)}:00`;
+}
+
+/**
+ * How far the RTT fallback reaches on the live day, and how many trains the roll to
+ * tomorrow prices.
+ *
+ * RTT is only ever the fallback now — Darwin carries the day — so it matches Darwin's reach
+ * rather than reading the whole service day. Two hours means an empty Darwin window prices at
+ * most a handful of trains, and a genuinely empty one prices none: the fan-out that hit the
+ * rate limit is gone. The roll to tomorrow's first trains keeps the open window but prices
+ * only the earliest few, which is all that section shows.
+ */
+const FALLBACK_WINDOW_MINUTES = 120;
+const ROLL_BUDGET = 6;
 
 const describe = (list: { location?: { description?: string } }[] | undefined): string =>
   (list ?? [])
@@ -223,6 +243,14 @@ export async function GET(request: Request) {
   */
   const timeFrom =
     date === today ? maxIso(window.timeFrom, londonNow()) : window.timeFrom;
+  // On the live day the fallback reaches only as far as Darwin does — the next two hours —
+  // so it prices a handful of trains at most, and none when that window is truly empty. The
+  // future date is the roll to tomorrow's first trains: its window stays open, and the small
+  // budget below prices only the earliest few.
+  const timeTo =
+    date === today
+      ? minIso(window.timeTo, addMinutesLondon(timeFrom, FALLBACK_WINDOW_MINUTES))
+      : window.timeTo;
 
   let lineUp;
   try {
@@ -232,7 +260,7 @@ export async function GET(request: Request) {
       code: from.crs,
       filterTo: to.crs,
       timeFrom,
-      timeTo: window.timeTo,
+      timeTo,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not look that up.';
@@ -244,7 +272,7 @@ export async function GET(request: Request) {
   );
 
   const candidates = boardable.length;
-  const priced = boardable.slice(0, PATTERN_BUDGET);
+  const priced = boardable.slice(0, date === today ? PATTERN_BUDGET : ROLL_BUDGET);
   const ttl = ttlSecondsFor(date);
 
   const services: FastService[] = [];
