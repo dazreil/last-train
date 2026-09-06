@@ -36,6 +36,9 @@ struct BoardView: View {
     @State private var fast = FastModel()
     @State private var mode: AppMode = .last
     @State private var presented: PresentedSheet?
+    /// The top safe-area inset, measured so the scroll-edge fade covers exactly the status
+    /// bar and Dynamic Island — no more, so it never dims the masthead at rest.
+    @State private var topInset: CGFloat = 0
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -70,6 +73,28 @@ struct BoardView: View {
                 .padding(.bottom, 30)
             }
             .scrollIndicators(.hidden)
+
+            // The wordmark used to slide up behind the status bar and Dynamic Island, colliding
+            // with the clock and reading "LAST TRAI … AIN" under the pill. This fade sits over
+            // the top inset only, so content dissolves into the tube before it reaches the
+            // island rather than crossing behind it.
+            LinearGradient(
+                colors: [Theme.ink, Theme.ink, Theme.ink.opacity(0)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: topInset + 10)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .ignoresSafeArea(edges: .top)
+            .allowsHitTesting(false)
+        }
+        .background {
+            // Measure the top inset without disturbing layout.
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear { topInset = proxy.safeAreaInsets.top }
+                    .onChange(of: proxy.safeAreaInsets.top) { _, value in topInset = value }
+            }
         }
         .foregroundStyle(Theme.text)
         .modifier(
@@ -597,22 +622,54 @@ struct BoardView: View {
 
     @ViewBuilder
     private var lastTrainResults: some View {
-        if let message = model.errorMessage {
+        if let message = model.errorMessage, let board = model.board {
+            // A refresh failed but a board is already up. Keep it — dimmed, untappable, its
+            // "Updated" stamp still in the footer — behind a compact notice. Stale times beat
+            // no times, and the compass keeps its directions.
+            VStack(alignment: .leading, spacing: 0) {
+                staleNotice(message)
+                boardBody(board)
+                    .opacity(0.4)
+                    .allowsHitTesting(false)
+            }
+        } else if let message = model.errorMessage {
             notice(title: "Couldn’t look that up", body: message) {
                 retryButton { await model.load(refresh: true) }
             }
         } else if model.isLoading && model.board == nil {
             loadingBoard
         } else if let board = model.board {
-            if board.services.isEmpty {
-                notice(
-                    title: "Nothing \(board.direction.rawValue)bound",
-                    body: "No trains run this way on \(ServiceDay.formatServiceDate(board.date) ?? board.date)."
-                )
-            } else {
-                cathodeBoard(board)
-            }
+            boardBody(board)
         }
+    }
+
+    /// The board, or the plain "nothing this way" notice when the day is empty. Shared by the
+    /// live path and the dimmed-behind-an-error path so the two cannot drift.
+    @ViewBuilder
+    private func boardBody(_ board: DepartureBoard) -> some View {
+        if board.services.isEmpty {
+            notice(
+                title: "Nothing \(board.direction.rawValue)bound",
+                body: "No trains run this way on \(ServiceDay.formatServiceDate(board.date) ?? board.date)."
+            )
+        } else {
+            cathodeBoard(board)
+        }
+    }
+
+    /// The banner over a board that could not be refreshed: says so, offers a retry, and lets
+    /// the times below it stand in the meantime.
+    private func staleNotice(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Couldn’t refresh").font(Theme.Font.heading)
+            Text(message).font(Theme.Font.body).foregroundStyle(Theme.textDim)
+                .fixedSize(horizontal: false, vertical: true)
+            retryButton { await model.load(refresh: true) }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, Theme.Space.gutter)
+        .padding(.top, 20)
+        .padding(.bottom, 4)
     }
 
     @ViewBuilder

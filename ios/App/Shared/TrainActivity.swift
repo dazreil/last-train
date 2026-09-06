@@ -82,8 +82,16 @@ enum TrainActivityController {
 
     /// A value type crosses the caller's actor boundary; the non-Sendable `Activity`
     /// itself remains inside this synchronous read.
+    ///
+    /// Only a genuinely running activity counts. A Live Activity denied at the first-run
+    /// consent prompt — or dismissed from the lock screen — lingers in `activities` with an
+    /// `.ended` or `.dismissed` state for a while; taking `.first` regardless left the follow
+    /// pill lit for a countdown that was not there. `.stale` still counts: it is running, just
+    /// past its freshness date.
     static var activeServiceId: String? {
-        Activity<TrainActivity>.activities.first?.attributes.serviceId
+        Activity<TrainActivity>.activities
+            .first { $0.activityState == .active || $0.activityState == .stale }?
+            .attributes.serviceId
     }
 
     static func start(

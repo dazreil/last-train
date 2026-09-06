@@ -186,8 +186,10 @@ final class BoardModel {
                 return
             } catch {
                 guard !Task.isCancelled else { return }
-                board = nil
-                updatedAt = nil
+                // Keep the last board and its "Updated" stamp on screen — the view dims them
+                // behind the notice. On a platform with one bar of signal, stale times beat no
+                // times, and the compass keeps the directions it knew rather than collapsing to
+                // the one selected. Cleared only when the journey itself is (the guard above).
                 errorMessage = (error as? BoardClientError)?.errorDescription
                     ?? error.localizedDescription
             }
