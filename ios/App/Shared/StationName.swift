@@ -17,9 +17,18 @@ extension String {
     var withoutLondonPrefix: String {
         components(separatedBy: " & ")
             .map { part in
-                part.hasPrefix("London ") && part.count > "London ".count
-                    ? String(part.dropFirst("London ".count))
-                    : part
+                var name = part
+                // "London Fenchurch Street" -> "Fenchurch Street".
+                if name.hasPrefix("London ") && name.count > "London ".count {
+                    name = String(name.dropFirst("London ".count))
+                }
+                // "Stratford (London)" -> "Stratford". The suffix disambiguates for a
+                // national audience; on a board that only shows London-area journeys it is
+                // noise, and it read oddly next to "Fenchurch Street" losing its "London".
+                if name.hasSuffix(" (London)") {
+                    name = String(name.dropLast(" (London)".count))
+                }
+                return name
             }
             .joined(separator: " & ")
     }

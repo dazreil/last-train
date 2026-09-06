@@ -22,20 +22,30 @@ struct FastBoardView: View {
         }
         .task(id: "\(station.crs):\(direction.rawValue)") {
             model.adopt(station: station, direction: direction)
-            // Fast Train cannot answer anything without a destination, so it asks. Last
-            // Train can, which is why the asking lives here and not in `adopt`.
-            if model.destination == nil { model.askWhereTo() }
+            // Fast Train cannot answer without a destination, but it no longer opens the
+            // picker for you: picking a station used to drop you straight into a sheet you
+            // did not ask for. It rests on the prompt below instead, which is itself the tap.
         }
     }
 
+    /// The rest state before a destination is chosen. It is the tap that opens the picker,
+    /// so choosing where to go is a deliberate act, not a sheet that springs up on you.
     private var emptyPrompt: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Text("Where are you going?").font(Theme.Font.heading)
-            Text("Choose a direct destination. Fast Train ranks the next services by when they get you there.")
-                .font(Theme.Font.body)
-                .foregroundStyle(Theme.textDim)
-                .fixedSize(horizontal: false, vertical: true)
+        Button {
+            model.askWhereTo()
+        } label: {
+            VStack(alignment: .leading, spacing: 9) {
+                Text("Where are you going?").font(Theme.Font.heading).foregroundStyle(Theme.text)
+                Text("Tap to choose a direct destination. Fast Train ranks the next services by when they get you there.")
+                    .font(Theme.Font.body)
+                    .foregroundStyle(Theme.textDim)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.leading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(PressDim())
         .padding(.horizontal, Theme.Space.gutter)
         .padding(.top, 26)
     }

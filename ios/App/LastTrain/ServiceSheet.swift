@@ -130,7 +130,10 @@ struct ServiceSheet: View {
 
         let minutes = Int((arrival.timeIntervalSince(departure) / 60).rounded())
         let name = arrivalCall.name.withoutLondonPrefix
-        return "\(minutes) min to \(name), arriving \(arrivalCall.time ?? "")"
+        // Same clock as the calling list below, so the one arrival is not printed as
+        // "17:46" here and "5:46 PM" a few pixels down on a 12-hour device.
+        let arrivalTime = arrivalCall.time.map { ServiceDay.formatClock($0).spoken } ?? ""
+        return "\(minutes) min to \(name), arriving \(arrivalTime)"
             .trimmingCharacters(in: .whitespaces)
     }
 

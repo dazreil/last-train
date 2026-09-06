@@ -599,10 +599,7 @@ struct BoardView: View {
     private var lastTrainResults: some View {
         if let message = model.errorMessage {
             notice(title: "Couldn’t look that up", body: message) {
-                Button("Try again") { Task { await model.load(refresh: true) } }
-                    .font(Theme.Font.body)
-                    .foregroundStyle(Theme.text)
-                    .frame(minHeight: 48)
+                retryButton { await model.load(refresh: true) }
             }
         } else if model.isLoading && model.board == nil {
             loadingBoard
@@ -760,6 +757,26 @@ struct BoardView: View {
         .accessibilityLabel("Loading departures")
     }
 
+    /// The recovery control on an error notice, in the same blue-outlined capsule as every
+    /// other control. Plain white text read as body copy — the one thing to tap did not look
+    /// like a thing to tap.
+    private func retryButton(_ action: @escaping () async -> Void) -> some View {
+        Button { Task { await action() } } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "arrow.clockwise").font(.system(size: 11, weight: .bold))
+                Text("Try again").font(.system(.footnote, design: .rounded).weight(.semibold))
+            }
+            .foregroundStyle(Theme.serviceBlueLit)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .overlay(Capsule().stroke(Theme.serviceBlueLit.opacity(0.5), lineWidth: 1))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(PressDim())
+        .frame(minHeight: 48, alignment: .leading)
+        .accessibilityLabel("Try again")
+    }
+
     private func notice(
         title: String,
         body: String,
@@ -800,10 +817,13 @@ struct BoardView: View {
     private var footnoteInfo: String {
         var parts: [String] = []
         if let updated = mode == .last ? model.updatedAt : fast.updatedAt {
-            parts.append("Updated \(ServiceDay.formatLondonTime(updated))")
+            // Route the stamp through the same 12/24 clock as every board time, so a
+            // 12-hour device reads "Updated 5:22 PM" and not a stray "Updated 17:22".
+            let clock = ServiceDay.formatClock(ServiceDay.formatLondonTime(updated)).spoken
+            parts.append("Updated \(clock)")
         }
         parts.append("Direct trains only")
-        parts.append("Service day starts 03:00")
+        parts.append("Service day starts \(ServiceDay.formatClock("03:00").spoken)")
         return parts.joined(separator: " · ")
     }
 }

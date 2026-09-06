@@ -122,7 +122,9 @@ enum TrainActivityController {
             serviceId: service.serviceId,
             departure: service.departsAt,
             departureText: service.departure,
-            platform: nil,
+            // Fast rows carry a platform too; the Island caption used to drop it because
+            // this passed nil. A Last Train follow kept it, so the two now match.
+            platform: service.platform,
             stationName: stationName,
             destination: destinationName,
             direction: direction,

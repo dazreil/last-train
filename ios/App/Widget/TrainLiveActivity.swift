@@ -63,9 +63,14 @@ struct TrainLiveActivity: Widget {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             } compactTrailing: {
-                countdown(to: context.state.departure)
+                // The narrow compact slot cannot hold `HH:MM:SS`, so a far train truncated
+                // to `2:––` — the seconds drawn as dashes. Drop the hours field and let the
+                // value scale to fit, so it stays a live, correct countdown at any distance.
+                countdown(to: context.state.departure, showsHours: false)
                     .font(.system(.caption, design: .monospaced).weight(.bold))
                     .foregroundStyle(Theme.paper)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
             } minimal: {
                 countdown(to: context.state.departure)
                     .font(.system(.caption2, design: .monospaced).weight(.bold))
@@ -129,8 +134,8 @@ struct TrainLiveActivity: Widget {
      was not any time at all, which is the worst way for a clock to be wrong. The system
      sizes these slots; let it.
      */
-    private func countdown(to departure: Date) -> some View {
-        Text(timerInterval: Date.now...departure, countsDown: true)
+    private func countdown(to departure: Date, showsHours: Bool = true) -> some View {
+        Text(timerInterval: Date.now...departure, countsDown: true, showsHours: showsHours)
             .monospacedDigit()
             .multilineTextAlignment(.trailing)
     }
