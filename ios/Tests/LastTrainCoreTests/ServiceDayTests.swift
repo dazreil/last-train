@@ -129,6 +129,10 @@ struct ServiceDayTests {
         #expect(ServiceDay.formatClock("23:47", locale: twelveHour).dayPeriod == "PM")
         #expect(ServiceDay.formatClock("00:42", locale: twelveHour).spoken == "12:42 AM")
         #expect(ServiceDay.formatClock("12:00", locale: twelveHour).spoken == "12:00 PM")
+        // Single-digit hours are zero-padded to a constant HH:MM, like the 24-hour clock,
+        // so the cathode numerals keep one width and height whatever the hour.
+        #expect(ServiceDay.formatClock("06:45", locale: twelveHour).time == "06:45")
+        #expect(ServiceDay.formatClock("09:05", locale: twelveHour).spoken == "09:05 AM")
 
         let twentyFourHour = Locale(identifier: "en_GB")
         #expect(ServiceDay.formatClock("23:47", locale: twentyFourHour).time == "23:47")

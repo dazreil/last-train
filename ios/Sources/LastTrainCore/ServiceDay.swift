@@ -328,7 +328,11 @@ public enum ServiceDay {
         let period = components.date.map(periodFormatter.string(from:))
 
         return ClockDisplay(
-            time: String(format: "%d:%02d", twelveHour, minute),
+            // Pad the hour like the twenty-four-hour clock — `06:45`, not `6:45`. Every time
+            // is then the same five glyphs `HH:MM`, so the cathode numerals keep one width and
+            // one height whatever the hour, with no glyph the OCR face lacks. The day-period
+            // marker sits beside them.
+            time: String(format: "%02d:%02d", twelveHour, minute),
             dayPeriod: period?.isEmpty == false ? period : nil
         )
     }
