@@ -156,7 +156,7 @@ export async function GET(request: Request) {
   const ttl = ttlSecondsFor(date);
 
   if (!refresh) {
-    const hit = getCached<TrainsResponse>(key);
+    const hit = await getCached<TrainsResponse>(key);
     // A stored answer outlives its arrangement exactly once a day, when the first
     // train goes and a pre-service board becomes an ordinary one. Checked here rather
     // than keyed on, so the mode never forces a cache miss that costs an API call.
@@ -194,7 +194,7 @@ export async function GET(request: Request) {
       towards: [],
       apiVersion: API_VERSION,
     };
-    setCached(key, body, ttl);
+    await setCached(key, body, ttl);
     return json(body, {
       headers: { 'cache-control': `private, max-age=${ttl}`, 'x-cache': 'TOPOLOGY' },
     });
@@ -222,7 +222,7 @@ export async function GET(request: Request) {
     const fetchPattern = async (id: string) => {
       if (patterns.has(id)) return;
 
-      const cached = getCachedLocations<ServiceLocation[] | null>(id);
+      const cached = await getCachedLocations<ServiceLocation[] | null>(id);
       if (cached) {
         patterns.set(id, cached.value);
         return;
@@ -235,7 +235,7 @@ export async function GET(request: Request) {
         const detail = await serviceDetail(id);
         const locations = detail?.service?.locations ?? null;
         patterns.set(id, locations);
-        if (locations) setCachedLocations(id, locations, ttl);
+        if (locations) await setCachedLocations(id, locations, ttl);
       } catch {
         // Not cached: a transient failure should not persist as a missing route.
         patterns.set(id, null);
@@ -314,7 +314,7 @@ export async function GET(request: Request) {
       let fromCache = false;
 
       if (!refresh) {
-        const cachedLineUp = getCachedLineUp<LocationLineUpResponse | null>(rawKey);
+        const cachedLineUp = await getCachedLineUp<LocationLineUpResponse | null>(rawKey);
         if (cachedLineUp) {
           lineUp = cachedLineUp.value;
           fromCache = true;
@@ -324,7 +324,7 @@ export async function GET(request: Request) {
       if (!fromCache) {
         lineUp = await locationLineUp({ code: from.crs, ...serviceDayWindow(forDate) });
         lineUpsFetched++;
-        setCachedLineUp(rawKey, lineUp, ttlSecondsFor(forDate));
+        await setCachedLineUp(rawKey, lineUp, ttlSecondsFor(forDate));
       }
 
       const candidates = sortedDepartures(lineUp).filter((departure) => {
@@ -415,7 +415,7 @@ export async function GET(request: Request) {
     // does -- and is cached like any other. At Shenfield going east, the corridor
     // simply ends; on a Sunday with the line closed for engineering, that is the
     // truth, not a failure.
-    setCached(key, body, ttl);
+    await setCached(key, body, ttl);
 
     return json(body, {
       headers: {

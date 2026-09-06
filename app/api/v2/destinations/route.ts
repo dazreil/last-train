@@ -93,7 +93,7 @@ export async function GET(request: Request) {
 
   const cacheKey = key(from.crs, direction, date);
   if (params.get('refresh') !== '1') {
-    const hit = getCached<DestinationList>(cacheKey);
+    const hit = await getCached<DestinationList>(cacheKey);
     if (hit) return NextResponse.json(hit.value, { headers: { 'x-cache': 'HIT' } });
   }
 
@@ -144,8 +144,8 @@ export async function GET(request: Request) {
       }
 
       if (best.size > 0) {
-        const body = assembleList(from, direction, date, best, false);
-        setCached(cacheKey, body, ttlSecondsFor(date));
+        const body = await assembleList(from, direction, date, best, false);
+        await setCached(cacheKey, body, ttlSecondsFor(date));
         return NextResponse.json(body, { headers: { 'x-cache': 'MISS', 'x-source': 'darwin' } });
       }
     } catch (error) {
@@ -214,7 +214,7 @@ export async function GET(request: Request) {
     if (!id) continue;
 
     let locations: ServiceLocation[] | null = null;
-    const cached = getCachedLocations<ServiceLocation[] | null>(id);
+    const cached = await getCachedLocations<ServiceLocation[] | null>(id);
 
     if (cached) {
       locations = cached.value;
@@ -222,7 +222,7 @@ export async function GET(request: Request) {
       try {
         const detail = await serviceDetail(id);
         locations = detail?.service?.locations ?? null;
-        if (locations) setCachedLocations(id, locations, ttl);
+        if (locations) await setCachedLocations(id, locations, ttl);
       } catch {
         continue;
       }
@@ -250,7 +250,7 @@ export async function GET(request: Request) {
 
   for (const point of COMPASS_POINTS) {
     if (point === direction) continue;
-    const sibling = getCached<DestinationList>(key(from.crs, point, date));
+    const sibling = await getCached<DestinationList>(key(from.crs, point, date));
     if (!sibling) continue;
 
     comparedWith.push(point);
@@ -279,7 +279,7 @@ export async function GET(request: Request) {
     comparedWith,
   };
 
-  setCached(cacheKey, body, ttl);
+  await setCached(cacheKey, body, ttl);
 
   return NextResponse.json(body, { headers: { 'x-cache': 'MISS' } });
 }
@@ -291,19 +291,19 @@ export async function GET(request: Request) {
  * comparison is against whatever sibling lists are cached — `comparedWith` says which. The
  * Darwin and RTT paths both end here, so the rule is written once.
  */
-function assembleList(
+async function assembleList(
   from: { crs: string; name: string },
   direction: string,
   date: IsoDate,
   best: Map<string, number>,
   truncated: boolean
-): DestinationList {
+): Promise<DestinationList> {
   const comparedWith: string[] = [];
   const beaten = new Map<string, number>();
 
   for (const point of COMPASS_POINTS) {
     if (point === direction) continue;
-    const sibling = getCached<DestinationList>(key(from.crs, point, date));
+    const sibling = await getCached<DestinationList>(key(from.crs, point, date));
     if (!sibling) continue;
 
     comparedWith.push(point);

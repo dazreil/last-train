@@ -167,7 +167,7 @@ export async function GET(request: Request) {
 
   const key = answerKey(from.crs, to.crs, date);
   if (params.get('refresh') !== '1') {
-    const cached = getCached<FastBoard>(key);
+    const cached = await getCached<FastBoard>(key);
     if (cached) {
       return NextResponse.json(cached.value, { headers: { 'x-cache': 'HIT' } });
     }
@@ -201,7 +201,7 @@ export async function GET(request: Request) {
         services.push(priced);
         // The tap that opens this train reads its stops from here; the board already
         // fetched them, so the detail sheet costs no request of its own.
-        setCachedCalls(service.serviceId, toServiceCalls(service), DARWIN_CALLS_TTL);
+        await setCachedCalls(service.serviceId, toServiceCalls(service), DARWIN_CALLS_TTL);
       }
 
       if (services.length > 0) {
@@ -215,7 +215,7 @@ export async function GET(request: Request) {
           // unpriced for want of a budget.
           truncated: false,
         };
-        setCached(key, body, DARWIN_TTL);
+        await setCached(key, body, DARWIN_TTL);
         return NextResponse.json(body, { headers: { 'x-cache': 'MISS', 'x-source': 'darwin' } });
       }
       // Empty window: the next direct train is beyond two hours. RTT answers it.
@@ -285,7 +285,7 @@ export async function GET(request: Request) {
     if (!id) continue;
 
     let locations: ServiceLocation[] | null = null;
-    const cachedPattern = getCachedLocations<ServiceLocation[] | null>(id);
+    const cachedPattern = await getCachedLocations<ServiceLocation[] | null>(id);
 
     if (cachedPattern) {
       locations = cachedPattern.value;
@@ -293,7 +293,7 @@ export async function GET(request: Request) {
       try {
         const detail = await serviceDetail(id);
         locations = detail?.service?.locations ?? null;
-        if (locations) setCachedLocations(id, locations, ttl);
+        if (locations) await setCachedLocations(id, locations, ttl);
       } catch {
         // One train that cannot be priced is not a failed lookup. It drops out and the
         // rest still answer. But count it: a throw is the upstream refusing, not the
@@ -357,10 +357,10 @@ export async function GET(request: Request) {
   if (pricedNothing) {
     outcome = 'SKIP';
   } else if (fetchFailures > 0) {
-    setCached(key, body, RATE_LIMITED_TTL);
+    await setCached(key, body, RATE_LIMITED_TTL);
     outcome = 'PARTIAL';
   } else {
-    setCached(key, body, ttl);
+    await setCached(key, body, ttl);
     outcome = 'MISS';
   }
 

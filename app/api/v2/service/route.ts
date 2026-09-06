@@ -51,7 +51,7 @@ export async function GET(request: Request) {
   // and its stops were cached by the board that listed it — so the sheet is served from
   // here with no request at all. A Last Train tap carries an RTT id, cached after its
   // first lookup below.
-  const cached = getCachedCalls<ServiceCalls>(id);
+  const cached = await getCachedCalls<ServiceCalls>(id);
   if (cached) {
     return NextResponse.json(cached.value, {
       headers: { 'x-cache': 'HIT', 'cache-control': `public, max-age=${TTL_SECONDS}` },
@@ -107,7 +107,7 @@ export async function GET(request: Request) {
     calls,
   };
 
-  setCachedCalls(id, body, TTL_SECONDS);
+  await setCachedCalls(id, body, TTL_SECONDS);
 
   return NextResponse.json(body, {
     headers: { 'x-cache': 'MISS', 'cache-control': `public, max-age=${TTL_SECONDS}` },

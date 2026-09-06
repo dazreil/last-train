@@ -276,7 +276,7 @@ export async function GET(request: Request) {
   const ttl = ttlSecondsFor(date);
 
   if (!refresh) {
-    const hit = getCached<NationalBoard>(key);
+    const hit = await getCached<NationalBoard>(key);
     // A stored answer outlives its arrangement exactly once a day, when the first
     // train goes and a pre-service board becomes an ordinary one.
     if (hit && !boardHasExpired(hit.value)) {
@@ -337,7 +337,7 @@ export async function GET(request: Request) {
       let fromCache = false;
 
       if (!refresh) {
-        const cached = getCachedLineUp<LocationLineUpResponse | null>(rawKey);
+        const cached = await getCachedLineUp<LocationLineUpResponse | null>(rawKey);
         if (cached) {
           lineUp = cached.value;
           fromCache = true;
@@ -347,7 +347,7 @@ export async function GET(request: Request) {
       if (!fromCache) {
         lineUp = await locationLineUp({ code: from.crs, ...serviceDayWindow(forDate) });
         requestsSpent += 1;
-        setCachedLineUp(rawKey, lineUp, ttlSecondsFor(forDate));
+        await setCachedLineUp(rawKey, lineUp, ttlSecondsFor(forDate));
       }
 
       /**
@@ -363,7 +363,7 @@ export async function GET(request: Request) {
         const filteredKey = `${rawKey}:${filterTo}`;
         const cachedFiltered = refresh
           ? null
-          : getCachedLineUp<LocationLineUpResponse | null>(filteredKey);
+          : await getCachedLineUp<LocationLineUpResponse | null>(filteredKey);
 
         if (cachedFiltered) {
           directional = cachedFiltered.value;
@@ -374,7 +374,7 @@ export async function GET(request: Request) {
             ...serviceDayWindow(forDate),
           });
           requestsSpent += 1;
-          setCachedLineUp(filteredKey, directional, ttlSecondsFor(forDate));
+          await setCachedLineUp(filteredKey, directional, ttlSecondsFor(forDate));
         }
       }
 
@@ -454,13 +454,13 @@ export async function GET(request: Request) {
     if (to) {
       const patterns = await Promise.all(
         selected.map(async ({ item }) => {
-          const cached = getCachedLocations<ServiceLocation[] | null>(item.id);
+          const cached = await getCachedLocations<ServiceLocation[] | null>(item.id);
           if (cached) return cached.value;
           try {
             const detail = await serviceDetail(item.id);
             requestsSpent += 1;
             const locations = detail?.service?.locations ?? null;
-            if (locations) setCachedLocations(item.id, locations, ttl);
+            if (locations) await setCachedLocations(item.id, locations, ttl);
             return locations;
           } catch {
             return null;
@@ -595,7 +595,7 @@ export async function GET(request: Request) {
     // Held only briefly when the last train is imminent: the schedule is most volatile
     // then, so a late cancellation or a phantom that slipped the Darwin check should clear
     // in a minute or two rather than sit for the hour.
-    setCached(key, body, lastTrainSoon ? 120 : ttl);
+    await setCached(key, body, lastTrainSoon ? 120 : ttl);
 
     return json(body, {
       headers: {

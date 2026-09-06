@@ -25,28 +25,28 @@ import {
 const locations = [{ location: { description: 'Upminster' } }];
 const calls = { serviceId: 'x', headcode: '2W33', calls: [] };
 
-test('locations written first are not served as calls', () => {
+test('locations written first are not served as calls', async () => {
   const id = 'gb-nr:Y65292:2026-08-09';
-  setCachedLocations(id, locations, 60);
+  await setCachedLocations(id, locations, 60);
 
-  assert.equal(getCachedCalls(id), null, 'a calls lookup must not see the locations entry');
-  assert.deepEqual(getCachedLocations<typeof locations>(id)?.value, locations);
+  assert.equal(await getCachedCalls(id), null, 'a calls lookup must not see the locations entry');
+  assert.deepEqual((await getCachedLocations<typeof locations>(id))?.value, locations);
 });
 
-test('calls written first are not served as locations', () => {
+test('calls written first are not served as locations', async () => {
   const id = 'gb-nr:AAAAA:2026-08-09';
-  setCachedCalls(id, calls, 60);
+  await setCachedCalls(id, calls, 60);
 
-  assert.equal(getCachedLocations(id), null, 'a locations lookup must not see the calls entry');
-  assert.deepEqual(getCachedCalls<typeof calls>(id)?.value, calls);
+  assert.equal(await getCachedLocations(id), null, 'a locations lookup must not see the calls entry');
+  assert.deepEqual((await getCachedCalls<typeof calls>(id))?.value, calls);
 });
 
 /** Both routes may legitimately have cached the same train. Neither should evict the other. */
-test('both shapes coexist for one service', () => {
+test('both shapes coexist for one service', async () => {
   const id = 'gb-nr:BBBBB:2026-08-09';
-  setCachedLocations(id, locations, 60);
-  setCachedCalls(id, calls, 60);
+  await setCachedLocations(id, locations, 60);
+  await setCachedCalls(id, calls, 60);
 
-  assert.deepEqual(getCachedLocations<typeof locations>(id)?.value, locations);
-  assert.deepEqual(getCachedCalls<typeof calls>(id)?.value, calls);
+  assert.deepEqual((await getCachedLocations<typeof locations>(id))?.value, locations);
+  assert.deepEqual((await getCachedCalls<typeof calls>(id))?.value, calls);
 });
