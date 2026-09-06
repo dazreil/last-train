@@ -185,26 +185,19 @@ struct CathodeNumber: View {
     }
 
     var body: some View {
-        HStack(alignment: .lastTextBaseline, spacing: max(4, size * 0.045)) {
-            ZStack(alignment: .leading) {
-                terminalText
-                    .foregroundStyle(colour.opacity(0.1))
-                    .offset(x: max(1, size * 0.018), y: max(2, size * 0.045))
-                    .blur(radius: max(0.8, size * 0.014))
-
-                terminalText
-                    .foregroundStyle(colour)
-                    .shadow(color: colour.opacity(0.72), radius: scale == .hero ? 7 : 3)
-                    .shadow(color: colour.opacity(0.26), radius: scale == .hero ? 18 : 8)
-            }
-            .layoutPriority(1)
+        HStack(alignment: .lastTextBaseline, spacing: max(3, size * 0.04)) {
+            numerals
 
             if let dayPeriod = display.dayPeriod {
                 Text(dayPeriod)
                     .font(periodFont)
                     .tracking(size * 0.008)
                     .foregroundStyle(colour)
+                    // Fixed size and first claim on the row: `am`/`pm` is small but must
+                    // always show. It was being squeezed to nothing — or drawn under the
+                    // numerals — when the twelve-hour string ran wide.
                     .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
             }
         }
         .frame(maxWidth: scale == .hero ? .infinity : nil, alignment: alignment)
@@ -212,33 +205,39 @@ struct CathodeNumber: View {
         .accessibilityLabel(display.spoken)
     }
 
-    /// The time, held to a constant width whatever the hour.
+    /// The lit numerals, with their phosphor ghost behind. The two copies share one string
+    /// and one width, so they always register exactly.
+    private var numerals: some View {
+        ZStack(alignment: .leading) {
+            terminalText
+                .foregroundStyle(colour.opacity(0.1))
+                .offset(x: max(1, size * 0.018), y: max(2, size * 0.045))
+                .blur(radius: max(0.8, size * 0.014))
+
+            terminalText
+                .foregroundStyle(colour)
+                .shadow(color: colour.opacity(0.72), radius: scale == .hero ? 7 : 3)
+                .shadow(color: colour.opacity(0.26), radius: scale == .hero ? 18 : 8)
+        }
+    }
+
+    /// The time itself, sized to fit the width it is given rather than forced to its natural
+    /// width.
     ///
-    /// A twelve-hour clock drops the leading zero — `5:23`, not `05:23` — so a single-digit
-    /// hour is a glyph narrower than a two-digit one. Sized to fill its width, the narrower
-    /// string was drawn larger, and the clock grew and shrank as the hour changed. An
-    /// earlier fix padded with `\u{2007}` FIGURE SPACE, but WPOCRA has no such glyph: it fell
-    /// back to a system space of the wrong width and merely indented the shorter times.
-    ///
-    /// A hidden widest-case string lays out the width instead. `88:88` reserves room for any
-    /// `HH:MM`, and the real time is drawn over it, left-aligned — so every time sits in the
-    /// same box at the same size, left edges lined up, with no glyph the face lacks.
+    /// A twelve-hour clock drops the leading zero — `5:23`, not `05:23` — and adds an
+    /// `am`/`pm` the row's width was never budgeted for. The previous version drew the
+    /// numerals at their natural width over a hidden `88:88` reference, `fixedSize`, so a wide
+    /// double-digit time overran its box: it covered the day-period marker and pushed into the
+    /// station name beside it. Here the numerals carry no `fixedSize`; `minimumScaleFactor`
+    /// lets them shrink a hair to stay inside their share while the caller's fixed frame keeps
+    /// every row's left edge — and the name beside it — aligned.
     private var terminalText: some View {
-        Text(verbatim: "88:88")
+        Text(display.time)
             .font(terminalFont)
             .monospacedDigit()
             .tracking(-size * 0.02)
             .lineLimit(1)
-            .hidden()
-            .overlay(alignment: .leading) {
-                Text(display.time)
-                    .font(terminalFont)
-                    .monospacedDigit()
-                    .tracking(-size * 0.02)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .fixedSize(horizontal: true, vertical: false)
-            }
+            .minimumScaleFactor(0.6)
     }
 }
 
