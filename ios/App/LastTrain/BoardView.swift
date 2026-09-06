@@ -178,6 +178,7 @@ struct BoardView: View {
                     LinePicker(
                         from: end,
                         direction: model.direction.opposite,
+                        date: model.requestedDate,
                         title: "\(model.direction.opposite.rawValue.capitalized) of \(end.crs)",
                         selectedCrs: model.station?.crs
                     ) { picked, onLine in
@@ -196,6 +197,7 @@ struct BoardView: View {
                     LinePicker(
                         from: start,
                         direction: model.direction,
+                        date: model.requestedDate,
                         title: "\(model.direction.rawValue.capitalized) of \(start.crs)",
                         selectedCrs: fast.destination?.crs
                     ) { picked, onLine in

@@ -28,6 +28,9 @@ struct LinePicker: View {
     let from: Station
     /// The direction to read from `from`. Already reversed by the caller where needed.
     let direction: Compass
+    /// The service day being looked at, so a browsed future day lists that day's real
+    /// destinations. Nil is today, which the server answers from the live board.
+    var date: String? = nil
     let title: String
     /// Highlighted in the list, so re-opening shows where you already are.
     let selectedCrs: String?
@@ -206,7 +209,7 @@ struct LinePicker: View {
         errorMessage = nil
         defer { isLoading = false }
         do {
-            destinations = try await client.destinations(from: from.crs, direction: direction).destinations
+            destinations = try await client.destinations(from: from.crs, direction: direction, date: date).destinations
         } catch is CancellationError {
             return
         } catch {

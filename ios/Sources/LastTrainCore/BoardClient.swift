@@ -432,6 +432,7 @@ extension BoardClient {
     public func destinations(
         from origin: String,
         direction: Compass,
+        date: String? = nil,
         refresh: Bool = false
     ) async throws -> DestinationList {
         guard var components = URLComponents(
@@ -443,6 +444,10 @@ extension BoardClient {
             URLQueryItem(name: "from", value: origin),
             URLQueryItem(name: "direction", value: direction.rawValue),
         ]
+        // The day being looked at, so a future date lists that day's real destinations
+        // rather than today's — which, on a replacement-bus day, is a much shorter list.
+        // Darwin cannot answer a future date, so the server reads it from the whole-day feed.
+        if let date { query.append(URLQueryItem(name: "date", value: date)) }
         if refresh { query.append(URLQueryItem(name: "refresh", value: "1")) }
         components.queryItems = query
 
