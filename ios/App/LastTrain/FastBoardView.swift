@@ -26,6 +26,13 @@ struct FastBoardView: View {
             // picker for you: picking a station used to drop you straight into a sheet you
             // did not ask for. It rests on the prompt below instead, which is itself the tap.
         }
+        // Reaching the last loaded page pulls in the two-to-four-hour window on its own, so
+        // the pager grows to meet the trains rather than offering a page that isn't there.
+        // Keyed on the page and the count so it re-checks after a fetch folds trains in.
+        .task(id: "\(model.page):\(model.services.count):\(model.selectionToken)") {
+            guard model.isOnLastLoadedPage else { return }
+            await model.loadLater(at: station, direction: direction)
+        }
     }
 
     /// The rest state before a destination is chosen. It is the tap that opens the picker,
@@ -88,6 +95,16 @@ struct FastBoardView: View {
             if !model.shown.isEmpty {
                 sectionHeading(restTitle)
                 ForEach(model.shown) { row($0) }
+            }
+
+            // The two-to-four-hour window loading itself in as you reach the end.
+            if model.isLoadingLater {
+                HStack(spacing: 9) {
+                    ProgressView().controlSize(.small).tint(Theme.textDim)
+                    Text("Loading the next two hours").font(Theme.Font.meta).foregroundStyle(Theme.textDim)
+                }
+                .padding(.horizontal, Theme.Space.gutter)
+                .padding(.vertical, 14)
             }
         }
     }

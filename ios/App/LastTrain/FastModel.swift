@@ -387,8 +387,9 @@ final class FastModel {
     }
 
     /// Whether a two-to-four-hour window is still worth fetching: the live day, not yet
-    /// fetched, and there is room in the five pages for more. It is what lets a sparse board
-    /// — four trains, one page — still offer a next step.
+    /// fetched, and there is room in the five pages for more. The board loads it on its own
+    /// the moment you reach the last loaded page, so a sparse board fills out to four hours
+    /// without the pager ever offering a page that turns out not to exist.
     var canLoadLater: Bool {
         !showsNextServiceDay
             && !laterLoaded
@@ -397,13 +398,18 @@ final class FastModel {
             && services.count < Self.perPage * Self.maximumPages
     }
 
-    var canPage: Bool { pageCount > 1 || canLoadLater }
+    /// The pager reflects only the pages that exist. A later window is folded in before you
+    /// could page into it, so the count never runs ahead of the trains.
+    var canPage: Bool { pageCount > 1 }
     var isOnFirstPage: Bool { page == 0 }
 
-    /// True on the last page, where the next tap comes back to the first — but not while a
-    /// later window is still to load, where the next tap fetches it instead of wrapping. The
+    /// True on the last page that exists, where the next tap comes back to the first. The
     /// masthead reads this to know which glyph to draw before you press it.
-    var pageWrapsToNow: Bool { page + 1 >= pageCount && !canLoadLater }
+    var pageWrapsToNow: Bool { page + 1 >= pageCount }
+
+    /// On the last loaded page with a later window still to fetch. The view watches this and
+    /// loads it, so reaching the end pulls the next two hours in rather than wrapping.
+    var isOnLastLoadedPage: Bool { page + 1 >= pageCount && canLoadLater }
 
     /**
      The next three after these, and round to the first page off the end.
@@ -416,22 +422,6 @@ final class FastModel {
     func advance() {
         guard canPage else { return }
         page = pageWrapsToNow ? 0 : page + 1
-    }
-
-    /**
-     Turn the page, fetching the two-to-four-hour window first if this is the step off the
-     end of the Darwin board.
-
-     The view calls this rather than `advance()`. When there is a later window still to load
-     and the page is at the end of what is loaded, it fetches that window and folds it in;
-     then `advance()` re-reads the page count, so it steps into the new pages if they arrived
-     and wraps to the first if the window was empty.
-     */
-    func advanceOrLoad(at station: Station, direction: Compass) async {
-        if page + 1 >= pageCount && canLoadLater {
-            await loadLater(at: station, direction: direction)
-        }
-        advance()
     }
 
     /**
