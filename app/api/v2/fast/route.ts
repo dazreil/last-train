@@ -300,7 +300,10 @@ export async function GET(request: Request) {
     const pricedNothing = result.services.length === 0 && result.candidates > 0;
     if (!pricedNothing) await setCached(laterKey, body, LATER_TTL);
     return NextResponse.json(body, {
-      headers: { 'x-cache': pricedNothing ? 'SKIP' : 'MISS', 'x-window': 'later' },
+      // Never let a client hold this URL: it is one address for a window that slides with
+      // the clock, and a thin copy cached on the device would replay for the app's lifetime.
+      // The shared server cache still absorbs the load.
+      headers: { 'x-cache': pricedNothing ? 'SKIP' : 'MISS', 'x-window': 'later', 'cache-control': 'no-store' },
     });
   }
 

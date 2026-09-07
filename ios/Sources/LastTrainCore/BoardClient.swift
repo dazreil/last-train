@@ -404,7 +404,11 @@ extension BoardClient {
         var request = URLRequest(url: url)
         request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.cachePolicy = refresh ? .reloadIgnoringLocalCacheData : .useProtocolCachePolicy
+        // The later window is always the same URL, so URLSession would serve a stale copy of
+        // it — including a thin one from a rate-limited moment — for the life of the app. It
+        // is cheap and server-cached, so always fetch it fresh. A refresh bypasses the cache
+        // for the same reason.
+        request.cachePolicy = refresh || later ? .reloadIgnoringLocalCacheData : .useProtocolCachePolicy
 
         let data: Data
         let response: URLResponse
