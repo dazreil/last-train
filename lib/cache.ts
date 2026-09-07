@@ -253,3 +253,29 @@ export const getCachedCalls = <T>(serviceId: string): Promise<CacheHit<T> | null
   patterns.get<T>(CALLS + serviceId);
 export const setCachedCalls = <T>(serviceId: string, value: T, ttlSeconds: number): Promise<void> =>
   patterns.set(CALLS + serviceId, value, ttlSeconds);
+
+/**
+ * Whether the shared layer is configured and actually reachable, for a health check.
+ *
+ * `configured` says the credentials are present; `reachable` says a write-then-read round
+ * trip through Redis actually came back with what went in. Never returns the error text —
+ * that can quote the connection URL — only whether it worked and how long it took.
+ */
+export async function sharedCacheHealth(): Promise<{
+  configured: boolean;
+  reachable: boolean;
+  roundTripMs: number | null;
+}> {
+  const redis = shared();
+  if (!redis) return { configured: false, reachable: false, roundTripMs: null };
+
+  const started = Date.now();
+  try {
+    await redis.set('health:ping', { t: started }, { ex: 30 });
+    const seen = await redis.get<{ t: number }>('health:ping');
+    return { configured: true, reachable: seen?.t === started, roundTripMs: Date.now() - started };
+  } catch (error) {
+    noteSharedFailure('health', error);
+    return { configured: true, reachable: false, roundTripMs: null };
+  }
+}
