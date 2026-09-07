@@ -137,11 +137,97 @@ function addMinutesLondon(naive: string, minutes: number): string {
 const FALLBACK_WINDOW_MINUTES = 120;
 const ROLL_BUDGET = 6;
 
+/**
+ * The two-to-four-hour window, reached only when someone pages past Darwin's two hours.
+ *
+ * Darwin cannot see beyond two hours, so this second window is RTT — but it is fetched only
+ * on demand (a page turn) or when the first two hours are empty, and it stops at four hours,
+ * which is as far as a train can be followed on the Live Activity. `LATER_BUDGET` prices a
+ * couple of hours of a normal branch service; `LATER_TTL` is short because the window slides
+ * with the clock.
+ */
+const LATER_BUDGET = 8;
+const LATER_TTL = 90;
+
 const describe = (list: { location?: { description?: string } }[] | undefined): string =>
   (list ?? [])
     .map((entry) => entry.location?.description)
     .filter((name): name is string => Boolean(name))
     .join(' & ');
+
+/**
+ * One filtered line-up, then a calling pattern per candidate, priced into `FastService`s.
+ *
+ * The whole cost of an RTT board: the line-up names the trains that call at the destination,
+ * and each arrival costs a pattern fetch. `fetchFailures` counts the throws — above zero the
+ * upstream was rate limiting and the board is thinner than the real one. Shared by the
+ * two-hour fallback and the two-to-four-hour later window.
+ */
+async function priceWindow(
+  fromCrs: string,
+  toCrs: string,
+  timeFrom: string,
+  timeTo: string,
+  budget: number,
+  ttl: number
+): Promise<
+  | { error: string }
+  | { services: FastService[]; candidates: number; fetchFailures: number }
+> {
+  let lineUp;
+  try {
+    lineUp = await locationLineUp({ code: fromCrs, filterTo: toCrs, timeFrom, timeTo });
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Could not look that up.' };
+  }
+
+  const boardable = (lineUp?.services ?? []).filter(
+    (service) => service.temporalData?.displayAs !== 'PASS'
+  );
+  const candidates = boardable.length;
+  const priced = boardable.slice(0, budget);
+
+  const services: FastService[] = [];
+  let fetchFailures = 0;
+
+  for (const candidate of priced) {
+    const id = candidate.scheduleMetadata?.uniqueIdentity;
+    if (!id) continue;
+
+    let locations: ServiceLocation[] | null = null;
+    const cachedPattern = await getCachedLocations<ServiceLocation[] | null>(id);
+
+    if (cachedPattern) {
+      locations = cachedPattern.value;
+    } else {
+      try {
+        const detail = await serviceDetail(id);
+        locations = detail?.service?.locations ?? null;
+        if (locations) await setCachedLocations(id, locations, ttl);
+      } catch {
+        fetchFailures += 1;
+        continue;
+      }
+    }
+
+    if (!locations) continue;
+
+    const service = priceOne(fromCrs, toCrs, locations);
+    if (!service) continue;
+
+    services.push({
+      serviceId: id,
+      headcode: candidate.scheduleMetadata?.trainReportingIdentity ?? null,
+      toc: candidate.scheduleMetadata?.operator?.code ?? '??',
+      tocName: candidate.scheduleMetadata?.operator?.name ?? 'Unknown operator',
+      destination: describe(candidate.destination),
+      platform: platformOf(candidate),
+      ...service,
+    });
+  }
+
+  return { services, candidates, fetchFailures };
+}
 
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
@@ -171,6 +257,51 @@ export async function GET(request: Request) {
     if (cached) {
       return NextResponse.json(cached.value, { headers: { 'x-cache': 'HIT' } });
     }
+  }
+
+  /*
+   The later window: two-to-four hours out, asked for by name.
+
+   Darwin sees two hours; this reaches the two after that, so it is RTT. It is requested
+   only when someone pages past the Darwin board or the first two hours were empty — never
+   speculatively — and it stops at four hours, the horizon a train can be followed to. Its
+   own short-lived cache key, since the window slides with the clock.
+  */
+  if (params.get('later') === '1' && date === today) {
+    const laterKey = `${key}:later`;
+    if (params.get('refresh') !== '1') {
+      const cached = await getCached<FastBoard>(laterKey);
+      if (cached) {
+        return NextResponse.json(cached.value, { headers: { 'x-cache': 'HIT', 'x-window': 'later' } });
+      }
+    }
+
+    const bounds = serviceDayWindow(date);
+    if (!bounds) {
+      return NextResponse.json({ error: 'That date has no service day.' }, { status: 400 });
+    }
+    const now = londonNow();
+    const laterFrom = maxIso(bounds.timeFrom, addMinutesLondon(now, FALLBACK_WINDOW_MINUTES));
+    const laterTo = minIso(bounds.timeTo, addMinutesLondon(now, 2 * FALLBACK_WINDOW_MINUTES));
+
+    const result = await priceWindow(from.crs, to.crs, laterFrom, laterTo, LATER_BUDGET, ttlSecondsFor(date));
+    if ('error' in result) {
+      return NextResponse.json({ error: result.error }, { status: 502 });
+    }
+    const body: FastBoard = {
+      from: { crs: from.crs, name: from.name, locality: from.locality },
+      to: { crs: to.crs, name: to.name, locality: to.locality },
+      date,
+      services: result.services,
+      candidates: result.candidates,
+      truncated: result.candidates > LATER_BUDGET,
+    };
+    // Don't pin a rate-limited empty for even a minute; a real empty is a real answer.
+    const pricedNothing = result.services.length === 0 && result.candidates > 0;
+    if (!pricedNothing) await setCached(laterKey, body, LATER_TTL);
+    return NextResponse.json(body, {
+      headers: { 'x-cache': pricedNothing ? 'SKIP' : 'MISS', 'x-window': 'later' },
+    });
   }
 
   /*
@@ -252,72 +383,13 @@ export async function GET(request: Request) {
       ? minIso(window.timeTo, addMinutesLondon(timeFrom, FALLBACK_WINDOW_MINUTES))
       : window.timeTo;
 
-  let lineUp;
-  try {
-    // One request, and it does the hardest part: only trains that call at the
-    // destination come back. Nothing here has to work out which way a train goes.
-    lineUp = await locationLineUp({
-      code: from.crs,
-      filterTo: to.crs,
-      timeFrom,
-      timeTo,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Could not look that up.';
-    return NextResponse.json({ error: message }, { status: 502 });
-  }
-
-  const boardable = (lineUp?.services ?? []).filter(
-    (service) => service.temporalData?.displayAs !== 'PASS'
-  );
-
-  const candidates = boardable.length;
-  const priced = boardable.slice(0, date === today ? PATTERN_BUDGET : ROLL_BUDGET);
   const ttl = ttlSecondsFor(date);
-
-  const services: FastService[] = [];
-  // Pattern fetches that threw rather than answering. Above zero means the upstream was
-  // rate limiting, so trains dropped out and this board is thinner than the real one.
-  let fetchFailures = 0;
-
-  for (const candidate of priced) {
-    const id = candidate.scheduleMetadata?.uniqueIdentity;
-    if (!id) continue;
-
-    let locations: ServiceLocation[] | null = null;
-    const cachedPattern = await getCachedLocations<ServiceLocation[] | null>(id);
-
-    if (cachedPattern) {
-      locations = cachedPattern.value;
-    } else {
-      try {
-        const detail = await serviceDetail(id);
-        locations = detail?.service?.locations ?? null;
-        if (locations) await setCachedLocations(id, locations, ttl);
-      } catch {
-        // One train that cannot be priced is not a failed lookup. It drops out and the
-        // rest still answer. But count it: a throw is the upstream refusing, not the
-        // train being unpriceable, and enough of them mean the board is short.
-        fetchFailures += 1;
-        continue;
-      }
-    }
-
-    if (!locations) continue;
-
-    const service = priceOne(from.crs, to.crs, locations);
-    if (!service) continue;
-
-    services.push({
-      serviceId: id,
-      headcode: candidate.scheduleMetadata?.trainReportingIdentity ?? null,
-      toc: candidate.scheduleMetadata?.operator?.code ?? '??',
-      tocName: candidate.scheduleMetadata?.operator?.name ?? 'Unknown operator',
-      destination: describe(candidate.destination),
-      platform: platformOf(candidate),
-      ...service,
-    });
+  const budget = date === today ? PATTERN_BUDGET : ROLL_BUDGET;
+  const result = await priceWindow(from.crs, to.crs, timeFrom, timeTo, budget, ttl);
+  if ('error' in result) {
+    return NextResponse.json({ error: result.error }, { status: 502 });
   }
+  const { services, candidates, fetchFailures } = result;
 
   const body: FastBoard = {
     from: { crs: from.crs, name: from.name, locality: from.locality },
@@ -325,7 +397,7 @@ export async function GET(request: Request) {
     date,
     services,
     candidates,
-    truncated: candidates > priced.length,
+    truncated: candidates > budget,
   };
 
   /*
