@@ -81,6 +81,13 @@ final class FastModel {
     /// Zero-based. Page zero is always the next three from now.
     private(set) var page = 0
 
+    /// The two-to-four-hour window has been fetched and folded in — or shown outright
+    /// because the first two hours were empty. Fetched at most once per board.
+    private(set) var laterLoaded = false
+    /// That window came back empty, so there is nothing more to page to.
+    private(set) var laterExhausted = false
+    private(set) var isLoadingLater = false
+
     private let client: BoardClient
 
     init(client: BoardClient = BoardClient(baseURL: AppConfig.apiBaseURL)) {
@@ -112,6 +119,8 @@ final class FastModel {
         page = 0
         services = []
         showsNextServiceDay = false
+        laterLoaded = false
+        laterExhausted = false
         activityMessage = nil
         selectionToken += 1
     }
@@ -132,6 +141,8 @@ final class FastModel {
         page = 0
         services = []
         showsNextServiceDay = false
+        laterLoaded = false
+        laterExhausted = false
         updatedAt = nil
         activityMessage = nil
         // Force the board's reload even when `chosen` is the destination already showing:
@@ -193,32 +204,52 @@ final class FastModel {
             )
             var boardTruncated = board.truncated
             var rolled = false
+            // A fresh board starts with the later window unfetched, so it is offered again.
+            laterLoaded = false
+            laterExhausted = false
 
             /**
-             Nothing left today, so answer with tomorrow rather than with nothing.
+             Nothing in the next two hours, so look further before giving up on today.
 
-             Last Train has a day stepper and an explicit first-train section; Fast Train
-             has neither, so at the end of a service day it had only "Nothing direct left"
-             to offer — true, and useless at half past midnight, which is exactly when this
-             mode is opened. The next service day's first trains are the answer to the
-             question actually being asked, and the board says so above them.
+             The next two-to-four hours come first — a train in three hours is still today's
+             answer, and rolling past it to tomorrow's first would be wrong. Only when that is
+             empty too does the board roll to the next service day, which Last Train reaches
+             with its day stepper but Fast Train, opened at half past midnight, has no other
+             way to offer. The header says which it is showing.
              */
-            if ranked.isEmpty,
-               let tomorrow = ServiceDay.addDays(ServiceDay.currentServiceDate(), 1) {
-                let next = try await client.fast(
+            if ranked.isEmpty {
+                let late = try await client.fast(
                     from: station.crs,
                     to: heading.crs,
-                    date: tomorrow,
+                    later: true,
                     refresh: refresh
                 )
-                let first = FastBoard.rank(
-                    next.services,
+                let lateRanked = FastBoard.rank(
+                    FastBoard.upcoming(late.services),
                     limit: Self.perPage * Self.maximumPages
                 )
-                if !first.isEmpty {
-                    ranked = first
-                    boardTruncated = next.truncated
-                    rolled = true
+                if !lateRanked.isEmpty {
+                    ranked = lateRanked
+                    boardTruncated = late.truncated
+                    // The later window is now on screen; nothing beyond four hours to page to.
+                    laterLoaded = true
+                    laterExhausted = true
+                } else if let tomorrow = ServiceDay.addDays(ServiceDay.currentServiceDate(), 1) {
+                    let next = try await client.fast(
+                        from: station.crs,
+                        to: heading.crs,
+                        date: tomorrow,
+                        refresh: refresh
+                    )
+                    let first = FastBoard.rank(
+                        next.services,
+                        limit: Self.perPage * Self.maximumPages
+                    )
+                    if !first.isEmpty {
+                        ranked = first
+                        boardTruncated = next.truncated
+                        rolled = true
+                    }
                 }
             }
 
@@ -355,12 +386,24 @@ final class FastModel {
         return Array(rest[start..<min(start + visiblePerPage, rest.count)])
     }
 
-    var canPage: Bool { pageCount > 1 }
+    /// Whether a two-to-four-hour window is still worth fetching: the live day, not yet
+    /// fetched, and there is room in the five pages for more. It is what lets a sparse board
+    /// — four trains, one page — still offer a next step.
+    var canLoadLater: Bool {
+        !showsNextServiceDay
+            && !laterLoaded
+            && !laterExhausted
+            && !services.isEmpty
+            && services.count < Self.perPage * Self.maximumPages
+    }
+
+    var canPage: Bool { pageCount > 1 || canLoadLater }
     var isOnFirstPage: Bool { page == 0 }
 
-    /// True on the last page, where the next tap comes back to the first. The masthead
-    /// reads this to know which glyph to draw before you press it.
-    var pageWrapsToNow: Bool { page + 1 >= pageCount }
+    /// True on the last page, where the next tap comes back to the first — but not while a
+    /// later window is still to load, where the next tap fetches it instead of wrapping. The
+    /// masthead reads this to know which glyph to draw before you press it.
+    var pageWrapsToNow: Bool { page + 1 >= pageCount && !canLoadLater }
 
     /**
      The next three after these, and round to the first page off the end.
@@ -373,6 +416,58 @@ final class FastModel {
     func advance() {
         guard canPage else { return }
         page = pageWrapsToNow ? 0 : page + 1
+    }
+
+    /**
+     Turn the page, fetching the two-to-four-hour window first if this is the step off the
+     end of the Darwin board.
+
+     The view calls this rather than `advance()`. When there is a later window still to load
+     and the page is at the end of what is loaded, it fetches that window and folds it in;
+     then `advance()` re-reads the page count, so it steps into the new pages if they arrived
+     and wraps to the first if the window was empty.
+     */
+    func advanceOrLoad(at station: Station, direction: Compass) async {
+        if page + 1 >= pageCount && canLoadLater {
+            await loadLater(at: station, direction: direction)
+        }
+        advance()
+    }
+
+    /**
+     Fetch the two-to-four-hour window and merge it in.
+
+     RTT, because Darwin cannot see past two hours — but only ever on demand, and capped at
+     four hours, the horizon a train can be followed to. An empty window marks the board
+     exhausted so the step stops being offered; a failure leaves the board as it is and lets
+     the next page turn try again.
+     */
+    func loadLater(at station: Station, direction: Compass) async {
+        guard let heading = destination, !isLoadingLater, canLoadLater else { return }
+        isLoadingLater = true
+        defer { isLoadingLater = false }
+
+        do {
+            let board = try await client.fast(from: station.crs, to: heading.crs, later: true)
+            let late = FastBoard.rank(
+                FastBoard.upcoming(board.services),
+                limit: Self.perPage * Self.maximumPages
+            )
+            laterLoaded = true
+            if late.isEmpty {
+                laterExhausted = true
+            } else {
+                let existing = Set(services.map(\.serviceId))
+                let merged = services + late.filter { !existing.contains($0.serviceId) }
+                services = FastBoard.rank(
+                    FastBoard.upcoming(merged),
+                    limit: Self.perPage * Self.maximumPages
+                )
+            }
+        } catch {
+            // Not a board failure: leave the first two hours as they are, and let a later
+            // page turn retry rather than marking the window exhausted.
+        }
     }
 
     /// Back to the next three from now.

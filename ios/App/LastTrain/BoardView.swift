@@ -546,8 +546,13 @@ struct BoardView: View {
             stepLabel(Self.pageName(fast.page))
             stepButton(
                 label: fast.pageWrapsToNow ? Self.pageName(0) : Self.pageName(fast.page + 1),
-                action: { fast.advance() },
-                accessibility: fast.pageWrapsToNow ? "Back to the first three trains" : "Show the next three trains",
+                action: {
+                    // May fetch the two-to-four-hour window before stepping, so it is async.
+                    if let station = model.station {
+                        Task { await fast.advanceOrLoad(at: station, direction: model.direction) }
+                    }
+                },
+                accessibility: fast.pageWrapsToNow ? "Back to the first three trains" : "Show the next trains",
                 value: "Page \(fast.page + 1) of \(fast.pageCount)"
             )
         }

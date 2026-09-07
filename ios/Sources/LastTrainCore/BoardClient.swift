@@ -381,6 +381,7 @@ extension BoardClient {
         from origin: String,
         to destination: String,
         date: String? = nil,
+        later: Bool = false,
         refresh: Bool = false
     ) async throws -> FastBoardResponse {
         guard var components = URLComponents(
@@ -393,6 +394,8 @@ extension BoardClient {
             URLQueryItem(name: "to", value: destination),
         ]
         if let date { query.append(URLQueryItem(name: "date", value: date)) }
+        // The two-to-four-hour window, fetched only when the board is paged into it.
+        if later { query.append(URLQueryItem(name: "later", value: "1")) }
         if refresh { query.append(URLQueryItem(name: "refresh", value: "1")) }
         components.queryItems = query
 
