@@ -457,12 +457,13 @@ final class FastModel {
             if late.isEmpty {
                 laterExhausted = true
             } else {
+                // Append, never re-rank the trains already on screen. A two-to-four-hour train
+                // always arrives after a nought-to-two-hour one, so order is preserved by
+                // adding to the end — and the hero and the pages you have already turned stay
+                // exactly as they were, rather than shifting under a fresh `upcoming` filter.
                 let existing = Set(services.map(\.serviceId))
-                let merged = services + late.filter { !existing.contains($0.serviceId) }
-                services = FastBoard.rank(
-                    FastBoard.upcoming(merged),
-                    limit: Self.perPage * Self.maximumPages
-                )
+                let appended = late.filter { !existing.contains($0.serviceId) }
+                services = Array((services + appended).prefix(Self.perPage * Self.maximumPages))
             }
         } catch {
             // Not a board failure: leave the first two hours as they are, and let a later
