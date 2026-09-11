@@ -261,7 +261,22 @@ export async function GET(request: Request) {
   }
 
   const key = answerKey(from.crs, to.crs, date);
-  if (params.get('refresh') !== '1') {
+  const wantsLater = params.get('later') === '1';
+
+  /*
+   The live board's cache, which the later window must not be served from.
+
+   `answerKey` names the nought-to-two-hour answer. The later window keeps its own key
+   below, and reading this one for a `later=1` request hands back the very trains the
+   caller already has.
+
+   That is not merely wrong, it is the silent failure again in a new costume: the client
+   appends by service id, finds every train already on screen, appends nothing, and
+   concludes the window is exhausted -- with no notice, because nothing failed. Observed
+   on the deployment, where Upminster to Southend answered `later=1` with the live board
+   and no `source` field at all.
+  */
+  if (params.get('refresh') !== '1' && !wantsLater) {
     const cached = await getCached<FastBoard>(key);
     if (cached) {
       return NextResponse.json(cached.value, { headers: { 'x-cache': 'HIT' } });
@@ -280,7 +295,7 @@ export async function GET(request: Request) {
    `services` with a notice means something different to the client than an empty `services`
    without one.
   */
-  if (params.get('later') === '1' && date === today) {
+  if (wantsLater && date === today) {
     const laterKey = `${key}:later`;
     if (params.get('refresh') !== '1') {
       const cached = await getCached<FastBoard>(laterKey);
