@@ -19,6 +19,7 @@ import { NextResponse } from 'next/server';
 
 import { locationLineUp, serviceDetail } from '@/lib/rtt';
 import { DarwinError, departureBoard, normalize, toFastService, toServiceCalls } from '@/lib/darwin';
+import { timetableBoard } from '@/lib/timetable';
 import {
   currentServiceDate,
   formatLondonTime,
@@ -140,13 +141,21 @@ const ROLL_BUDGET = 6;
 /**
  * The two-to-four-hour window, reached only when someone pages past Darwin's two hours.
  *
- * Darwin cannot see beyond two hours, so this second window is RTT — but it is fetched only
- * on demand (a page turn) or when the first two hours are empty, and it stops at four hours,
- * which is as far as a train can be followed on the Live Activity. `LATER_BUDGET` prices a
- * couple of hours of a normal branch service; `LATER_TTL` is short because the window slides
- * with the clock.
+ * Darwin's board stops at two hours — `timeOffset` cannot pass +120, the API returns 400 —
+ * so something else has to answer the two after that.
+ *
+ * **It used to be RTT, and that was the bug.** Every later train needed its own calling
+ * pattern to get an arrival, about nine upstream requests for one window against a limit of
+ * forty a minute. Bursts were refused, the client swallowed the error, and the board simply
+ * stayed at two hours with nothing said. See `DARWIN-INGEST.md` §1.
+ *
+ * It is now the ingested timetable, which costs **one** read and no upstream request at all.
+ * There is no budget to set because there is no per-train cost: the stored board already
+ * carries each train's calling points.
+ *
+ * `LATER_TTL` stays short because the window slides with the clock, not because the data
+ * does.
  */
-const LATER_BUDGET = 8;
 const LATER_TTL = 90;
 
 const describe = (list: { location?: { description?: string } }[] | undefined): string =>
@@ -262,10 +271,14 @@ export async function GET(request: Request) {
   /*
    The later window: two-to-four hours out, asked for by name.
 
-   Darwin sees two hours; this reaches the two after that, so it is RTT. It is requested
-   only when someone pages past the Darwin board or the first two hours were empty — never
-   speculatively — and it stops at four hours, the horizon a train can be followed to. Its
-   own short-lived cache key, since the window slides with the clock.
+   One read of the ingested timetable. It is requested only when someone pages past the
+   Darwin board or the first two hours were empty -- never speculatively -- and it stops at
+   four hours, the horizon a train can be followed to. Its own short-lived cache key, since
+   the window slides with the clock.
+
+   Nothing here can fail silently. Every path that cannot answer sets `notice`, and an empty
+   `services` with a notice means something different to the client than an empty `services`
+   without one.
   */
   if (params.get('later') === '1' && date === today) {
     const laterKey = `${key}:later`;
@@ -284,26 +297,80 @@ export async function GET(request: Request) {
     const laterFrom = maxIso(bounds.timeFrom, addMinutesLondon(now, FALLBACK_WINDOW_MINUTES));
     const laterTo = minIso(bounds.timeTo, addMinutesLondon(now, 2 * FALLBACK_WINDOW_MINUTES));
 
-    const result = await priceWindow(from.crs, to.crs, laterFrom, laterTo, LATER_BUDGET, ttlSecondsFor(date));
-    if ('error' in result) {
-      return NextResponse.json({ error: result.error }, { status: 502 });
-    }
-    const body: FastBoard = {
+    const stored = await timetableBoard(from.crs, date);
+    const shell = {
       from: { crs: from.crs, name: from.name, locality: from.locality },
       to: { crs: to.crs, name: to.name, locality: to.locality },
       date,
-      services: result.services,
-      candidates: result.candidates,
-      truncated: result.candidates > LATER_BUDGET,
+      source: 'timetable' as const,
     };
-    // Don't pin a rate-limited empty for even a minute; a real empty is a real answer.
-    const pricedNothing = result.services.length === 0 && result.candidates > 0;
-    if (!pricedNothing) await setCached(laterKey, body, LATER_TTL);
+
+    /*
+     Say which of the four ways it failed, and say it in a sentence.
+
+     A single "unavailable" would be honest but useless: a store nobody configured, a
+     publish that never ran and a store that is refusing connections need different things
+     done about them, and the person reading is often the person who can do it.
+    */
+    if (stored.status !== 'ok' && stored.status !== 'stale') {
+      const notice =
+        stored.status === 'unconfigured'
+          ? 'Later trains need the timetable, which this server has not been set up with.'
+          : stored.status === 'missing'
+            ? 'No timetable has been published for today yet.'
+            : 'The timetable could not be read just now.';
+      const body: FastBoard = { ...shell, services: [], candidates: 0, truncated: false, notice };
+      // Never cached. Every one of these is a condition that can be fixed in a minute, and
+      // an hour of a cached apology would outlive the fix.
+      return NextResponse.json(body, {
+        headers: { 'x-cache': 'SKIP', 'x-window': 'later', 'cache-control': 'no-store' },
+      });
+    }
+
+    /*
+     The window, priced.
+
+     No budget and no truncation: `toFastService` reads the arrival out of calling points
+     the board already carries, so a train costs nothing to price and every candidate is
+     priced. It refuses a destination the train will not put anyone down at, which is why
+     `candidates` is counted after pricing rather than before -- an unreachable stop was
+     never a candidate.
+    */
+    const services = stored.services
+      .filter((service) => {
+        const departure = service.stops[0]?.timeInstant;
+        return Boolean(departure && departure >= laterFrom && departure < laterTo);
+      })
+      .map((service) => toFastService(service, to.crs))
+      .filter((priced): priced is FastService => priced !== null)
+      .map((priced) => ({ ...priced, isScheduled: true }));
+
+    const hours = Math.round(stored.ageSeconds / 3600);
+    const notice =
+      stored.status === 'stale'
+        ? `These are scheduled times from a timetable last updated ${hours} hours ago.`
+        : null;
+
+    const body: FastBoard = {
+      ...shell,
+      services,
+      candidates: services.length,
+      truncated: false,
+      notice,
+    };
+
+    // A stale board is served, because scheduled times a day old still beat no answer -- but
+    // it is not pinned, so the next publish is picked up at once.
+    if (stored.status === 'ok') await setCached(laterKey, body, LATER_TTL);
     return NextResponse.json(body, {
       // Never let a client hold this URL: it is one address for a window that slides with
       // the clock, and a thin copy cached on the device would replay for the app's lifetime.
       // The shared server cache still absorbs the load.
-      headers: { 'x-cache': pricedNothing ? 'SKIP' : 'MISS', 'x-window': 'later', 'cache-control': 'no-store' },
+      headers: {
+        'x-cache': stored.status === 'ok' ? 'MISS' : 'SKIP',
+        'x-window': 'later',
+        'cache-control': 'no-store',
+      },
     });
   }
 
@@ -348,6 +415,8 @@ export async function GET(request: Request) {
           // The board returns every calling train in the window, so nothing was left
           // unpriced for want of a budget.
           truncated: false,
+          // Darwin's own board: real platforms, real cancellations, real lateness.
+          source: 'live',
         };
         await setCached(key, body, DARWIN_TTL);
         return NextResponse.json(body, { headers: { 'x-cache': 'MISS', 'x-source': 'darwin' } });
@@ -401,6 +470,8 @@ export async function GET(request: Request) {
     services,
     candidates,
     truncated: candidates > budget,
+    // RTT, which is a live source too. Only the later window is scheduled times.
+    source: 'live',
   };
 
   /*

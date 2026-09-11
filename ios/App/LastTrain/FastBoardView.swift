@@ -105,6 +105,14 @@ struct FastBoardView: View {
                 }
                 .padding(.horizontal, Theme.Space.gutter)
                 .padding(.vertical, 14)
+            } else if let notice = model.laterNotice {
+                // Why the later window is not here. The one thing this must never do is
+                // leave the board short and say nothing, which is the fault it replaces.
+                Text(notice)
+                    .font(Theme.Font.meta)
+                    .foregroundStyle(Theme.textDim)
+                    .padding(.horizontal, Theme.Space.gutter)
+                    .padding(.vertical, 14)
             }
         }
     }
@@ -268,17 +276,26 @@ struct FastRow: View {
         .animation(reduceMotion ? nil : .easeOut(duration: 0.28), value: isFollowed)
     }
 
-    /// `18 min · c2c`. The journey length leads, because on this board it is the figure
-    /// that decides between two trains.
+    /// `18 min · c2c · plat 3`. The journey length leads, because on this board it is the
+    /// figure that decides between two trains.
+    ///
+    /// A train past the two-hour live horizon ends `· scheduled`. Those rows sit in the
+    /// same list as live ones, and without the word a timetable would look as sure of its
+    /// platform and its punctuality as a departure board is. The platform is kept, because
+    /// a planned platform is usually right and is worth having — the word is what stops it
+    /// being read as a promise.
     private var meta: String {
         var parts = ["\(service.journeyMinutes) min"]
         parts.append(service.tocName.isEmpty ? service.toc : service.tocName)
         if let platform = service.platform { parts.append("plat \(platform)") }
+        if service.isScheduled { parts.append("scheduled") }
         return parts.joined(separator: " · ")
     }
 
     private var spoken: String {
         (isFollowed ? "Your train. " : "")
             + "Departs \(ServiceDay.formatClock(service.departure).spoken), arrives \(ServiceDay.formatClock(service.arrival).spoken), \(service.journeyMinutes) minutes"
+            // Said out loud too. A caveat only sighted users get is not a caveat.
+            + (service.isScheduled ? ", scheduled time" : "")
     }
 }

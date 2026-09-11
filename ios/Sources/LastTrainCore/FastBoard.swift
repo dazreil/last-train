@@ -32,6 +32,14 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
     /// Both as moments, for ordering. Never re-derived from the strings above.
     public let departsAt: Date
     public let arrivesAt: Date
+    /**
+     True when this train is a scheduled time rather than a live one.
+
+     Everything past the two-hour live horizon comes from the ingested timetable, and the
+     two sources are appended into one list on screen. Without a marker a schedule would sit
+     beside a live departure looking equally sure of its platform and its punctuality.
+     */
+    public let isScheduled: Bool
 
     public var id: String { serviceId }
 
@@ -50,7 +58,8 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         arrival: String,
         platform: String? = nil,
         departsAt: Date,
-        arrivesAt: Date
+        arrivesAt: Date,
+        isScheduled: Bool = false
     ) {
         self.serviceId = serviceId
         self.headcode = headcode
@@ -62,11 +71,13 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         self.platform = platform
         self.departsAt = departsAt
         self.arrivesAt = arrivesAt
+        self.isScheduled = isScheduled
     }
 
     private enum CodingKeys: String, CodingKey {
         case serviceId, headcode, toc, tocName, destination
         case departure, departureInstant, arrival, arrivalInstant, platform
+        case isScheduled
     }
 
     /**
@@ -88,6 +99,8 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         arrival = try container.decode(String.self, forKey: .arrival)
         // Optional: a deployment that predates it simply has no platform to give.
         platform = try container.decodeIfPresent(String.self, forKey: .platform)
+        // Absent means live, which is what every deployment before the timetable sent.
+        isScheduled = try container.decodeIfPresent(Bool.self, forKey: .isScheduled) ?? false
 
         let departureInstant = try container.decode(String.self, forKey: .departureInstant)
         let arrivalInstant = try container.decode(String.self, forKey: .arrivalInstant)
@@ -123,6 +136,56 @@ public struct FastBoardResponse: Decodable, Sendable, Equatable {
      board that might be beaten has to admit it.
      */
     public let truncated: Bool
+    /**
+     Why this window is not the full answer, in a sentence to show as it is.
+
+     Nil when nothing is wrong. **Empty `services` with a notice means "could not find
+     out"; empty `services` without one means "there are none".** They are different
+     answers and must not look the same.
+
+     The fault this replaces was a silent one: a refused upstream burst left the board
+     sitting on three pages with nothing said. A missing timetable must not repeat it.
+     */
+    public let notice: String?
+    /// `live` for a Darwin or RTT board, `timetable` for scheduled times past two hours.
+    public let source: String?
+
+    public init(
+        from: BoardStation,
+        to: BoardStation,
+        date: String,
+        services: [FastService],
+        candidates: Int,
+        truncated: Bool,
+        notice: String? = nil,
+        source: String? = nil
+    ) {
+        self.from = from
+        self.to = to
+        self.date = date
+        self.services = services
+        self.candidates = candidates
+        self.truncated = truncated
+        self.notice = notice
+        self.source = source
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case from, to, date, services, candidates, truncated, notice, source
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        from = try container.decode(BoardStation.self, forKey: .from)
+        to = try container.decode(BoardStation.self, forKey: .to)
+        date = try container.decode(String.self, forKey: .date)
+        services = try container.decode([FastService].self, forKey: .services)
+        candidates = try container.decode(Int.self, forKey: .candidates)
+        truncated = try container.decode(Bool.self, forKey: .truncated)
+        // Both optional, so a deployment that predates them still decodes.
+        notice = try container.decodeIfPresent(String.self, forKey: .notice)
+        source = try container.decodeIfPresent(String.self, forKey: .source)
+    }
 }
 
 public enum FastBoard {

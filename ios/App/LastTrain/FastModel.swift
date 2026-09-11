@@ -25,8 +25,26 @@ final class FastModel {
 
     /// Three at a time, agreed 10 August. Four left no room for the destination row.
     static let perPage = 3
-    /// Five pages at most, so paging cannot walk the whole timetable.
-    static let maximumPages = 5
+
+    /**
+     Seven pages at most — twenty-one trains — so paging cannot walk the whole timetable.
+
+     It was five, and five was the wrong number once the two-to-four-hour window stopped
+     costing anything. A busy route spends ten or more of fifteen slots on the first two
+     hours, and `canLoadLater` refuses to fetch the later window at all when the cap is
+     already full, so the board simply stopped at two hours and said nothing.
+
+     Twenty-one comes from counting rather than taste. Across 2,212 real station pairs with
+     direct service, four hours holds a median of five trains and 16 at the ninetieth
+     percentile. A cap of fifteen cuts 13% of daytime pairs short; twenty-one cuts 3%, and
+     twenty-four cuts the same 3%. Twenty-one is where the curve flattens.
+
+     Raising it costs nothing on the timetable path, which returns every train in one read.
+     `PATTERN_BUDGET` on the server stays at fifteen deliberately: it prices the RTT
+     fallback, where each train is a separate upstream request, and that path is only
+     reached when Darwin is down.
+     */
+    static let maximumPages = 7
 
     /**
      Where you are heading, held here rather than read from storage on every draw.
@@ -86,6 +104,18 @@ final class FastModel {
     private(set) var laterLoaded = false
     /// That window came back empty, so there is nothing more to page to.
     private(set) var laterExhausted = false
+    /**
+     Why the two-to-four-hour window is not showing trains, when it is not.
+
+     Nil when nothing is wrong. Set from the board's own `notice`, and shown as it is —
+     the server writes it because the server is the only thing that knows which of the
+     several ways it failed.
+
+     This exists so the window cannot fail quietly again. The old fault was a refused
+     upstream burst leaving the board on three pages with nothing said; a missing
+     timetable must not be allowed to do the same in a new costume.
+     */
+    private(set) var laterNotice: String?
     private(set) var isLoadingLater = false
 
     private let client: BoardClient
@@ -121,6 +151,7 @@ final class FastModel {
         showsNextServiceDay = false
         laterLoaded = false
         laterExhausted = false
+        laterNotice = nil
         activityMessage = nil
         selectionToken += 1
     }
@@ -143,6 +174,7 @@ final class FastModel {
         showsNextServiceDay = false
         laterLoaded = false
         laterExhausted = false
+        laterNotice = nil
         updatedAt = nil
         activityMessage = nil
         // Force the board's reload even when `chosen` is the destination already showing:
@@ -207,6 +239,7 @@ final class FastModel {
             // A fresh board starts with the later window unfetched, so it is offered again.
             laterLoaded = false
             laterExhausted = false
+            laterNotice = nil
 
             /**
              Nothing in the next two hours, so look further before giving up on today.
@@ -228,12 +261,17 @@ final class FastModel {
                     FastBoard.upcoming(late.services),
                     limit: Self.perPage * Self.maximumPages
                 )
+                laterNotice = late.notice
                 if !lateRanked.isEmpty {
                     ranked = lateRanked
                     boardTruncated = late.truncated
                     // The later window is now on screen; nothing beyond four hours to page to.
                     laterLoaded = true
                     laterExhausted = true
+                } else if late.notice != nil {
+                    // It could not answer, which is not the same as there being nothing.
+                    // Say so rather than rolling to tomorrow on an answer we never got.
+                    laterLoaded = true
                 } else if let tomorrow = ServiceDay.addDays(ServiceDay.currentServiceDate(), 1) {
                     let next = try await client.fast(
                         from: station.crs,
@@ -443,9 +481,18 @@ final class FastModel {
                 FastBoard.upcoming(board.services),
                 limit: Self.perPage * Self.maximumPages
             )
+            laterNotice = board.notice
             laterLoaded = true
             if late.isEmpty {
-                laterExhausted = true
+                /*
+                 Exhausted only when the window actually answered.
+
+                 A notice means it could not find out, and claiming "that is all of them"
+                 on an answer never received is the precise failure this replaces. The
+                 step stops being offered either way — otherwise reaching the last page
+                 would refetch on every turn — but with a notice the screen says why.
+                 */
+                laterExhausted = board.notice == nil
             } else {
                 // Append, never re-rank the trains already on screen. A two-to-four-hour train
                 // always arrives after a nought-to-two-hour one, so order is preserved by

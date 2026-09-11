@@ -159,6 +159,14 @@ export interface FastService {
   arrivalInstant: string;
   /** The platform it leaves the origin from, when the line-up knows one. */
   platform: string | null;
+  /**
+   * True when this train comes from the timetable rather than a live board.
+   *
+   * Set on everything past the two-hour live horizon. It matters because the two sources
+   * are appended into one list on screen: without a marker, a schedule would sit beside a
+   * live departure looking equally certain about its platform and its punctuality.
+   */
+  isScheduled?: boolean;
 }
 
 /** Every direct train from A to B in the window, with arrivals worked out. */
@@ -176,8 +184,31 @@ export interface FastBoard {
    *
    * The answer is still correct for what it shows, but it is not provably the fastest
    * four — and a board that might be wrong has to say so.
+   *
+   * Always false on a timetable-sourced window: the board already carries every train's
+   * calling points, so there is no per-train cost to budget against.
    */
   truncated: boolean;
+  /**
+   * Why this window is not the full answer, in a sentence a passenger can read.
+   *
+   * Null when nothing is wrong. **An empty `services` with a notice means "could not
+   * find out"; an empty `services` with no notice means "there are none".** Those are
+   * different answers and the app must not show them the same way.
+   *
+   * This field exists because the fault this whole ingest removes was a silent one: a
+   * refused upstream burst left Fast Train sitting on three pages with no message. A
+   * missing or stale timetable must not reproduce that in a new costume.
+   */
+  notice?: string | null;
+  /**
+   * Where these trains came from.
+   *
+   * `live` is Darwin's departure board — real platforms, real delays. `timetable` is the
+   * ingested schedule, which knows what is planned and not what is happening. The two
+   * never describe the same hours: 0–2h is live, past 2h is timetable.
+   */
+  source?: 'live' | 'timetable';
 }
 
 /** One place you can get to directly, and how long it takes. */
