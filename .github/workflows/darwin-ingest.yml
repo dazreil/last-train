@@ -44,7 +44,11 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          # 24, not 22. The scripts import lib/timetablePacking.ts directly, so
+          # the format has one definition rather than one per language -- and
+          # stripping types from an import is only on by default from Node 23.6.
+          # On 22 every script here fails at its first import.
+          node-version: '24'
           cache: npm
 
       - run: npm ci

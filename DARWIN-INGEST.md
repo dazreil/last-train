@@ -806,9 +806,58 @@ the same keys out. Four things it does deliberately:
 unattended, and the source resolution that three scripts had each grown a copy
 of now lives once in `scripts/lib/darwin-source.mjs`.
 
-**Still to do: delivery.** Nothing is scheduled to put a file where the job can
-read it. Until that exists the workflow will run and fail, correctly, saying the
-bucket is empty.
+### Setting delivery up
+
+The marketplace pushes; there is no bucket to pull from, and the "My Feeds" page
+the Open Rail Data wiki points at belonged to the old National Rail Data Portal
+and no longer exists. So this needs a bucket we own. Once, then never again.
+
+**1. A bucket.** AWS S3, region `eu-west-2` (London). Block all public access,
+which is the default. Name it something obvious — `last-train-darwin`.
+
+**2. A lifecycle rule on it.** Expire objects after 7 days. The marketplace adds
+a publish a day and never removes one, and the job only ever reads the newest.
+Without this the bucket grows by 11 MiB a day for ever; with it, storage stays
+inside the free tier permanently.
+
+**3. An IAM user for the job**, with read-only access to that bucket:
+`s3:ListBucket` on the bucket and `s3:GetObject` on its contents. Its access key
+and secret become two GitHub secrets. This user never needs write access — the
+marketplace writes, we read.
+
+**4. The transfer.** On the Darwin Timetable Files product page: **Data files** →
+**File transfers** → **Add a new destination** → **Add file destination**, choose
+AWS S3, give the bucket name. The marketplace then shows two policies: an IAM
+policy and a bucket policy naming **its own** IAM user as principal. Apply both
+as printed — they are what let it write in. Then **Validate**, then **Submit**.
+
+**5. Link the destination to the product**, back on the Data files tab.
+
+**6. Seven GitHub secrets**, under Settings → Secrets and variables → Actions:
+
+```
+DARWIN_S3_BUCKET        the bucket name
+DARWIN_S3_REGION        eu-west-2
+DARWIN_S3_ACCESS_KEY    the read-only IAM user's key
+DARWIN_S3_SECRET_KEY    its secret
+KV_REST_API_URL         same two values as .env.local
+KV_REST_API_TOKEN
+DARWIN_S3_PREFIX        leave unset unless the files land under a folder
+```
+
+`DARWIN_S3_PREFIX` is deliberately optional: with none set the job lists the
+whole bucket, and `parseDarwinKey` recognises a Darwin filename wherever it sits.
+
+**7. Run it by hand once**, from the Actions tab, with **Report what would be
+written** ticked. A dry run proves the credentials and the file without touching
+the store.
+
+**Two traps, both recorded in §2.** The marketplace writes on the **next**
+publish rather than backfilling, so an empty bucket right after setup is normal
+— wait a day before concluding anything is wrong. And when a **new version** of
+the data product is released, the destination must be linked to it again; nothing
+fails loudly, the files simply stop. That is what `/api/timetable-health` is
+watching for.
 
 ---
 
