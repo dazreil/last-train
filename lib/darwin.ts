@@ -81,6 +81,15 @@ export interface NormalizedStop {
   time: string | null;
   timeInstant: string | null;
   isCancelled: boolean;
+  /**
+   * Whether a passenger may leave the train here.
+   *
+   * Absent from a live board, which does not say, and so optional: undefined
+   * means "not stated", never "no". The timetable does say, and a take-up-only
+   * stop must not be offered as somewhere you can get to — see
+   * `DARWIN-INGEST.md` §3 stage 2.
+   */
+  canAlight?: boolean;
 }
 
 export interface NormalizedService {
@@ -95,11 +104,14 @@ export interface NormalizedService {
 }
 
 export class DarwinError extends Error {
-  constructor(
-    message: string,
-    readonly status: number
-  ) {
+  // Declared and assigned rather than written as a constructor parameter
+  // property. Node's type stripping cannot compile that form, and it was the
+  // one line stopping this module from being imported by `npm test` at all.
+  readonly status: number;
+
+  constructor(message: string, status: number) {
     super(message);
+    this.status = status;
     this.name = 'DarwinError';
   }
 }
@@ -275,8 +287,20 @@ export function toFastService(service: NormalizedService, toCrs: string): FastSe
 
   const alighting = service.stops.slice(1).find((stop) => stop.crs === toCrs);
   if (!alighting?.timeInstant || !alighting.time || alighting.isCancelled) return null;
-  // A journey that ends before it starts is a parsing failure in disguise.
-  if (alighting.timeInstant <= boarding.timeInstant) return null;
+  // A take-up-only stop is one the train will not put anyone down at. The
+  // timetable says so; a live board does not, and leaves `canAlight` undefined.
+  // Only an explicit false refuses, so nothing about the Darwin path changes.
+  if (alighting.canAlight === false) return null;
+  /**
+   * A journey that ends *before* it starts is a parsing failure in disguise.
+   *
+   * Equal times are not that, and this used to refuse them. Two stops a minute
+   * apart round to the same clock: the 05:13 Stonebridge Park leaves Harlesden
+   * at 05:21 and reaches Willesden Junction at 05:21, and refusing it hid a real
+   * journey that is, as it happens, the fastest way between the two. The rule
+   * says "before", so the test now says before.
+   */
+  if (alighting.timeInstant < boarding.timeInstant) return null;
 
   return {
     serviceId: service.serviceId,

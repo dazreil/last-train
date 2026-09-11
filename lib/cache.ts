@@ -68,6 +68,15 @@ function shared(): Redis | null {
   return sharedClient;
 }
 
+/**
+ * The shared client, for modules that are not caches.
+ *
+ * `lib/timetable.ts` reads a store rather than a cache — a board that is missing
+ * cannot be recomputed from anywhere — but it should not open a second
+ * connection to say so. One client, configured in one place.
+ */
+export const sharedRedis = (): Redis | null => shared();
+
 /** True once, for one build, so a broken Redis is logged rather than logged per request. */
 let sharedWarned = false;
 function noteSharedFailure(operation: string, error: unknown): void {
