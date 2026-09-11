@@ -820,11 +820,12 @@ a publish a day and never removes one, and the job only ever reads the newest.
 Without this the bucket grows by 11 MiB a day for ever; with it, storage stays
 inside the free tier permanently.
 
-**3. An IAM user for the job**, read-only on that bucket. Its access key and
+**3. An IAM user for the job**, read-only on that bucket. The first of two —
+step 4 creates the other, and confusing them is the easy mistake here. Its access key and
 secret become two GitHub secrets. It never needs write access: the marketplace
-writes, we read. **This is not the same user the marketplace asks about** — that
-one is theirs, granted by the bucket policy in step 4, and the two are easy to
-confuse.
+writes, we read. **This is not the user the marketplace asks for** — that one
+needs write access and its keys are handed over; this one only reads, and its
+keys go to GitHub.
 
 IAM → Users → Create user. Name it `last-train-darwin-reader`. **Leave "Provide
 user access to the AWS Management Console" unticked** — nobody signs in as this.
@@ -857,15 +858,40 @@ statement with both is the usual way this is got wrong, and it fails at the list
 Then the user's **Security credentials** tab → Create access key → **Application
 running outside AWS**. The secret is shown once.
 
-**4. The transfer.** On the Darwin Timetable Files product page: **Data files** →
-**File transfers** → **Add a new destination** → **Add file destination**, choose
-AWS S3, give the bucket name. The marketplace then shows two policies: an IAM
-policy and a bucket policy naming **its own** IAM user as principal. Apply both
-as printed — they are what let it write in. Then **Validate**, then **Submit**.
+**4. A second IAM user, for the marketplace.** `rdm-writer`, with the IAM policy
+the form prints — `ListBucket`, `GetObject` and `PutObject` on the bucket, plus
+`ListAllMyBuckets` on `*`. Create an access key for it.
 
-**5. Link the destination to the product**, back on the Data files tab.
+**The marketplace signs in as you.** The Add file destination form asks for an
+**Access key ID and secret access key**, and they are yours: it authenticates
+into your account with credentials you hand it, rather than pushing from an
+identity of its own.
 
-**6. Seven GitHub secrets**, under Settings → Secrets and variables → Actions:
+That resolves the blank that makes the form look broken. Its bucket policy shows
+`arn:aws:iam::<XXXXXXXXXXXX>:user/<XXXXXXXXXXX>` and the instructions only
+mention replacing the bucket name — because the account and user are **your own**,
+and it cannot know them. It is also why the bucket policy is belt and braces: an
+IAM policy already grants same-account access, so try **Validate** with the IAM
+policy alone first, and only add the bucket policy (your own account id,
+`rdm-writer`) if it complains.
+
+Two users and not one, because the keys handed to a third party should be
+revocable without taking the ingest down with them.
+
+`ListAllMyBuckets` on `*` is worth knowing about: it lets them read the *names*
+of every bucket in the account, not the contents of any. It is their requirement,
+not a choice.
+
+**Leave the optional folder path blank.** The bucket policy's `ListBucket` carries
+a `"s3:prefix": ""` condition, which permits listing the root only — set a folder
+and the listing it needs is denied.
+
+**5. Fill the form in.** Name it, choose AWS S3, bucket name, `rdm-writer`'s two
+keys. Then **Validate**, then **Submit**.
+
+**6. Link the destination to the product**, back on the Data files tab.
+
+**7. Seven GitHub secrets**, under Settings → Secrets and variables → Actions:
 
 ```
 DARWIN_S3_BUCKET        the bucket name
@@ -880,7 +906,7 @@ DARWIN_S3_PREFIX        leave unset unless the files land under a folder
 `DARWIN_S3_PREFIX` is deliberately optional: with none set the job lists the
 whole bucket, and `parseDarwinKey` recognises a Darwin filename wherever it sits.
 
-**7. Run it by hand once**, from the Actions tab, with **Report what would be
+**8. Run it by hand once**, from the Actions tab, with **Report what would be
 written** ticked. A dry run proves the credentials and the file without touching
 the store.
 
