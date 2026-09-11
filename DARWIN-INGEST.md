@@ -359,6 +359,23 @@ Nothing in the counting caught this. Stage 0 counted `<DT>` elements and found
 mid-journey `<DT>` is invisible in a total. It took a comparison against a live
 board to see it.
 
+### A sixth bug, found on the deployment itself
+
+Minutes after the first deploy, Upminster to Southend answered `later=1` with
+the **live** board and no `source` field, while Clapham Junction — which had
+nothing cached — correctly returned 69 scheduled trains.
+
+`answerKey` names the nought-to-two-hour answer, and the general cache was read
+**before** the later branch, so a `later=1` request could be handed the very
+trains the caller already has. It had always been that way; it only became
+consequential once the later window started working.
+
+And it is not merely wrong. The client appends by service id, finds every train
+already on screen, appends nothing, and concludes the window is exhausted — with
+no notice, because nothing failed. **The silent failure again, wearing a
+different costume.** Fixed by not consulting the live board's cache for a later
+request at all.
+
 ### Weekday numbers, after the fix
 
 The measurements above are from a Sunday-into-Monday file. A weekday file is the
