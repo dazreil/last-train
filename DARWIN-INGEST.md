@@ -820,10 +820,42 @@ a publish a day and never removes one, and the job only ever reads the newest.
 Without this the bucket grows by 11 MiB a day for ever; with it, storage stays
 inside the free tier permanently.
 
-**3. An IAM user for the job**, with read-only access to that bucket:
-`s3:ListBucket` on the bucket and `s3:GetObject` on its contents. Its access key
-and secret become two GitHub secrets. This user never needs write access — the
-marketplace writes, we read.
+**3. An IAM user for the job**, read-only on that bucket. Its access key and
+secret become two GitHub secrets. It never needs write access: the marketplace
+writes, we read. **This is not the same user the marketplace asks about** — that
+one is theirs, granted by the bucket policy in step 4, and the two are easy to
+confuse.
+
+IAM → Users → Create user. Name it `last-train-darwin-reader`. **Leave "Provide
+user access to the AWS Management Console" unticked** — nobody signs in as this.
+Then Permissions → Attach policies directly → Create policy → JSON, and paste:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListTheBucket",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::last-train-darwin"
+    },
+    {
+      "Sid": "ReadTheFiles",
+      "Effect": "Allow",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::last-train-darwin/*"
+    }
+  ]
+}
+```
+
+Two statements because the two actions take different resources: listing is an
+operation on the bucket, reading is an operation on the objects in it. A single
+statement with both is the usual way this is got wrong, and it fails at the list.
+
+Then the user's **Security credentials** tab → Create access key → **Application
+running outside AWS**. The secret is shown once.
 
 **4. The transfer.** On the Darwin Timetable Files product page: **Data files** →
 **File transfers** → **Add a new destination** → **Add file destination**, choose
