@@ -19,17 +19,17 @@
  *      after a network failure is just the same work again.
  *
  * Run:  node scripts/darwin-publish.mjs --file ~/Downloads
- *       node scripts/darwin-publish.mjs --file ~/Downloads --dry-run
+ *       node scripts/darwin-publish.mjs --bucket            (what the daily job runs)
+ *       node scripts/darwin-publish.mjs --bucket --dry-run
  */
 
-import { readdirSync, statSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { statSync } from 'node:fs';
 
 import { Redis } from '@upstash/redis';
 
 import { loadEnvLocal } from './lib/rtt.mjs';
-import { parseDarwinKey, pickBest, scanFile } from './lib/darwin-scan.mjs';
+import { parseDarwinKey } from './lib/darwin-scan.mjs';
+import { choosePair, fetchFromBucket, localPaths } from './lib/darwin-source.mjs';
 import { parseReference, parseTimetable } from './lib/darwin-parse.mjs';
 import { buildBoards } from './lib/darwin-board.mjs';
 import { boardKey, META_KEY, packBoard } from '../lib/timetablePacking.ts';
@@ -55,9 +55,9 @@ const allValuesOf = (f) =>
   args.reduce((out, a, i) => (a === f && args[i + 1] ? [...out, args[i + 1]] : out), []);
 
 const FILES = allValuesOf('--file');
+const FROM_BUCKET = has('--bucket');
 const DRY_RUN = has('--dry-run');
 
-const expand = (p) => resolve(p.startsWith('~') ? join(homedir(), p.slice(1)) : p);
 const withCommas = (n) => n.toLocaleString('en-GB');
 const mib = (b) => `${(b / 1024 / 1024).toFixed(1)} MiB`;
 
@@ -66,7 +66,15 @@ function fail(lines) {
   process.exit(1);
 }
 
-if (!FILES.length) fail('--file <path>   the timetable and reference files, or a folder holding them.');
+if (!FILES.length && !FROM_BUCKET) {
+  fail([
+    'Nothing to publish. Choose a source.',
+    '',
+    '  --file <path>   files or a folder on this machine.',
+    '  --bucket        the delivery bucket. What the daily job uses; needs',
+    '                  DARWIN_S3_BUCKET and credentials.',
+  ]);
+}
 
 /* ------------------------------------------------------------ credentials */
 
@@ -91,27 +99,37 @@ if (!url || !token) {
 
 /* ------------------------------------------------------------- find files */
 
-const paths = [];
-for (const raw of FILES) {
-  const p = expand(raw);
-  const st = statSync(p);
-  if (st.isDirectory()) paths.push(...readdirSync(p).filter((n) => /\.(xml|gz)$/i.test(n)).map((n) => join(p, n)));
-  else paths.push(p);
+let timetablePath;
+let referencePath;
+let cleanup = () => {};
+
+if (FROM_BUCKET) {
+  let fetched;
+  try {
+    fetched = await fetchFromBucket();
+  } catch (error) {
+    fail([error.message, '', 'To publish from files on this machine instead, use --file.']);
+  }
+  timetablePath = fetched.timetable;
+  referencePath = fetched.reference;
+  cleanup = fetched.cleanup;
+  console.log(`\n  bucket   ${fetched.objects} objects, newest publish ${fetched.stamp}`);
+  for (const d of fetched.downloaded) console.log(`    ${mib(d.bytes).padStart(9)}  ${d.key}`);
+} else {
+  const paths = localPaths(FILES);
+  const pair = await choosePair(paths);
+  timetablePath = pair.timetable;
+  referencePath = pair.reference;
+  if (!timetablePath) fail('No timetable file found. That is the large one, named _vN.');
+  if (!referencePath) {
+    fail([
+      'No reference file found. That is the small one, named _ref_vN.',
+      '',
+      'The timetable speaks TIPLOC and this app is keyed by CRS. Without the',
+      'reference file there is no mapping between them.',
+    ]);
+  }
 }
-const metas = paths.map((p) => ({ path: p, meta: parseDarwinKey(p) })).filter((x) => x.meta);
-const pick = (kind) => {
-  const best = pickBest(metas.map((m) => m.meta), kind);
-  return best ? metas.find((m) => m.meta.name === best.name).path : null;
-};
-let timetablePath = pick('timetable');
-let referencePath = pick('reference');
-for (const p of paths) {
-  if (timetablePath && referencePath) break;
-  const { rootTag } = await scanFile(p, {});
-  if (rootTag === 'PportTimetable') timetablePath ??= p;
-  if (rootTag === 'PportTimetableRef') referencePath ??= p;
-}
-if (!timetablePath || !referencePath) fail('Need one timetable (_vN) and one reference (_ref_vN).');
 
 const timetableStamp = parseDarwinKey(timetablePath)?.stamp ?? null;
 const referenceStamp = parseDarwinKey(referencePath)?.stamp ?? null;
@@ -178,6 +196,7 @@ console.log(`  largest value ${(Buffer.byteLength(largest.value) / 1024).toFixed
 console.log(`  built in ${((Date.now() - started) / 1000).toFixed(1)}s`);
 
 if (DRY_RUN || !url || !token) {
+  cleanup();
   console.log(`\n  --dry-run: nothing written. Would set ${withCommas(payloads.length + 1)} keys, ttl ${TTL_SECONDS / 3600}h.\n`);
   process.exit(0);
 }
@@ -214,4 +233,5 @@ await flush();
 // snapshot becomes the one the app reads.
 await redis.set(META_KEY, meta, { ex: TTL_SECONDS });
 
+cleanup();
 console.log(`\n\n  published. ${withCommas(written)} boards + meta, ttl ${TTL_SECONDS / 3600}h.\n`);

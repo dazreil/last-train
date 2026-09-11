@@ -1,0 +1,88 @@
+# The daily Darwin timetable ingest. DARWIN-INGEST.md §3 stage 7.
+#
+# Why here and not on Vercel: the job holds credentials that can read a private
+# bucket and rewrite every board the app serves, and that does not belong in the
+# request path of the app itself. The parse is a build step, not a request.
+#
+# The size argument people reach for first is the weaker one. The file is only
+# 63 MiB uncompressed and parses in eight seconds; it is blast radius that
+# decides this, not memory.
+
+name: Darwin timetable ingest
+
+on:
+  schedule:
+    # 03:20 UTC. Darwin generates the file at about 02:05 and it is delivered
+    # shortly after, so this leaves a comfortable margin without waiting so long
+    # that a failure has no room to be retried before the morning.
+    - cron: '20 3 * * *'
+  # So a failed night can be re-run by hand without waiting for tomorrow. The
+  # publish is idempotent: the same file in means the same keys out.
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: 'Report what would be written, without writing it'
+        type: boolean
+        default: false
+
+concurrency:
+  # Two publishes at once would interleave their writes and, worse, race on the
+  # meta key that names which snapshot the app is reading.
+  group: darwin-ingest
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # The parse is seconds; the writes are thousands of round trips to the store
+    # and were measured at forty minutes from a home connection. A runner should
+    # be far quicker, but the timeout is set for the bad day, not the good one.
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # Fails loudly rather than publishing a board built from a half-read file.
+      - name: Check the parser still agrees with itself
+        run: npm test
+
+      - name: Publish today's boards
+        env:
+          DARWIN_S3_BUCKET: ${{ secrets.DARWIN_S3_BUCKET }}
+          DARWIN_S3_PREFIX: ${{ secrets.DARWIN_S3_PREFIX }}
+          DARWIN_S3_REGION: ${{ secrets.DARWIN_S3_REGION }}
+          DARWIN_S3_ACCESS_KEY: ${{ secrets.DARWIN_S3_ACCESS_KEY }}
+          DARWIN_S3_SECRET_KEY: ${{ secrets.DARWIN_S3_SECRET_KEY }}
+          KV_REST_API_URL: ${{ secrets.KV_REST_API_URL }}
+          KV_REST_API_TOKEN: ${{ secrets.KV_REST_API_TOKEN }}
+        run: |
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON \
+            scripts/darwin-publish.mjs --bucket \
+            ${{ inputs.dryRun && '--dry-run' || '' }}
+
+      # The job exiting zero is not proof of anything: a run that found nothing
+      # new would also exit zero. The store's own age is the proof, so it is read
+      # back from the deployment rather than inferred from this job.
+      - name: Read the snapshot back from the deployment
+        if: ${{ !inputs.dryRun }}
+        run: |
+          set -euo pipefail
+          sleep 5
+          body=$(curl -fsS --max-time 30 \
+            https://last-train-dazreils-projects.vercel.app/api/timetable-health)
+          echo "$body"
+          node -e '
+            const h = JSON.parse(process.argv[1]);
+            if (!h.healthy) {
+              console.error(`Published, but the store reports unhealthy: ${h.reason ?? `${h.ageHours}h old`}`);
+              process.exit(1);
+            }
+            console.log(`OK: ${h.timetableId}, ${h.ageHours}h old, ${h.boardCount} boards, days ${h.serviceDates.join(" ")}`);
+          ' "$body"

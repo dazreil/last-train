@@ -779,6 +779,37 @@ version unlinks the destination and the files simply stop arriving. A job that
 exits zero having found nothing new looks identical to a healthy one. Age does
 not.
 
+**Built, 11 September 2026.** Two of the three halves.
+
+`GET /api/timetable-health` reports the snapshot's id, when Darwin generated it,
+its age in hours, whether that is past the thirty-hour line, which service days
+it covers, and how many boards and departures it holds. A sibling of
+`/api/cache-health` rather than part of it: that one asks whether the cache
+works, and an empty cache is merely cold; this asks whether the store is
+current, and an empty store is broken. It reveals no credentials.
+
+`.github/workflows/darwin-ingest.yml` runs at 03:20 UTC daily, and can be run by
+hand for a failed night — the publish is idempotent, so the same file in means
+the same keys out. Four things it does deliberately:
+
+- **`npm test` before publishing.** A parser that has stopped agreeing with
+  itself must not write boards.
+- **A concurrency group.** Two publishes at once would interleave their writes
+  and race on the meta key that names which snapshot the app is reading.
+- **A sixty-minute timeout**, set for the bad day. The parse is eight seconds;
+  the writes were forty minutes from a home connection.
+- **It reads the snapshot back from the deployment afterwards, and fails if it
+  is not healthy.** The job exiting zero proves nothing — a run that found
+  nothing new would exit zero too. The store's own age is the proof.
+
+`scripts/darwin-publish.mjs` grew a `--bucket` mode so the job can run
+unattended, and the source resolution that three scripts had each grown a copy
+of now lives once in `scripts/lib/darwin-source.mjs`.
+
+**Still to do: delivery.** Nothing is scheduled to put a file where the job can
+read it. Until that exists the workflow will run and fail, correctly, saying the
+bucket is empty.
+
 ---
 
 ## 4. Where it runs — the one decision
