@@ -307,6 +307,64 @@ one idea worth keeping. North sitting left of east means nothing.
 Prototype: `direction-control.html`, six arrangements, real availability and departures
 from `/api/v2/trains`, every number measured from the rendered page.
 
+### Three ways to turn around
+
+**Added 17 September 2026.** What ships is not the quadrant grid above but its
+descendant: the directions inline under the station codes, the chosen one lit. It is
+one row of small words near the top of the screen, and it was the only thing on the
+board that could change direction at all. These are the other two, so that the answer to
+"which way" is never held hostage by a single control.
+
+- **A swipe across the board.** Sideways past 60pt, and half again as wide as it is
+  tall, steps to the next direction the station runs; left brings in the next, right the
+  previous. It is a simultaneous gesture, so the scroll view keeps every vertical drag
+  and pull-to-refresh is untouched. The ring is `Compass.step`, in `LastTrainCore`
+  beside `opposite`, so the swipe and the row of words cannot disagree about what "next"
+  means — and it is tested there rather than through a view.
+- **Press and hold the station code.** A menu of the directions that run, each naming
+  where it goes: `West — towards Fenchurch Street`. This is the one place those labels
+  are visible; the row of words has only ever had the width to say them to VoiceOver.
+  It also needs no aim at a small word, which is the case the swipe cannot serve either
+  — one-handed, on a moving train, in the dark.
+
+**The swipe is announced until it is used.** One dim line under the compass, retired the
+first time the gesture works and then never shown again. A second way that nobody
+discovers is not a second way, and the swipe is the only one of the three with nothing
+on screen to give it away. It is hidden from VoiceOver, which cannot perform it and has
+both other ways.
+
+**All three route through one `choose(_:)`.** Changing direction clears the destination,
+and in Fast Train it then asks where to. That is what the row of words has always done,
+and a gesture that did three-quarters of it would be a different action wearing the same
+name. The haptic comes free: `BoardHaptics` fires on `direction` itself, not on the
+control that moved it.
+
+### Turning the journey around
+
+**Added 17 September 2026, and a different question from the three above.** The arrow
+between `UPM` and `BKG` was the one mark in the journey bar that did nothing. It is now
+the control that does what it points along: the two codes swap, and the direction goes
+with them.
+
+The new direction is `Compass.opposite` of the one showing, not a bearing re-derived
+from the new pair. That is the same reversal the start picker has been built on since it
+was written — "to reach B travelling west you must have started east of it" — and it was
+verified against the live API on six round trips, including the two that could have
+broken it, the Romford branch through east and the Ockendon branch through south and
+north.
+
+- **It needs both halves.** With no destination there is nothing to swap, so it sits dim
+  and disabled rather than vanishing. A control that comes and goes is one you cannot
+  learn.
+- **Order matters more than it looks.** Station, direction and destination each start a
+  fetch on being set, and each new one cancels the last, so the swap writes the
+  destination under the new start first, then the direction, then the start — leaving
+  the *final* load holding the whole new pair rather than half of each.
+
+This is the trip home in one tap, and it changes direction only as a consequence of
+changing both ends. It is not a substitute for the three ways above, and none of them is
+a substitute for it.
+
 ---
 
 ## 5. Architecture

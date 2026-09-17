@@ -43,6 +43,11 @@ struct BoardView: View {
     /// The top safe-area inset, measured so the scroll-edge fade covers exactly the status
     /// bar and Dynamic Island — no more, so it never dims the masthead at rest.
     @State private var topInset: CGFloat = 0
+    /// Whether the swipe has ever been used. A gesture nobody finds is not a second way of
+    /// doing anything, so the board says it is there until it has been done once — and then
+    /// never again, on this device or the next one to read the shared defaults.
+    @AppStorage("lastTrain.hint.turnaround", store: SharedSelection.defaults)
+    private var hasTurnedAround = false
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -81,6 +86,7 @@ struct BoardView: View {
                 .padding(.bottom, 30)
             }
             .scrollIndicators(.hidden)
+            .simultaneousGesture(turnAroundSwipe)
 
             // The wordmark used to slide up behind the status bar and Dynamic Island, colliding
             // with the clock and reading "LAST TRAI … AIN" under the pill. This fade sits over
@@ -287,15 +293,7 @@ struct BoardView: View {
             ForEach(ordered, id: \.self) { direction in
                 if avail.contains(direction) {
                     Button {
-                        withAnimation(.snappy(duration: 0.28)) { model.direction = direction }
-                        directionChosen = true
-                        // Choosing a direction is choosing a new journey, so the old
-                        // destination goes. Fast then opens the list of where to; Last needs
-                        // no destination to name a last train, so it just shows this way.
-                        if let station = model.station {
-                            fast.clearDestination(at: station, direction: direction)
-                            if mode == .fast { fast.askWhereTo() }
-                        }
+                        choose(direction)
                     } label: {
                         directionLabel(direction, isSelected: directionChosen && direction == selected)
                     }
@@ -317,6 +315,83 @@ struct BoardView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Direction")
+    }
+
+    /**
+     Take this direction, however it was asked for.
+
+     Three controls ask the same question now — the row of words, a swipe across the
+     board, and the menu under the station code — and they have to mean the same thing by
+     it, so what a direction change *does* lives here rather than three times over.
+
+     Choosing a direction is choosing a new journey, so the old destination goes. Fast then
+     opens the list of where to; Last needs no destination to name a last train, so it just
+     shows this way. The haptic is not here: `BoardHaptics` already fires on `direction`
+     itself, so every one of the three gets it without asking.
+     */
+    private func choose(_ direction: Compass) {
+        withAnimation(.snappy(duration: 0.28)) { model.direction = direction }
+        directionChosen = true
+        if let station = model.station {
+            fast.clearDestination(at: station, direction: direction)
+            if mode == .fast { fast.askWhereTo() }
+        }
+    }
+
+    /**
+     A flick across the board turns it around.
+
+     Simultaneous rather than exclusive, because the board's whole job is to be scrolled:
+     the scroll view keeps every vertical drag, and only a clearly sideways one — past
+     60pt and half again as wide as it is tall — is read as an answer to the direction
+     question. Dragging left brings the next direction in from the right, which is the way
+     the words in the row are ordered.
+
+     It answers nothing while the board is still asking which way, since there is no
+     current direction to step from until one has been chosen.
+     */
+    private var turnAroundSwipe: some Gesture {
+        DragGesture(minimumDistance: 24)
+            .onEnded { drag in
+                guard model.station != nil else { return }
+                guard mode == .fast || directionChosen else { return }
+
+                let sideways = drag.translation.width
+                guard abs(sideways) > 60, abs(sideways) > abs(drag.translation.height) * 1.5 else {
+                    return
+                }
+
+                let next = Compass.step(
+                    from: model.direction,
+                    by: sideways < 0 ? 1 : -1,
+                    within: model.available
+                )
+                guard next != model.direction else { return }
+
+                hasTurnedAround = true
+                choose(next)
+            }
+    }
+
+    /**
+     Shown under the compass until the swipe has been used once, and only where there is
+     somewhere to swipe to.
+
+     Set as a label rather than a sentence — caption, uppercase, tracked, the faint grey
+     — because `IOS.md` measures this header against the fold and the red block has to
+     clear it on the smallest phone still supported. A label costs one short line; a
+     sentence in body text costs the best part of two.
+
+     Hidden from VoiceOver, which cannot perform the gesture and has both the row of words
+     and the menu instead.
+     */
+    @ViewBuilder
+    private var turnAroundHint: some View {
+        if !hasTurnedAround && model.available.count > 1 {
+            Text("Swipe to turn around")
+                .labelStyle(Theme.textFaint)
+                .accessibilityHidden(true)
+        }
     }
 
     /// One direction word in its column: blue when it is the chosen one, grey otherwise,
@@ -347,7 +422,7 @@ struct BoardView: View {
      the other; the full name is always one tap away in the list that opens.
      */
     private var journeyBar: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
             codeButton(
                 model.station?.crs,
                 placeholder: "Where?",
@@ -356,12 +431,10 @@ struct BoardView: View {
                 model.clearNearby()
                 presented = .start
             }
+            .contextMenu { directionMenu }
 
             if model.station != nil {
-                Image(systemName: "arrow.right")
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(Theme.textDim)
-                    .accessibilityHidden(true)
+                reverseButton
 
                 codeButton(
                     fast.destination?.crs,
@@ -409,6 +482,93 @@ struct BoardView: View {
         // showing west by default — the same first beat Fast Train has.
         directionChosen = false
         model.station = nil
+    }
+
+    /**
+     The same question the row of words asks, under a press and hold on the station code.
+
+     Two things it can do that the row cannot. It names where each direction *goes* —
+     "towards Fenchurch Street" — which the row has only ever had the width to say to
+     VoiceOver, and a press and hold needs no aim at a small word in the dark. It is the
+     way that survives when the compass is the thing you cannot hit.
+
+     Nothing to choose between is not a menu: a station that runs one way, or a board that
+     has not come back yet, gets no menu rather than a menu of one.
+     */
+    @ViewBuilder
+    private var directionMenu: some View {
+        let offered = Compass.allCases.filter { model.available.contains($0) }
+
+        if offered.count > 1, let station = model.station {
+            Section("Which way from \(station.name)") {
+                ForEach(offered, id: \.self) { direction in
+                    Button {
+                        choose(direction)
+                    } label: {
+                        Text(direction.rawValue.capitalized)
+                        if let towards = model.towards[direction] {
+                            Text("towards \(towards)")
+                        }
+                        if directionChosen && direction == model.direction {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     Turn the whole journey around.
+
+     The arrow between the two codes was the one mark in the bar that did nothing, and what
+     it points along is exactly what this does: `UPM → BKG` becomes `BKG → UPM`. The
+     direction is not re-derived from the new pair, it is the opposite of the one showing
+     — the same `Compass.opposite` the start picker has been built on since it was written,
+     and verified there against the live API on six round trips.
+
+     It needs both halves to have anything to swap, so until there is a destination it sits
+     dim and disabled rather than disappearing: a control that comes and goes is one you
+     cannot learn.
+     */
+    private var reverseButton: some View {
+        Button {
+            reverseJourney()
+        } label: {
+            // Padded rather than framed to a box, unlike the locate and clear buttons at
+            // the end of the bar. This one sits between the two codes, where a fixed frame
+            // would take over the baseline the row is aligned on and float the glyph off
+            // the line the letters sit on; padding leaves that baseline alone and only
+            // grows the target around it.
+            Image(systemName: "arrow.left.arrow.right")
+                .font(.title3.weight(.bold))
+                .foregroundStyle(fast.destination == nil ? Theme.textFaint : Theme.serviceBlueLit)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressLift())
+        .disabled(fast.destination == nil)
+        .accessibilityLabel("Turn the journey around")
+    }
+
+    /**
+     Swap the two halves of the journey, and take the direction with them.
+
+     Written in the order the model reloads in. Every one of these properties starts a
+     fetch on being set, and each new one cancels the last, so the order is chosen to leave
+     the *final* load holding the whole new pair rather than half of each: the destination
+     is filed under the new start first, then the direction, and the start last.
+     */
+    private func reverseJourney() {
+        guard let start = model.station, let end = fast.destination else { return }
+
+        let flipped = model.direction.opposite
+        fast.choose(start, at: end, direction: flipped)
+        model.destinationCrs = start.crs
+        model.direction = flipped
+        model.station = end
+        directionChosen = true
     }
 
     /// Shown when a station has been picked but no direction chosen yet. The compass row
@@ -476,7 +636,10 @@ struct BoardView: View {
         VStack(alignment: .leading, spacing: 8) {
             journeyBar
 
-            if model.station != nil { directionPicker }
+            if model.station != nil {
+                directionPicker
+                turnAroundHint
+            }
 
             if mode == .last || fast.canPage { dayControl }
 

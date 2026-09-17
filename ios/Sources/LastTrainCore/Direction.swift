@@ -58,6 +58,34 @@ public enum Compass: String, CaseIterable, Sendable, Codable {
         case .west: .east
         }
     }
+
+    /**
+     The next direction round, among the ones a station actually runs.
+
+     A swipe across the board and the row of words are the same question asked twice, so
+     what "the next one" means lives here rather than in either of them. The ring is
+     compass order — north, east, south, west — filtered to what runs, and it wraps. At
+     Upminster, where only east and west run, that makes either swipe a there-and-back;
+     at Inverness it is a genuine ring of four.
+
+     A `current` the station does not run lands on the first one it does. That is not a
+     defensive flourish: the board keeps showing its direction while a newly picked
+     station loads, so for a moment the selected direction and the available set genuinely
+     disagree, and a swipe in that moment has to answer with something that exists.
+     */
+    public static func step(
+        from current: Compass,
+        by places: Int,
+        within available: some Sequence<Compass>
+    ) -> Compass {
+        let offered = Set(available)
+        let ring = allCases.filter { offered.contains($0) }
+        guard !ring.isEmpty else { return current }
+        guard let index = ring.firstIndex(of: current) else { return ring[0] }
+
+        let moved = (index + places) % ring.count
+        return ring[moved < 0 ? moved + ring.count : moved]
+    }
 }
 
 public struct Coordinate: Equatable, Sendable, Codable {
