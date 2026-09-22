@@ -806,6 +806,24 @@ the same keys out. Four things it does deliberately:
 unattended, and the source resolution that three scripts had each grown a copy
 of now lives once in `scripts/lib/darwin-source.mjs`.
 
+### Live, 22 September 2026
+
+Delivery is running. The marketplace writes into the bucket, all six secrets are
+set, and a hand-started run published `20260922020536`: 6,032 boards, 545,936
+departures, service days 20 to 23 September. `/api/timetable-health` reports it
+healthy.
+
+Checked at 23:43, when the later window is 01:43 to 02:59: Paddington to Reading
+returns the one 01:45, and Clapham Junction and Upminster return none with **no
+notice** — "there are none", not "could not find out". Read straight from the
+store, the same three answers: one, none, none.
+
+**Still unproven: an unattended night.** The scheduled runs on 21 and 22
+September both failed, correctly, because the secrets did not exist yet. The
+first scheduled run with them is the real test. GitHub also started those runs at
+08:34 and 08:58 UTC against a 03:20 schedule — its scheduler queues under load.
+Harmless, since the file lands at about 02:05, but it is later than the cron says.
+
 ### Setting delivery up
 
 The marketplace pushes; there is no bucket to pull from, and the "My Feeds" page
