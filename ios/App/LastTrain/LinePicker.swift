@@ -131,6 +131,17 @@ struct LinePicker: View {
             }
         } else {
             popularSection
+            if let direction, !popular.isEmpty {
+                // A heading where the full list starts. Without one, a single-direction list
+                // runs straight on from the popular rows and West Ham, Fenchurch Street and
+                // Barking read as duplicates. The every-way list has its direction headings
+                // already; this gives the one-way list the same break.
+                Text(direction.rawValue)
+                    .cathodeSection(Theme.serviceBlueLit)
+                    .padding(.horizontal, Theme.Space.gutter)
+                    .padding(.top, 22)
+                    .padding(.bottom, 4)
+            }
             rows(destinations)
         }
     }
