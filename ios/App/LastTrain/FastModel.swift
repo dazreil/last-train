@@ -141,6 +141,25 @@ final class FastModel {
         activityMessage = nil
     }
 
+    /**
+     Show no destination, without forgetting the one remembered.
+
+     For a station whose direction has not been chosen yet: there is no journey on screen,
+     but a destination saved under one of its directions is still yours, and choosing that
+     direction brings it back. `clearDestination` is the one that forgets.
+     */
+    func release() {
+        destination = nil
+        page = 0
+        services = []
+        showsNextServiceDay = false
+        laterLoaded = false
+        laterExhausted = false
+        laterNotice = nil
+        activityMessage = nil
+        selectionToken += 1
+    }
+
     /// Forget where this pair was going. The compass row calls this: choosing a direction
     /// again is choosing a new journey, and the old destination belonged to the old one.
     func clearDestination(at station: Station, direction: Compass) {

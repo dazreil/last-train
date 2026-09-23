@@ -290,13 +290,30 @@ public struct Destination: Decodable, Sendable, Equatable, Identifiable {
     /// The shortest direct journey found. Also the list's order, which on a railway is
     /// the order you pass through the stations.
     public let minutes: Int
+    /**
+     The way you head to get there: the direction whose train reaches it fastest.
 
-    public var id: String { crs }
+     Present whenever the list came from the timetable. A station two directions reach in
+     the same time is sent once under each, so the row a passenger taps already says which
+     way — nothing on this side has to break a tie.
+     */
+    public let direction: Compass?
+
+    public init(crs: String, name: String, minutes: Int, direction: Compass? = nil) {
+        self.crs = crs
+        self.name = name
+        self.minutes = minutes
+        self.direction = direction
+    }
+
+    /// The station *and* the way, because a tied station appears once per direction.
+    public var id: String { "\(crs)-\(direction?.rawValue ?? "")" }
 }
 
-/// Where one direction goes, as the API sends it.
+/// Where one direction goes — or, with no direction, every way at once — as the API sends it.
 public struct DestinationList: Decodable, Sendable, Equatable {
-    public let direction: Compass
+    /// Nil for the unfiltered list, where each destination carries its own direction.
+    public let direction: Compass?
     public let date: String
     /// Nearest first.
     public let destinations: [Destination]
@@ -313,4 +330,17 @@ public struct DestinationList: Decodable, Sendable, Equatable {
 
     /// Whether the fastest-direction rule was applied at all.
     public var isSettled: Bool { !comparedWith.isEmpty }
+
+    /**
+     The destinations under each direction, in compass order, each nearest first.
+
+     What the picker shows before you have said which way you are going: one section per
+     direction, so the list teaches which way each station is while you choose it.
+     */
+    public var byDirection: [(direction: Compass, destinations: [Destination])] {
+        Compass.allCases.compactMap { point in
+            let these = destinations.filter { $0.direction == point }
+            return these.isEmpty ? nil : (point, these)
+        }
+    }
 }

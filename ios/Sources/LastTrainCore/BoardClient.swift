@@ -436,9 +436,11 @@ extension BoardClient {
 
 extension BoardClient {
     /// The places one direction goes, nearest first.
+    /// Every direct destination from `origin`. Pass a direction to narrow it; pass none for
+    /// every way at once, which is what the picker asks before you have said which way.
     public func destinations(
         from origin: String,
-        direction: Compass,
+        direction: Compass?,
         date: String? = nil,
         refresh: Bool = false
     ) async throws -> DestinationList {
@@ -447,10 +449,8 @@ extension BoardClient {
             resolvingAgainstBaseURL: false
         ) else { throw BoardClientError.unreachable }
 
-        var query = [
-            URLQueryItem(name: "from", value: origin),
-            URLQueryItem(name: "direction", value: direction.rawValue),
-        ]
+        var query = [URLQueryItem(name: "from", value: origin)]
+        if let direction { query.append(URLQueryItem(name: "direction", value: direction.rawValue)) }
         // The day being looked at, so a future date lists that day's real destinations
         // rather than today's — which, on a replacement-bus day, is a much shorter list.
         // Darwin cannot answer a future date, so the server reads it from the whole-day feed.

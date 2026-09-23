@@ -72,7 +72,7 @@ struct BoardView: View {
                     } else {
                         notice(
                             title: "Choose where you are",
-                            body: "Pick a station, then the direction your train is heading."
+                            body: "Pick a station, then where you are going."
                         )
                     }
 
@@ -154,9 +154,17 @@ struct BoardView: View {
         .onOpenURL { model.open($0) }
         // The destination is half the bar in both modes now, so it is read here rather
         // than inside Fast Train's view — Last Train shows it too.
-        .task(id: "\(model.station?.crs ?? "-"):\(model.direction.rawValue)") {
+        .task(id: "\(model.station?.crs ?? "-"):\(model.direction.rawValue):\(directionChosen)") {
             guard let station = model.station else { return }
-            fast.adopt(station: station, direction: model.direction)
+            // No direction yet means no journey yet. A destination remembered under the
+            // direction the app happens to be holding would appear unasked, and name a
+            // journey you never chose — so nothing is adopted, and nothing is forgotten
+            // either: choose that direction later and it comes back.
+            if directionChosen {
+                fast.adopt(station: station, direction: model.direction)
+            } else {
+                fast.release()
+            }
             model.destinationCrs = fast.destination?.crs
         }
         // Both modes ask the same pair now, so the destination has to reach the Last
@@ -174,34 +182,41 @@ struct BoardView: View {
             case .start:
                 if let end = fast.destination {
                     // Editing the start: the valid origins are exactly the places that reach
-                    // your destination from the other side.
+                    // your destination from the other side. Clear empties the journey, and
+                    // with no destination left this same case becomes the plain search below.
                     LinePicker(
                         from: end,
                         direction: model.direction.opposite,
                         date: model.requestedDate,
                         title: "\(model.direction.opposite.rawValue.capitalized) of \(end.crs)",
-                        selectedCrs: model.station?.crs
-                    ) { picked, onLine in
+                        selectedCrs: model.station?.crs,
+                        searchesEverywhere: true,
+                        onClear: { clearJourney() }
+                    ) { picked, onLine, _ in
                         adoptStart(picked, keepingDestination: onLine)
                     }
                 } else {
                     // Nothing to work back from yet, so this is the plain search.
-                    StationPicker(selection: $model.station, nearby: model.nearby)
+                    StationPicker(selection: freshStart, nearby: model.nearby)
                 }
             case .nearby:
                 // The stations found near you, the same picker the code button opens — so
                 // location and search share one list rather than one adding chips to the board.
-                StationPicker(selection: $model.station, nearby: model.nearby)
+                StationPicker(selection: freshStart, nearby: model.nearby)
             case .destination:
                 if let start = model.station {
+                    // Before a direction is chosen, every direction, grouped — and the row
+                    // tapped sets the direction. After, that direction only.
                     LinePicker(
                         from: start,
-                        direction: model.direction,
+                        direction: directionChosen ? model.direction : nil,
                         date: model.requestedDate,
-                        title: "\(model.direction.rawValue.capitalized) of \(start.crs)",
+                        title: directionChosen
+                            ? "\(model.direction.rawValue.capitalized) of \(start.crs)"
+                            : "Direct from \(start.crs)",
                         selectedCrs: fast.destination?.crs
-                    ) { picked, onLine in
-                        adoptEnd(picked, from: start, onLine: onLine)
+                    ) { picked, onLine, heading in
+                        adoptEnd(picked, from: start, onLine: onLine, heading: heading)
                     }
                 }
             case .service(let sheet):
@@ -416,7 +431,8 @@ struct BoardView: View {
     private var directionPrompt: some View {
         notice(
             title: "Which way?",
-            body: "Pick the direction your train is heading, above."
+            // Either answers it: a destination sets the direction by itself.
+            body: "Pick where you are going, or the direction your train is heading, above."
         )
     }
 
@@ -437,19 +453,49 @@ struct BoardView: View {
             fast.choose(end, at: picked, direction: model.direction)
         } else {
             fast.clearDestination(at: picked, direction: model.direction)
+            // A new journey from somewhere else: the old direction was about the old
+            // station, and may not even run from this one.
+            directionChosen = false
         }
         model.station = picked
     }
 
-    /// A new destination — or, when it is somewhere this journey cannot reach, a new
-    /// journey starting there. Same rule, read from the other end.
-    private func adoptEnd(_ picked: Station, from start: Station, onLine: Bool) {
-        if onLine {
-            fast.choose(picked, at: start, direction: model.direction)
-        } else {
+    /**
+     The station, picked from the plain search or from near you.
+
+     Always a new journey, so the direction goes back to unchosen when the station actually
+     changes: "west" meant something at the last station and may mean nothing here. The
+     destination sheet then offers every direction, and the destination picks one.
+     */
+    private var freshStart: Binding<Station?> {
+        Binding(
+            get: { model.station },
+            set: { picked in
+                if picked?.crs != model.station?.crs { directionChosen = false }
+                model.station = picked
+            }
+        )
+    }
+
+    /**
+     A new destination, and — when no direction was chosen — the direction with it.
+
+     `heading` is the section the tapped row sat in, so it is the way a direct train goes
+     there, by construction. The order matters: the destination is filed under the new
+     direction **before** the direction changes, because changing it re-reads whatever is
+     filed there, and would otherwise find nothing.
+     */
+    private func adoptEnd(_ picked: Station, from start: Station, onLine: Bool, heading: Compass?) {
+        guard onLine else {
             fast.clearDestination(at: picked, direction: model.direction)
+            directionChosen = false
             model.station = picked
+            return
         }
+        let direction = directionChosen ? model.direction : (heading ?? model.direction)
+        fast.choose(picked, at: start, direction: direction)
+        directionChosen = true
+        model.direction = direction
     }
 
     /// One half of the bar. Dim and named while empty, lit and coded once set.

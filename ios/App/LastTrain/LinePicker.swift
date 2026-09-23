@@ -17,25 +17,54 @@ import LastTrainCore
  Anything picked from that list keeps the other half intact, by construction — the list was
  built from it.
 
- **The search box is the way off the line.** The list answers "where can this journey go";
- the box answers "somewhere else entirely", across all 2,619 stations. A station found that
- way may have no direct service to the other half, so every pick reports whether it came
- from the line (`onPick`'s second argument) and the caller decides whether the pair
- survives. That is the whole reset rule, and it lives at the call site rather than here.
+ **With no direction yet, the list is every direction at once**, one section each, and
+ the row you tap sets the direction. Before a direction is chosen the app has no honest
+ way to pick one, and "west of UPM" was the fallback that answered the wrong question.
+
+ **The search box searches this list** when choosing a destination: a station no direct
+ train reaches is not an answer to "where are you going". On the start sheet it is the
+ way off the line instead — somewhere else entirely, across all 2,619 stations — and a
+ station found that way may have no direct service to the other half, so every pick
+ reports whether it came from the line (`onPick`'s second argument) and the caller decides
+ whether the pair survives. That is the whole reset rule, and it lives at the call site.
  */
 struct LinePicker: View {
     /// The station whose direct destinations make up the list.
     let from: Station
-    /// The direction to read from `from`. Already reversed by the caller where needed.
-    let direction: Compass
+    /**
+     The direction to read from `from`, already reversed by the caller where needed.
+
+     **Nil means every direction**, grouped under a heading each. That is what the
+     destination sheet asks before you have said which way you are going: the list then
+     answers "which way" for you, because every row belongs to one direction and the row you
+     tap is the way you are heading.
+     */
+    let direction: Compass?
     /// The service day being looked at, so a browsed future day lists that day's real
-    /// destinations. Nil is today, which the server answers from the live board.
+    /// destinations. Nil is today.
     var date: String? = nil
     let title: String
     /// Highlighted in the list, so re-opening shows where you already are.
     let selectedCrs: String?
-    /// `(station, cameFromTheLine)`. False means it was found by search and may not connect.
-    let onPick: (Station, Bool) -> Void
+    /**
+     Whether the search box reaches every station, or only this list.
+
+     The two sheets want opposite things. Choosing where you are **going**, a station no
+     direct train reaches is not an answer, so the box searches the list and nothing else.
+     Choosing where you **are**, with a destination already set, the box is the way off the
+     line — somewhere else entirely, a new journey — so it searches all 2,619.
+     */
+    var searchesEverywhere: Bool = false
+    /// Shown as a Clear button when set: empties the journey so this sheet can start afresh.
+    var onClear: (() -> Void)? = nil
+    /**
+     `(station, cameFromTheLine, heading)`.
+
+     `cameFromTheLine` is false only for a station found by searching everywhere, which may
+     not connect. `heading` is the direction of the row that was tapped — the answer to
+     "which way", when the list was every way at once.
+     */
+    let onPick: (Station, Bool, Compass?) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
@@ -69,6 +98,13 @@ struct LinePicker: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                if let onClear {
+                    ToolbarItem(placement: .primaryAction) {
+                        // The sheet stays open. It turns into the plain station search in
+                        // place, because clearing is the first half of choosing again.
+                        Button("Clear", role: .destructive) { onClear() }
+                    }
+                }
             }
         }
         .preferredColorScheme(.dark)
@@ -84,13 +120,46 @@ struct LinePicker: View {
         } else if let errorMessage, destinations.isEmpty {
             message(errorMessage)
         } else if destinations.isEmpty {
-            message("Nothing runs \(direction.rawValue) from \(from.name.withoutLondonPrefix) today.")
+            if let direction {
+                message("Nothing runs \(direction.rawValue) from \(from.name.withoutLondonPrefix) today.")
+            } else {
+                message("No direct trains leave \(from.name.withoutLondonPrefix) today.")
+            }
         } else {
-            ForEach(destinations) { destination in
-                if let station = Stations.find(destination.crs) {
-                    row(station, minutes: destination.minutes, onLine: true)
+            rows(destinations)
+        }
+    }
+
+    /**
+     A set of destinations, grouped by direction when no direction was asked for.
+
+     Grouped rather than interleaved, so the sections line up with the direction row on the
+     board behind this sheet — East here is East there — and so a station that two
+     directions reach equally shows up in both sections, as the two real choices it is.
+     */
+    @ViewBuilder
+    private func rows(_ these: [Destination]) -> some View {
+        if direction == nil {
+            ForEach(Compass.allCases, id: \.self) { point in
+                let group = these.filter { $0.direction == point }
+                if !group.isEmpty {
+                    Text(point.rawValue)
+                        .cathodeSection(Theme.serviceBlueLit)
+                        .padding(.horizontal, Theme.Space.gutter)
+                        .padding(.top, 22)
+                        .padding(.bottom, 4)
+                    ForEach(group) { destination in destinationRow(destination) }
                 }
             }
+        } else {
+            ForEach(these) { destination in destinationRow(destination) }
+        }
+    }
+
+    @ViewBuilder
+    private func destinationRow(_ destination: Destination) -> some View {
+        if let station = Stations.find(destination.crs) {
+            row(station, minutes: destination.minutes, onLine: true, heading: destination.direction ?? direction)
         }
     }
 
@@ -98,43 +167,79 @@ struct LinePicker: View {
 
     @ViewBuilder
     private var searchResults: some View {
-        let onLine = Set(destinations.map(\.crs))
-        if matches.isEmpty {
-            message("No station matches “\(query)”.")
-        } else {
-            ForEach(matches, id: \.crs) { station in
-                row(station, minutes: nil, onLine: onLine.contains(station.crs))
+        if searchesEverywhere {
+            let onLine = Set(destinations.map(\.crs))
+            if matches.isEmpty {
+                message("No station matches “\(query)”.")
+            } else {
+                ForEach(matches, id: \.crs) { station in
+                    row(station, minutes: nil, onLine: onLine.contains(station.crs), heading: nil)
+                }
             }
+        } else if isLoading && destinations.isEmpty {
+            loading
+        } else if lineMatches.isEmpty {
+            // Said plainly, because the station may well exist — it just is not somewhere a
+            // direct train from here goes, which is the whole point of this list.
+            // The direction goes in when there is one. "No direct train goes to Barking" is
+            // false at Upminster — one goes west — and the list has only been asked about east.
+            if let direction {
+                message("No direct train \(direction.rawValue) from \(from.name.withoutLondonPrefix) goes to “\(query)”.")
+            } else {
+                message("No direct train from \(from.name.withoutLondonPrefix) goes to “\(query)”.")
+            }
+        } else {
+            rows(lineMatches)
         }
     }
 
-    /// The same ranking the station search has always used: exact code, exact name,
-    /// prefix, then anywhere in the name.
-    private var matches: [Station] {
+    /// How well a code and name answer the query: exact code, exact name, prefix, then
+    /// anywhere in the name. The same ranking the station search has always used.
+    private func rank(crs: String, name: String) -> Int? {
         let needle = query.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !needle.isEmpty else { return [] }
-        return Stations.all
-            .compactMap { station -> (Station, Int)? in
-                let name = station.name.lowercased()
-                if station.crs.lowercased() == needle { return (station, 0) }
-                if name == needle { return (station, 1) }
-                if name.hasPrefix(needle) { return (station, 2) }
-                if name.contains(needle) { return (station, 3) }
-                return nil
+        guard !needle.isEmpty else { return nil }
+        let lower = name.lowercased()
+        if crs.lowercased() == needle { return 0 }
+        if lower == needle { return 1 }
+        if lower.hasPrefix(needle) { return 2 }
+        if lower.contains(needle) { return 3 }
+        return nil
+    }
+
+    /// Every station, for the start sheet, where searching is how a new journey begins.
+    private var matches: [Station] {
+        // Spelled out step by step: as one chained expression the type checker gives up.
+        var ranked: [(station: Station, score: Int)] = []
+        for station in Stations.all {
+            if let score = rank(crs: station.crs, name: station.name) { ranked.append((station, score)) }
+        }
+        ranked.sort { a, b in a.score == b.score ? a.station.name < b.station.name : a.score < b.score }
+        return ranked.prefix(60).map { $0.station }
+    }
+
+    /// Only the list, for the destination sheet. Kept in journey-time order within each
+    /// match strength, so the nearer of two "Barking"s comes first.
+    private var lineMatches: [Destination] {
+        var ranked: [(destination: Destination, score: Int)] = []
+        for destination in destinations {
+            if let score = rank(crs: destination.crs, name: destination.name) {
+                ranked.append((destination, score))
             }
-            .sorted { $0.1 == $1.1 ? $0.0.name < $1.0.name : $0.1 < $1.1 }
-            .prefix(60)
-            .map(\.0)
+        }
+        ranked.sort { a, b in
+            a.score == b.score ? a.destination.minutes < b.destination.minutes : a.score < b.score
+        }
+        return ranked.map { $0.destination }
     }
 
     // MARK: - Rows
 
     /// Code *and* name. A list is where you are deciding rather than reading a known
     /// answer, and `BKG` and `BGV` are one letter apart and different places.
-    private func row(_ station: Station, minutes: Int?, onLine: Bool) -> some View {
+    private func row(_ station: Station, minutes: Int?, onLine: Bool, heading: Compass?) -> some View {
         let chosen = station.crs == selectedCrs
         return Button {
-            onPick(station, onLine)
+            onPick(station, onLine, heading)
             dismiss()
         } label: {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -148,8 +253,8 @@ struct LinePicker: View {
                         .font(Theme.Font.body)
                         .foregroundStyle(Theme.text)
                         .fixedSize(horizontal: false, vertical: true)
-                    // Said only while searching, where a station may be somewhere the
-                    // current journey cannot reach. On the line itself it would be noise.
+                    // Said only while searching everywhere, where a station may be somewhere
+                    // the current journey cannot reach. On the line itself it would be noise.
                     if searching && !onLine {
                         Text("starts a new journey")
                             .font(Theme.Font.meta)
