@@ -1,0 +1,67 @@
+# Last Train — UI Glossary
+
+Plain names for each piece of the iOS UI, and the code name that matches it.
+Read top of the screen to bottom. **What you see → `the name`.**
+
+## Top bar
+| What you see | Name |
+| --- | --- |
+| The "LAST TRAIN / FAST TRAIN" title you tap to switch | `masthead` |
+| The whole "WCF → UPM" area under the title | `stationHeader` |
+| The "WCF → UPM" line itself | `journeyBar` |
+| Each station code (WCF, UPM) | `codeButton` |
+| The arrow that finds your nearest station | `locateButton` |
+| The **×** clear button | `clearButton` |
+| The "WEST / EAST / SOUTH" row | `directionPicker` |
+| The "which way?" prompt after you clear (Last Train) | `directionPrompt` |
+
+## The stepper (row like "TODAY MON ›" or "1ST 2ND ›")
+| What you see | Name |
+| --- | --- |
+| The whole row | `dayControl` |
+| The button to the next day (Last) or next page (Fast) | `stepButton` |
+| The "back to today" / "back to now" button | `todayButton` (Last) / `nowButton` (Fast) |
+
+## One train line
+| What you see | Name |
+| --- | --- |
+| A Last Train line | `ServiceRow` |
+| A Fast Train line | `FastRow` |
+| The big glowing clock number | `CathodeNumber` |
+| The "Follow / Following" button | `FollowPill` |
+| The `›` that opens train details | `chevron` |
+
+## Section titles
+LAST TRAIN, EARLIER TRAINS, FASTEST TRAIN, LATER TRAINS, FIRST BACK → `sectionHeading`
+
+## Whole boards
+| What you see | Name |
+| --- | --- |
+| The Last Train board | `cathodeBoard` |
+| — its normal look | `normalBoard` |
+| — its "first trains then last train" look (pre‑service / after midnight) | `preServiceBoard` |
+| The Fast Train board | `FastBoardView` |
+
+## Pop‑up sheets
+| What you see | Name |
+| --- | --- |
+| The "From" station search | `StationPicker` |
+| The destination list ("West of UPM") | `LinePicker` |
+| The train detail / calling points | `ServiceSheet` |
+
+## Messages
+| What you see | Name |
+| --- | --- |
+| "Where are you going?" (Fast) | `emptyPrompt` |
+| "Choose where you are" / "Nothing westbound" | `notice` |
+| "Couldn't refresh" banner over the dimmed old board | `staleNotice` |
+| "Try again" pill | `retryButton` |
+| Grey loading blocks | `loadingBoard` |
+| The "Powered by… / Updated…" footer | `footnote` |
+
+## The look (background / texture)
+| What you see | Name |
+| --- | --- |
+| The dark glowing background | `CathodeBackdrop` |
+| The faint scan lines | `CathodeScanlines` |
+| The thin glowing line under a title | `CathodeRule` |
