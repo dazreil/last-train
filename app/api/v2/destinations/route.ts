@@ -1,8 +1,17 @@
 /**
  * GET /api/v2/destinations?from=UPM&direction=east
- *   -> { destinations: [{ crs, name, minutes }], truncated }
+ * GET /api/v2/destinations?from=UPM
+ *   -> { destinations: [{ crs, name, minutes, direction }], truncated }
  *
- * Every station you can reach directly from here, that way.
+ * Every station you can reach directly from here — that way, or with no direction, every
+ * way at once, each station tagged with the way you head to reach it.
+ *
+ * **The timetable answers first, for the whole service day.** One read of the stored board,
+ * no upstream request, and the unfiltered list and every filtered one come from the same
+ * computation, so "all" and "west" can never disagree. The live Darwin and RTT paths below
+ * remain for a direction the timetable cannot answer — a day it does not cover. The
+ * unfiltered list has no live fallback: building it live would cost a board per direction,
+ * and the app can always fall back to asking which way.
  *
  * Fast Train offers a list rather than a search box. The list has to be built from real
  * calling patterns, because a station's *final* destinations are only three or four names
@@ -30,7 +39,10 @@ import {
   toInstantMillis,
   type IsoDate,
 } from '@/lib/serviceDay';
-import { classify, COMPASS_POINTS, isCompass } from '@/lib/compass';
+import { classify, COMPASS_POINTS, isCompass, type Compass } from '@/lib/compass';
+import { directDestinations } from '@/lib/directDestinations';
+import { timetableBoard } from '@/lib/timetable';
+import type { NormalizedService } from '@/lib/darwin';
 import { coordinateFor, findStationByCrs } from '@/lib/nationalStations';
 import { waypointFor } from '@/lib/adjacency';
 import { getCached, getCachedLocations, setCached, setCachedLocations, ttlSecondsFor } from '@/lib/cache';
@@ -77,11 +89,13 @@ const key = (crs: string, direction: string, date: IsoDate) => `dest:${crs}:${di
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const fromCrs = (params.get('from') ?? '').trim().toUpperCase();
-  const direction = (params.get('direction') ?? '').trim().toLowerCase();
+  const requested = (params.get('direction') ?? '').trim().toLowerCase();
+  // No direction means every direction. The app sends none until you have chosen one.
+  const everyWay = requested === '' || requested === 'all';
 
   const from = findStationByCrs(fromCrs);
   if (!from) return NextResponse.json({ error: 'Unknown station.' }, { status: 400 });
-  if (!isCompass(direction)) {
+  if (!everyWay && !isCompass(requested)) {
     return NextResponse.json({ error: 'direction must be a compass point.' }, { status: 400 });
   }
 
@@ -90,6 +104,37 @@ export async function GET(request: Request) {
   if (!isValidIsoDate(date)) {
     return NextResponse.json({ error: 'date must be YYYY-MM-DD.' }, { status: 400 });
   }
+
+  const fromTimetable = await timetableList(from, date);
+  if (fromTimetable) {
+    const destinations = everyWay
+      ? fromTimetable
+      : fromTimetable.filter((destination) => destination.direction === requested);
+    const body: DestinationList = {
+      from: { crs: from.crs, name: from.name },
+      direction: everyWay ? null : requested,
+      date,
+      destinations,
+      // Nothing to budget: the board carries every train's calling points.
+      truncated: false,
+      // The whole day, every direction, in one pass — so the fastest-direction rule saw
+      // everything it could have compared against.
+      comparedWith: everyWay ? [...COMPASS_POINTS] : COMPASS_POINTS.filter((p) => p !== requested),
+      source: 'timetable',
+    };
+    return NextResponse.json(body, { headers: { 'x-source': 'timetable' } });
+  }
+
+  if (everyWay) {
+    return NextResponse.json(
+      {
+        error: 'Pick the direction you are heading to see where trains go from here.',
+        needsDirection: true,
+      },
+      { status: 503 }
+    );
+  }
+  const direction: Compass = requested as Compass;
 
   const cacheKey = key(from.crs, direction, date);
   if (params.get('refresh') !== '1') {
@@ -353,4 +398,56 @@ function collect(origin: string, locations: ServiceLocation[], best: Map<string,
     const seen = best.get(crs);
     if (seen === undefined || minutes < seen) best.set(crs, minutes);
   }
+}
+
+/**
+ * The whole day's direct destinations from the stored timetable, or null when it cannot say.
+ *
+ * Null sends the caller to the live path. An empty array is a real answer — the timetable
+ * covers this day and nothing leaves this station — and is returned as one, rather than
+ * falling through to a live lookup that would reach the same conclusion more slowly.
+ */
+async function timetableList(
+  from: { crs: string; name: string },
+  date: IsoDate
+): Promise<(Destination & { direction: Compass; trains: number })[] | null> {
+  const stored = await timetableBoard(from.crs, date);
+
+  if (stored.status === 'missing') {
+    return stored.meta?.serviceDates.includes(date) ? [] : null;
+  }
+  if (stored.status !== 'ok' && stored.status !== 'stale') return null;
+
+  const origin = coordinateFor([from.name], [from.crs]);
+  const waypoints = COMPASS_POINTS.map((point) => [point, waypointFor(from.crs, point)] as const);
+
+  /**
+   * The board's own rule, restated for a timetable train.
+   *
+   * Where a direction has a waypoint, that direction's board is the trains that call at it —
+   * so a train that does is that way, and nothing else is. Where it has none, the board sorts
+   * by the bearing to where the train ends. One subtlety makes the two agree: a train whose
+   * bearing points at a direction that *does* have a waypoint, but which misses it, is on no
+   * board at all. It is left out here too, because a destination offered under a direction
+   * whose board does not carry the train is exactly the bug this list exists to prevent.
+   */
+  const directionOf = (service: NormalizedService): Compass | null => {
+    const onward = new Set(service.stops.slice(1).map((stop) => stop.crs));
+    for (const [point, waypoint] of waypoints) {
+      if (waypoint && onward.has(waypoint)) return point;
+    }
+    if (!origin) return null;
+    const terminus = service.stops[service.stops.length - 1];
+    const to = coordinateFor([service.destinationName], terminus?.crs ? [terminus.crs] : []);
+    const bearing = classify(origin, to);
+    if (!bearing || waypointFor(from.crs, bearing)) return null;
+    return bearing;
+  };
+
+  return directDestinations(
+    from.crs,
+    stored.services,
+    directionOf,
+    (crs) => findStationByCrs(crs)?.name ?? crs
+  );
 }

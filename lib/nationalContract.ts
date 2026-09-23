@@ -217,6 +217,15 @@ export interface Destination {
   name: string;
   /** The shortest direct journey found, in minutes. Also the list's sort key. */
   minutes: number;
+  /**
+   * The way you head to get there — the direction whose train reaches it fastest.
+   *
+   * Always present from the timetable. A station two directions reach in the same time
+   * appears once under each, so the row a passenger taps is itself the answer to "which way".
+   */
+  direction?: Compass;
+  /** How many direct trains that way reach it in the day. Timetable only. */
+  trains?: number;
 }
 
 /**
@@ -228,7 +237,10 @@ export interface Destination {
  */
 export interface DestinationList {
   from: { crs: string; name: string };
-  direction: string;
+  /** Null for the unfiltered list: every direction, each destination tagged with its own. */
+  direction: string | null;
+  /** `timetable` for the whole service day; absent from the live two-hour paths. */
+  source?: 'timetable';
   date: string;
   /** Nearest first, by journey time. That is also route order along the line. */
   destinations: Destination[];
