@@ -278,4 +278,65 @@ struct DirectionTests {
         #expect(tally.total == 0)
         #expect(tally.unclassified == 0)
     }
+
+    // MARK: - Stepping round the compass
+
+    /// The two directions Upminster runs, which is the pair the swipe was designed on.
+    private static let upminsterDirections: Set<Compass> = [.east, .west]
+
+    @Test("two directions make a there-and-back, whichever way the swipe goes")
+    func twoDirectionsAreAThereAndBack() {
+        let here = DirectionTests.upminsterDirections
+        #expect(Compass.step(from: .west, by: 1, within: here) == .east)
+        #expect(Compass.step(from: .east, by: 1, within: here) == .west)
+        #expect(Compass.step(from: .west, by: -1, within: here) == .east)
+        #expect(Compass.step(from: .east, by: -1, within: here) == .west)
+    }
+
+    @Test("four directions make a ring in compass order, wrapping at both ends")
+    func fourDirectionsMakeARing() {
+        let inverness = Set(Compass.allCases)
+        #expect(Compass.step(from: .north, by: 1, within: inverness) == .east)
+        #expect(Compass.step(from: .east, by: 1, within: inverness) == .south)
+        #expect(Compass.step(from: .south, by: 1, within: inverness) == .west)
+        #expect(Compass.step(from: .west, by: 1, within: inverness) == .north)
+        #expect(Compass.step(from: .north, by: -1, within: inverness) == .west)
+    }
+
+    @Test("a direction that does not run here is never stepped onto")
+    func unavailableDirectionsAreSkipped() {
+        // Upminster with the Ockendon branch in the line-up: south runs, north does not.
+        let branch: Set<Compass> = [.east, .south, .west]
+        #expect(Compass.step(from: .east, by: 1, within: branch) == .south)
+        #expect(Compass.step(from: .west, by: 1, within: branch) == .east)
+        #expect(Compass.step(from: .east, by: -1, within: branch) == .west)
+    }
+
+    @Test("a swipe and a swipe back leave the board where it started")
+    func steppingBackUndoesTheStep() {
+        let branch: Set<Compass> = [.east, .south, .west]
+        for start in branch {
+            let there = Compass.step(from: start, by: 1, within: branch)
+            #expect(Compass.step(from: there, by: -1, within: branch) == start)
+        }
+    }
+
+    @Test("a direction the station does not run lands on the first one it does")
+    func anUnofferedDirectionLandsOnTheFirstOffered() {
+        // The board still says north while a newly picked station loads.
+        #expect(Compass.step(from: .north, by: 1, within: DirectionTests.upminsterDirections) == .east)
+        #expect(Compass.step(from: .north, by: -1, within: DirectionTests.upminsterDirections) == .east)
+    }
+
+    @Test("nothing to step to leaves the direction alone")
+    func noAvailableDirectionsIsANoOp() {
+        #expect(Compass.step(from: .west, by: 1, within: [Compass]()) == .west)
+    }
+
+    @Test("one direction cannot be stepped off, however far the swipe goes")
+    func aSingleDirectionIsItsOwnRing() {
+        let branchTerminus: Set<Compass> = [.south]
+        #expect(Compass.step(from: .south, by: 1, within: branchTerminus) == .south)
+        #expect(Compass.step(from: .south, by: -1, within: branchTerminus) == .south)
+    }
 }
