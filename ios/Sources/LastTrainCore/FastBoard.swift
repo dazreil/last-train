@@ -310,6 +310,12 @@ public struct Destination: Decodable, Sendable, Equatable, Identifiable {
     public var id: String { "\(crs)-\(direction?.rawValue ?? "")" }
 }
 
+/// One of the busiest destinations, as the server names it: a station, and the way to it.
+public struct PopularDestination: Decodable, Sendable, Equatable {
+    public let crs: String
+    public let direction: Compass?
+}
+
 /// Where one direction goes — or, with no direction, every way at once — as the API sends it.
 public struct DestinationList: Decodable, Sendable, Equatable {
     /// Nil for the unfiltered list, where each destination carries its own direction.
@@ -328,8 +334,31 @@ public struct DestinationList: Decodable, Sendable, Equatable {
      */
     public let comparedWith: [String]
 
+    /**
+     The busiest few of these destinations, busiest first, as the server named them.
+
+     From the Office of Rail and Road's count of journeys between every pair of stations.
+     Empty for a short list, which fits on one screen without a shortcut.
+     */
+    public let popular: [PopularDestination]?
+    /// Where `popular` comes from, to show beside it — the data's licence asks for that.
+    public let popularSource: String?
+
     /// Whether the fastest-direction rule was applied at all.
     public var isSettled: Bool { !comparedWith.isEmpty }
+
+    /**
+     `popular`, as the rows the picker draws.
+
+     Matched on station *and* direction, because a station two directions reach equally is
+     in the list twice, and the shortcut should open the same way its row below would.
+     */
+    public var popularDestinations: [Destination] {
+        (popular ?? []).compactMap { ref in
+            destinations.first { $0.crs == ref.crs && (ref.direction == nil || $0.direction == ref.direction) }
+                ?? destinations.first { $0.crs == ref.crs }
+        }
+    }
 
     /**
      The destinations under each direction, in compass order, each nearest first.

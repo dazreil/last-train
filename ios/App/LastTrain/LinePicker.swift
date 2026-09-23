@@ -69,6 +69,9 @@ struct LinePicker: View {
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
     @State private var destinations: [Destination] = []
+    /// The busiest few of `destinations`, for the top of the list. Empty for a short list.
+    @State private var popular: [Destination] = []
+    @State private var popularSource: String?
     @State private var isLoading = false
     @State private var errorMessage: String?
 
@@ -126,7 +129,52 @@ struct LinePicker: View {
                 message("No direct trains leave \(from.name.withoutLondonPrefix) today.")
             }
         } else {
+            popularSection
             rows(destinations)
+        }
+    }
+
+    /**
+     Where most people go from here, above the full list.
+
+     The list below is in journey-time order, which is route order, and route order puts a
+     terminus last: from Upminster, Fenchurch Street is the final row in West — while it is,
+     with West Ham, one of the two busiest journeys anyone makes from there. This is the
+     likely answer, a tap from the top. The rows stay in the list below too, so nothing
+     moves out of its place on the line.
+
+     Captioned with its source. Partly because a list that is not in route order should say
+     why, and partly because the data's licence asks for it.
+     */
+    @ViewBuilder
+    private var popularSection: some View {
+        if !popular.isEmpty {
+            Text("Popular")
+                .cathodeSection(Theme.serviceBlueLit)
+                .padding(.horizontal, Theme.Space.gutter)
+                .padding(.top, 22)
+                .padding(.bottom, 2)
+            if let popularSource {
+                Text("Most journeys from here · \(popularSource)")
+                    .font(Theme.Font.meta)
+                    .foregroundStyle(Theme.textFaint)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, Theme.Space.gutter)
+                    .padding(.bottom, 4)
+            }
+            ForEach(popular) { destination in
+                if let station = Stations.find(destination.crs) {
+                    // Out of its direction's section, so it says which way it is — unless the
+                    // whole sheet is one direction already.
+                    row(
+                        station,
+                        minutes: destination.minutes,
+                        onLine: true,
+                        heading: destination.direction ?? direction,
+                        note: direction == nil ? destination.direction?.rawValue.capitalized : nil
+                    )
+                }
+            }
         }
     }
 
@@ -236,7 +284,13 @@ struct LinePicker: View {
 
     /// Code *and* name. A list is where you are deciding rather than reading a known
     /// answer, and `BKG` and `BGV` are one letter apart and different places.
-    private func row(_ station: Station, minutes: Int?, onLine: Bool, heading: Compass?) -> some View {
+    private func row(
+        _ station: Station,
+        minutes: Int?,
+        onLine: Bool,
+        heading: Compass?,
+        note: String? = nil
+    ) -> some View {
         let chosen = station.crs == selectedCrs
         return Button {
             onPick(station, onLine, heading)
@@ -259,6 +313,10 @@ struct LinePicker: View {
                         Text("starts a new journey")
                             .font(Theme.Font.meta)
                             .foregroundStyle(Theme.textFaint)
+                    } else if let note {
+                        Text(note)
+                            .font(Theme.Font.meta)
+                            .foregroundStyle(Theme.textFaint)
                     }
                 }
 
@@ -279,7 +337,11 @@ struct LinePicker: View {
         }
         .buttonStyle(PressDim())
         .accessibilityLabel(station.name)
-        .accessibilityValue(onLine ? (minutes.map { "\($0) minutes" } ?? "") : "starts a new journey")
+        .accessibilityValue(
+            onLine
+                ? [note, minutes.map { "\($0) minutes" }].compactMap { $0 }.joined(separator: ", ")
+                : "starts a new journey"
+        )
         .accessibilityAddTraits(chosen ? .isSelected : [])
     }
 
@@ -314,7 +376,10 @@ struct LinePicker: View {
         errorMessage = nil
         defer { isLoading = false }
         do {
-            destinations = try await client.destinations(from: from.crs, direction: direction, date: date).destinations
+            let list = try await client.destinations(from: from.crs, direction: direction, date: date)
+            destinations = list.destinations
+            popular = list.popularDestinations
+            popularSource = list.popularSource
         } catch is CancellationError {
             return
         } catch {
