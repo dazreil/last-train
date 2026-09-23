@@ -964,6 +964,8 @@ struct StationPicker: View {
     var nearby: [Nearby<Station>] = []
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
+    /// Whether the search box is active, with the keyboard up.
+    @State private var searching = false
 
     var body: some View {
         NavigationStack {
@@ -990,7 +992,15 @@ struct StationPicker: View {
                 .scrollContentBackground(.hidden)
                 .listStyle(.plain)
             }
-            .searchable(text: $query, prompt: "Station or code")
+            .task {
+                // With no nearby list, typing is the only thing to do here, so start with
+                // the keyboard up. With one, leave the list in view to tap. The search box
+                // ignores the change while the sheet is still sliding up, so wait for that.
+                guard nearby.isEmpty else { return }
+                try? await Task.sleep(for: .milliseconds(350))
+                searching = true
+            }
+            .searchable(text: $query, isPresented: $searching, prompt: "Station or code")
             .navigationTitle("From")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
