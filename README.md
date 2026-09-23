@@ -1,17 +1,113 @@
 # Last Train
 
-Answers one question: **what is the first and last train out of here, going that
-way?**
+Answers one question: **what is the last train home, and if I miss it, what is the
+first one back?**
 
-Pick where you are, tap **East** or **West**. At Grays, west is Fenchurch Street
-and east is Shoeburyness.
+An iOS app for the whole of Great Britain — 2,619 stations, every operator, direct
+services only. Pick where you are and which way you are heading; the board shows the last
+three trains of the service day, the last one in red, and the first train back.
 
-Built for a phone, on a platform, in a hurry. Three operators, direct services
-only: c2c, the Elizabeth line, and Liverpool Street ↔ Shenfield.
+This repo holds two things:
+
+- **`ios/`** — the SwiftUI app, its widget and Live Activity, and `LastTrainCore`, the
+  domain logic as a Swift package. This is the product.
+- **Everything else** — a Next.js project on Vercel that is the app's API. It holds the
+  data credentials, which must never reach a phone, and caches every answer in shared
+  Redis. It also still serves the original 67-station web prototype at `/`; see
+  *Legacy* below.
+
+Current state and next steps: `STATUS.md`. Product rules: `PRODUCT.md`. Visual system:
+`DESIGN.md`. The iOS spec and how it was decided: `IOS.md`. The timetable store:
+`DARWIN-INGEST.md`.
 
 ---
 
-## Getting it running
+## Running it
+
+```bash
+cp .env.example .env.local     # then fill it in, see below
+npm install
+npm run dev                    # the API on localhost:3000
+npm test                       # under TZ=UTC, deliberately
+```
+
+The iOS app is an XcodeGen project. `project.yml` is the source; the `.xcodeproj` is
+generated and gitignored.
+
+```bash
+cd ios && xcodegen generate && open LastTrain.xcodeproj
+cd ios && TZ=UTC swift test
+```
+
+A Debug build talks to `localhost:3000`, so run `npm run dev` first; a Release build
+talks to the deployment. Putting it on a real iPhone has four traps, written up in
+`STATUS.md`.
+
+### Environment
+
+In `.env.local` locally, and in Vercel's project settings for the deployment. Never in
+the repo, never in the app.
+
+| Variable | For |
+|---|---|
+| `RTT_REFRESH_TOKEN` (or `RTT_ACCESS_TOKEN`) | Realtime Trains, Team tier. Last Train's whole-day board. |
+| `DARWIN_LDBWS_KEY` | Darwin live departures, Fast Train's first two hours. |
+| `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Shared Redis: the cache, the rate-limit counters and the timetable store. |
+| `DEBUG_DIAGNOSTICS=1` | Optional. Adds quota and cache detail to responses. |
+
+`lib/rtt.ts` is `server-only`, so importing it from client code fails the build rather
+than shipping the token.
+
+---
+
+## The API
+
+The app talks to these and nothing else.
+
+| Route | Answers |
+|---|---|
+| `GET /api/v2/trains?from=UPM&direction=east&date=…` | The Last Train board, with which of the four directions have trains. |
+| `GET /api/v2/fast?from=UPM&to=SOC&date=…` | Fast Train: every direct train A to B with its arrival. `&later=1` for the 2–4 hour window. |
+| `GET /api/v2/destinations?from=UPM[&direction=east]` | Every station reachable directly, for the picker. |
+| `GET /api/v2/service?id=…` | One train's calling points, for the sheet behind a tap. |
+| `GET /api/timetable-health` | Age and coverage of the Darwin timetable store. |
+| `GET /api/cache-health` | Whether shared Redis answers. |
+
+Every error is `{ error }` with a sentence, and the app shows that sentence as it is.
+
+**Where the data comes from:**
+
+| | Source |
+|---|---|
+| Last Train, whole service day | Realtime Trains line-up |
+| Fast Train, 0–2 hours | Darwin LDBWS, live |
+| Fast Train, 2–4 hours; destination lists | Darwin timetable store, published nightly by `.github/workflows/darwin-ingest.yml` |
+| Popular destinations | `data/popularity.json`, from the ORR origin–destination matrix |
+| Stations | `data/national.json`, generated from RTT and NaPTAN; never hand-edited |
+
+**Protection.** `middleware.ts` refuses `/api` on any old deployment URL, and limits each
+caller to 60 requests a minute and 600 an hour. `lib/rtt.ts` caps total RTT spend at 400
+an hour and 3,000 a day, so the weekly quota cannot be drained. Both limits fail open if
+Redis is down. Numbers and reasons are in `lib/limits.ts` and `STATUS.md` *Exposure*.
+
+### Generated data
+
+```bash
+npm run national:data        # data/national.json, and the copy bundled in the app
+npm run national:adjacency   # data/adjacency.json, direction waypoints (IOS.md §13)
+node scripts/generate-popularity.mjs --file <ODM csv>   # data/popularity.json, each December
+npm run darwin:publish -- --file ~/Downloads            # the timetable store, by hand
+```
+
+---
+
+## Legacy: the 67-station web prototype
+
+Everything below describes the original web app, which proved the domain rules, the
+design and the API shape before the iOS app existed. It still runs at `/` and
+`/api/trains`, and its domain notes are still true, but nobody designs for it now.
+
+### Getting it running
 
 You need an RTT next-generation API credential. Sign up at
 <https://api-portal.rtt.io> (requires an RTT unified login). The free tier is for
@@ -56,7 +152,7 @@ Other scripts: `npm test` (domain logic), `npm run typecheck`, `npm run build`.
 
 ---
 
-## How it works
+### How it works
 
 ```
 app/page.tsx              single page, mobile-first, client-side
@@ -206,7 +302,7 @@ entirely, or a route marker that does not resolve — any of these fail the run.
 
 ---
 
-## Domain rules worth knowing before changing anything
+### Domain rules worth knowing before changing anything
 
 These are the things that produce **wrong answers** rather than obvious crashes.
 There are tests for all of them in `lib/*.test.ts`.
@@ -244,7 +340,7 @@ nothing in this codebase groups stations by place at all.
 
 ---
 
-## Deploying
+### Deploying
 
 Vercel, free tier. Import the repo, then:
 
@@ -261,7 +357,7 @@ client import fails the build rather than shipping the token.
 
 ---
 
-## Things the live API does that the spec does not mention
+### Things the live API does that the spec does not mention
 
 All four were found by running against it, and each would have failed silently or
 confusingly:
@@ -304,7 +400,7 @@ Coverage is **67 stations**, not the 150–200 the spec estimates: c2c is 26 and
 Elizabeth line 41, and the Liverpool Street ↔ Shenfield corridor adds nothing the
 Elizabeth line does not already cover.
 
-## Data source
+### Data source
 
 [Realtime Trains](https://www.realtimetrains.co.uk) next-generation API, built
 against the [published

@@ -1006,4 +1006,4 @@ These are settled elsewhere in the repo. The ingest does not get to reopen them.
 3. An empty or stale store produces a visible message, never a short board.
 4. A timetable train is never shown as a live one.
 5. The snapshot age is readable from a health endpoint.
-6. `IOS.md` §2 is corrected.
+6. ~~`IOS.md` §2 is corrected.~~ Done, 24 September 2026.

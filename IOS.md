@@ -69,19 +69,33 @@ Note that the narrowed scope in §1 means we no longer need `filterTo` either. W
 need exactly one endpoint: the station line-up. Which makes the request budget
 almost trivially small — see §5.
 
-### The fallback, if RTT ever says no
+### Darwin timetable files — built after all
 
-Darwin timetable files: free, whole-day, but bulk XML that must be ingested into
-our own timetable database, reimplementing schedule assembly (associations,
-splits, STP overlays) that RTT already does. A rail-data project with a train app
-attached. Only worth it if §3 fails.
+**Corrected 24 September 2026.** This section first said the timetable files would mean
+"reimplementing schedule assembly (associations, splits, STP overlays)" — "a rail-data
+project with a train app attached". **That is true of Network Rail CIF, and not of
+Darwin's timetable file.** Darwin's file arrives pre-assembled: schedule changes,
+cancellations and associations already merged, one gzipped XML file a day covering
+about 48 hours, free and not rate limited.
+
+It is now built and live. A nightly job parses the file into a per-station board for
+each service day and stores it in Redis. Fast Train's 2–4 hour window and the
+destination lists read from it with no RTT request. The whole story — measurements,
+bugs, delivery set-up — is in `DARWIN-INGEST.md`.
+
+The table above still stands for the question it asked in August: RTT was the only
+source that gave a whole service day **without building something**. Last Train's
+whole-day board still comes from RTT. Moving it to the timetable store is
+`DARWIN-INGEST.md` stage 6.
 
 ---
 
 ## 3. Licensing, and the debug/production split
 
-**The current token cannot ship.** It is personal, non-commercial, and the terms
-are explicit that a token found in a distributed application gets revoked.
+**The free token could not ship.** It was personal and non-commercial. The Team plan
+replaced it on 15 August 2026, on the same account and the same refresh token. The terms
+are still explicit that a token found in a distributed application gets revoked, so it
+stays on the server.
 
 The plan you've chosen — free tier while building, paid before publishing — is
 right, and the code should make the switch a non-event.
@@ -113,6 +127,10 @@ Gated behind an env var on the server (`DEBUG_DIAGNOSTICS=1`) and a hidden gestu
 in the app, e.g. long-press the masthead. Ships disabled.
 
 ### Three things true before submission
+
+**All three are met, as of 24 September 2026.** The Team plan was bought on 15 August;
+the token has never left the server; and the board footer reads *"Powered by Realtime
+Trains and National Rail Enquiries"*, with both names linked.
 
 1. **A paid plan. Confirmed in writing with RTT, 1 August 2026: a free App Store app
    still needs a commercial one**, because of the number of calls it makes. Being
@@ -567,7 +585,18 @@ matter far more nationally than it ever did in Essex.
 6. ~~**Widget.**~~ **Done, 5 August 2026.** The reason for doing any of this, and it
    works. Lock screen and home screen, configured on the widget itself, and the whole
    evening computed from one request. See §12.
-7. **Paid token, attribution, submit.**
+7. **Paid token, attribution, submit.** In progress.
+
+   - ~~Paid token~~ — **Team tier, bought 15 August 2026.** No new token was issued;
+     the plan attaches to the account.
+   - ~~Attribution~~ — **in the app**, the board footer, credited to Realtime Trains and
+     National Rail Enquiries. The Popular section credits the Office of Rail and Road,
+     which the Open Government Licence requires.
+   - ~~Protect the API~~ — **rate limited, 24 September 2026.** Per caller and on total
+     RTT spend; see `STATUS.md` *Exposure*.
+   - Confirm the information flow end to end, and an unattended night of the Darwin
+     ingest.
+   - Submit.
 
 ---
 
@@ -591,10 +620,10 @@ matter far more nationally than it ever did in Essex.
   quadrants.** The compass did not earn its space, and keeping the slider for
   two-direction stations does not work because two directions are usually
   perpendicular rather than opposite. See §4.
-- **Is the server dependency acceptable?** The app cannot work without our Vercel
-  deployment. If not, the answer is the Darwin ingest, which is a much larger
-  project but removes reliance on someone else's uptime.
-- **Do we keep `via` anywhere?** Dropping it is recommended, but the c2c Tilbury
+- ~~**Is the server dependency acceptable?**~~ **Accepted.** The app needs our Vercel
+  deployment either way: the token must stay server-side, and the Darwin store is read
+  there too. The Darwin ingest turned out not to be "a much larger project" — see §2.
+- ~~**Do we keep `via` anywhere?**~~ **No — closed by §13.** Dropping it was recommended, but the c2c Tilbury
   case was real and you use that line daily.
 
 ---

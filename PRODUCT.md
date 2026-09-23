@@ -119,7 +119,8 @@ planned, out of scope permanently.
   tonight" when asked in the afternoon. The binding limit is the window, not the row
   count: `numRows` reaches 149 on a plain board and is capped at 10 only with calling
   points, and no row count reveals a 23:47 departure at 14:00. Darwin's *timetable
-  files* are a different matter and remain the fallback — see `IOS.md` §2
+  files* are a different matter: ingested nightly since September 2026, they serve
+  Fast Train past two hours and the destination lists — see `DARWIN-INGEST.md`
 - **The token must never reach the device.** The app talks to our API only
 - Terminology in use: CRS, TIPLOC, TOC, service day, calling pattern, headcode
 
@@ -257,16 +258,21 @@ timetable of its own regardless.
 ## Evidence on Hand
 
 - Working web prototype: `github.com/dazreil/last-train`, deployed on Vercel
-- Real API credentials, free tier, in `.env.local` — never committed
+- Real API credentials in `.env.local` — never committed. RTT on the paid Team tier
+  since 15 August 2026, plus Darwin LDBWS and the Darwin timetable files
 - `data/stations.json` (67 stations) and `data/geo.json`, generated from the API and
   NaPTAN. **No CRS code in this project was ever typed by hand**, and the generator
   refuses to emit an invalid list
 - `data/national.json` (2,619 stations, the whole network) generated from RTT's
   `/data/stops` joined to NaPTAN. Three stops have no position: two rail-air
   interchanges that are not stations, and Winslow, too new for NaPTAN
-- 85 passing tests covering the service-day boundary, timezone resolution, direction
-  classification, departure filtering, board arrangement and nearest-station
-- `PROJECT.md` (original brief) and `IOS.md` (approved national/native spec)
+- Tests in both languages, run under `TZ=UTC`: 178 in `npm test`, 130 in `swift test`
+  (24 September 2026). They cover the service-day boundary, timezone resolution,
+  direction, board arrangement, nearest-station, the timetable format and the rate limits
+- `data/popularity.json`, the busiest destinations per station from the ORR
+  origin–destination matrix, credited in the app as the Open Government Licence requires
+- `IOS.md` (approved national/native spec) and `DARWIN-INGEST.md` (the timetable
+  store). The original brief, `PROJECT.md`, is not in the repo
 
 No user research, no testimonials, no analytics, no other users yet. Nothing may be
 claimed about anyone else's behaviour.

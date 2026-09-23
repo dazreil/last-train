@@ -1,35 +1,52 @@
 # Status — handoff
 
-Written 5 August 2026. Working tree clean, `main` in sync with origin.
+Updated 24 September 2026. First written 5 August 2026; the Traps below are from
+across that whole period and are still true unless marked otherwise.
 
 ---
 
 ## Where things stand
 
-The web app is **finished, deployed and in daily use**. It answers one question —
-the last train home, and the first one back — for 67 stations across c2c, the
-Elizabeth line, and the Liverpool Street ↔ Shenfield corridor.
+**The product is the iOS app.** The Next.js project is now its API: it holds the RTT
+token, reads the Darwin timetable store, and serves `/api/v2/*`. The old web page at
+`/` and `/api/trains` still work but nobody designs for them.
 
-The board takes one of two arrangements, chosen by the clock in `lib/board.ts`.
-Normally it is the last three trains of the service day, then the first train of the
-**next** one below them — today's own first train is never shown in the evening,
-because it went at dawn. Between a day's last train and the next day's first that
-inverts: the first three lead, with the day's last train kept below. In both, the red
-block is the genuine last train of the day on the board.
+What the app does, all built and run on device:
 
-The **native iOS app is built** and runs on the simulator against the deployment:
-2,619 stations bundled, the chevron direction control, both board arrangements, and
-**the widget** — lock screen and home screen, leading with the last train and holding
-it still through the evening. `IOS.md` §9 steps 1–6 are done. What is left is step 7:
-the paid RTT token, attribution, and submission.
+- **Last Train** — station and compass direction, the last three trains of the service
+  day and the first one back. Before a day's first train the board inverts: first three
+  lead, the day's last train below. `lib/board.ts` chooses. Red is the genuine last
+  train and nothing else.
+- **Fast Train** — tap the masthead. Choose a destination from a list of direct
+  stations; trains ranked by arrival, seven pages of three, reaching four hours ahead.
+- **The widget** — lock screen and home screen, leading with the last train and holding
+  it still all evening. **Live Activity** — follow a train and it counts down on the
+  lock screen and the Dynamic Island.
+- **The destination picker** — with no direction chosen, every direct station grouped by
+  direction, and tapping one sets the direction. A *Popular* section at the top from the
+  ORR origin–destination matrix, credited on screen.
+
+Where each answer comes from:
+
+| | Source |
+|---|---|
+| Last Train, whole service day | Realtime Trains line-up, cached in shared Redis |
+| Fast Train, 0–2 hours | Darwin LDBWS, live |
+| Fast Train, 2–4 hours, and the destination lists | Darwin timetable store, published nightly — see `DARWIN-INGEST.md` |
+| Popular destinations | `data/popularity.json`, from the ORR matrix, refreshed each December |
+
+**Next:** `IOS.md` §9 step 7 — submission. The RTT Team plan is paid for, the credit
+line is in the app (*"Powered by Realtime Trains and National Rail Enquiries"*), and
+the open-API question is closed by rate limits (see *Exposure*). What remains is
+confirming the information flow end to end, then App Store submission.
 
 | | |
 |---|---|
 | Repo | `github.com/dazreil/last-train` (private) |
-| Live | `https://last-train-dazreils-projects.vercel.app` |
-| Stack | Next.js 16 (App Router), React 19, TypeScript, plain CSS |
-| Data | Realtime Trains next-gen API, `data.rtt.io`, **free tier** |
-| Tests | 85, all passing, run under `TZ=UTC` |
+| Live API | `https://last-train-dazreils-projects.vercel.app` |
+| Stack | Next.js 16 on Vercel, TypeScript; SwiftUI app in `ios/` |
+| Data | RTT next-gen API (**Team tier**, paid), Darwin LDBWS, Darwin timetable files |
+| Tests | `npm test` 178, `swift test` 130, all passing, both under `TZ=UTC` |
 
 **`last-train.vercel.app` is not this app.** That subdomain belongs to an unrelated
 Singapore MRT tracker. Use the full alias above.
@@ -41,7 +58,7 @@ Singapore MRT tracker. Use the full alias above.
 ```bash
 npm run dev          # dev server
 npm run dev:lan      # dev server reachable from a phone on the same Wi-Fi
-npm test             # 85 tests, TZ=UTC (that is deliberate, see Traps)
+npm test             # 178 tests, TZ=UTC (that is deliberate, see Traps)
 npm run typecheck
 npm run build
 npm run spike        # throwaway API probe; needs .env.local
@@ -53,7 +70,7 @@ npm run stations     # regenerate data/stations.json + data/geo.json
 The native app is a separate toolchain.
 
 ```bash
-cd ios && TZ=UTC swift test   # 68 tests, ~7s
+cd ios && TZ=UTC swift test   # 130 tests
 cd ios && TZ=UTC LASTTRAIN_EXHAUSTIVE=1 swift test   # full nearest coverage, ~55s
 ```
 
@@ -99,8 +116,10 @@ under any timezone and hide this entire class of bug.
 ### Rate limits are a third of what the original brief said
 
 Free tier is **10/minute, 100/hour, 1000/day, 10000/week**. The brief said
-30/750/9000. Every budget in the app is sized against 10/minute. Do not run
-`npm run stations` while testing the live app — they share the quota.
+30/750/9000. **History now** — the Team tier replaced it on 15 August 2026 — but some
+older comments still size things against 10/minute. Do not run `npm run stations`
+while testing the live app — they share the quota, and still do until a separate
+development key is taken.
 
 ### Team tier, £29/month — the real numbers
 
@@ -531,11 +550,15 @@ as `systemMedium` — so the harness has to build each family's view directly.
 
 | File | Owns |
 |---|---|
+| `STATUS.md` | This file. Where things stand, the traps, and what is next. Read first. |
+| `CONTINUE.md` | A short prompt to paste into a new session. Points here. |
 | `PRODUCT.md` | Product truth: users, purpose, positioning, constraints. Platform recorded as **ios**. |
 | `DESIGN.md` | The visual system, with machine-readable tokens in frontmatter. North star "The Departure Board". |
 | `.impeccable/design.json` | Sidecar: tonal ramps, contrast measurements, motion, 8 renderable component snippets. |
-| `IOS.md` | The approved spec for the national iOS app. |
-| `README.md` | Setup, architecture, API contract, deployment. |
+| `IOS.md` | The approved spec for the national iOS app, and the record of how each part was decided. |
+| `DARWIN-INGEST.md` | The Darwin timetable ingest: what the file holds, how it is parsed, stored and delivered. |
+| `UI-GLOSSARY.md` | Plain names for each piece of the iOS screen, and the code name that matches it. |
+| `README.md` | How to run it, how the API is laid out, and deployment. |
 
 The original brief (`PROJECT.md`) and the UI design brief were supplied as
 attachments and are **not in the repo** — they are in `~/Downloads/`.
@@ -551,100 +574,54 @@ Two rules from `DESIGN.md` are load-bearing and easy to break by accident:
 
 ## Next
 
-### The blocker is cleared
+### Before submission
 
-RTT replied on 1 August 2026: **a free App Store app still needs a commercial plan**,
-because of the number of calls it makes. Being free to the user is not the test; call
-volume is.
+1. **Confirm an unattended night of the Darwin ingest.** The job has only been proved
+   by hand. Check `/api/timetable-health` the morning after it runs on its own.
+2. **Confirm the information flow end to end** — every screen answers from the source
+   in the table at the top, and a failure in any one of them says so in words.
+3. **Submit.** `IOS.md` §9 step 7. The RTT Team plan is paid; the credit line is in
+   the app; the API is rate limited.
 
-So the plan holds — `IOS.md` already assumed a paid tier — but the app now carries a
-monthly cost from its first day on the store, and that is a product decision rather
-than a line item.
+### Worth doing, not blocking
 
-**The tier is Team, £29/month.** Hobbyist at £4 does not raise the rate limits (see
-Traps), so it cannot answer an objection that was about volume. £348/year is the real
-price of shipping this, and `IOS.md` §5's single-request lookup is now an argument
-about money as well as latency.
-
-Nothing changes about how to build: stay on the free tier throughout, exactly as
-`IOS.md` §3 planned, and buy the plan at submission. The cost starts when the app
-ships, not now. The current token still cannot ship either way — a token found in a
-distributed app gets revoked.
-
-### Per `IOS.md` §9
-
-1. ~~Prove the line-up query nationally~~ — **done, `npm run national`, it passes.**
-   The 23h59m window returns a whole service day at Penzance, Inverness, Upminster,
-   Berney Arms and Denton alike; all 319 departures were timezone-less; Inverness
-   returns all four compass directions correctly and Upminster still returns only two.
-   Two things it changed are in `IOS.md` §4 and §8 — see Traps below for the one that
-   nearly cost a branch line.
-2. ~~Station data~~ — **done, `npm run national:data`.** `data/national.json`, 2,619
-   stations, generated and validated, 0 API requests on a warm cache. FasterRoute was
-   not needed: `/data/stops` is the base list and NaPTAN places all but three stops,
-   two of which are rail-air interchanges rather than stations. Nearest-station is
-   `lib/nearest.ts` — see Traps for the part that is easy to get wrong
-3. ~~API route~~ — **done, `GET /api/v2/trains`**, landing beside `/api/trains` so the
-   deployed web app is untouched. Compass directions, all four buckets from one
-   line-up, no corridor machinery, no `via`, diagnostics behind `DEBUG_DIAGNOSTICS=1`.
-   The two routes share the line-up cache, so a station looked at on the web is free
-   in the app
-4. ~~SwiftUI app~~ — **done.** `ios/` is an XcodeGen project: `LastTrainCore` (the
-   domain, Foundation only, 81 tests) plus an app target and a widget extension. The
-   board, the chevron direction control, the station picker and the two arrangements
-   all run against the deployed API
-5. ~~The widget. It is the actual reason for going native~~ — **done, 5 August 2026.**
-   Lock screen and home screen; it leads with the *last* train and holds it still all
-   evening, and the whole night is computed from one request. Written up in `IOS.md`
-   §12. The nearest-station button landed at the same time — `Nearest.swift` had been
-   sitting built and tested but unwired since step 4
-6. Paid token, attribution, submit — and the two decisions in *Exposure* below, which
-   are cheap now and awkward once the app is public
-
-### Parked, not scheduled
-
-**Fast Train** — tapping the "Last Train" title flips the app into a from/to mode
-showing four trains ordered by *arrival*, plus a hidden "Last Fast Train" variant.
-Captured in full in `IOS.md` §11. It is not in the build order and does not change
-it. Two things to know before anyone starts it: arrival ordering needs each service's
-calling pattern, which is about a request per train and breaks the one-request
-lookup; and it makes the `via` question below moot, since the Tilbury/Basildon case
-is exactly what it exists to solve.
+- **Take a separate RTT development key.** Team allows five. Until then, testing and the
+  generators spend production's quota, and now also production's spend ceiling.
+- **Resize the free-tier budgets.** `DETAIL_BUDGET` in `app/api/trains/route.ts` is the
+  old web route and can wait for that route to go. `PATTERN_BUDGET` in
+  `app/api/v2/destinations` prices only the RTT fallback now, since the lists come from
+  the timetable store.
+- **Move Last Train off RTT** — `DARWIN-INGEST.md` stage 6. Last Train's whole-day board
+  is now the app's main RTT cost. Moving it to the timetable store, with LDBWS inside the
+  near window, cuts the running cost towards £0 and shrinks the quota anyone can drain.
+- **Last Fast Train**, the unadvertised third mode in `IOS.md` §11. Not built.
 
 ### Open questions carried forward
 
-- **Is £348/year worth it for this?** The tier question is answered; whether the app
-  is worth its running cost is a separate one, and it is now a real decision rather
-  than a rounding error. Tip-jar and ads are permitted on both paid tiers if it ever
-  needs to pay for itself.
-- **What the volume actually scales with.** Not users, and **not widget refreshes**
-  — that is now settled rather than hoped for. The widget fetches once and derives
-  every later entry from the board it already holds, so it asks again only when a
-  service day runs out, roughly once a night. Upstream cost is
-  *distinct station-days × cache miss rate*, which makes the TTL in `lib/cache.ts`
-  the lever. At a 1-hour live-day TTL a station watched all evening costs a request an
-  hour, so Team's 3571/day sustainable covers a few hundred stations in daily use.
-  Confirm that arithmetic against a real week before committing to a tier.
-- ~~Does the compass control earn its vertical space?~~ **Answered — it does not.
-  The control is chevron quadrants; see `IOS.md` §4.** Two findings worth carrying: a
-  2×2 of chevron-clipped blocks holds four directions in two rows and clears the fold
-  on the smallest supported phone, where the compass cross does not. And "keep the
-  slider where a station has two directions" fails, because two directions are usually
-  *perpendicular* rather than opposite — Penzance runs north and east, Denton east and
-  south, and a left-versus-right control cannot express either.
-- Keep `via` nationally? Recommended to drop — it exists for one real ambiguity (c2c
-  via Basildon versus the slower Tilbury loop) and it is what costs the extra
-  requests per lookup. That is now a question about the monthly bill, not only
-  latency.
-- The app depends on our Vercel deployment being up. If that is unacceptable, the
-  alternative is ingesting Darwin timetable files — a much larger project.
+- **Is £348/year worth it for this?** Tip-jar and ads are permitted on the Team tier if
+  it ever needs to pay for itself. `PRODUCT.md` *Paying for it* has the priced options.
+  The Darwin work above is the other way to answer it.
+- **What the volume actually scales with.** Not users, and **not widget refreshes** —
+  the widget fetches once and derives the rest of the night from what it holds. Upstream
+  cost is *distinct station-days × cache miss rate*, which makes the TTL in
+  `lib/cache.ts` the lever. Measured in August: 122 requests in a week against 25,000.
+- The app depends on our Vercel deployment being up. That is accepted.
+
+### Settled, kept for the reasoning
+
+- **The compass control** is not a compass. Chevron quadrants first, then one row of
+  four tabs (21 August 2026). See `IOS.md` §4 for why the cross and the slider failed.
+- **`via` is gone.** Direction comes from a walked waypoint (`IOS.md` §13), and Fast
+  Train answers the Tilbury/Basildon case by arrival time.
+- **Darwin timetable files are not "a much larger project".** They arrive pre-assembled.
+  See `DARWIN-INGEST.md` §2.
 
 ---
 
-## Exposure — decide before submission
+## Exposure
 
-Neither of these is a leak of the RTT token, which has never left the server. Both are
-about **quota and staleness**, and both are consequences of choices that were right at
+None of these is a leak of the RTT token, which has never left the server. They are
+about **quota and staleness**, and each is a consequence of a choice that was right at
 the time.
 
 ### The rule that requires the proxy, in RTT's own words
@@ -676,9 +653,8 @@ Two things the clause does **not** settle, and conflating them would be a mistak
   are true.
 - **It sharpens the open-proxy question below rather than answering it.** The token
   cannot be stolen, but its *quota* can be spent by anyone, and the terms show RTT
-  reasoning about who is answerable for the calls a token makes. Ours is unauthenticated,
-  and the station list to walk ships inside the app. That is the decision to take before
-  submission.
+  reasoning about who is answerable for the calls a token makes. Answered below, with
+  rate limits.
 
 ### Old deployment URLs served old answers — closed 7 August 2026
 
@@ -721,30 +697,41 @@ the rest go. Flags read from `vercel remove --help` on CLI 58.8.0 rather than re
 this is the third Vercel control in this project whose behaviour did not match its
 description, so check the help output before trusting any of it, including this.
 
-### The API is unauthenticated, and sized for one person
+### The API was unauthenticated — closed 24 September 2026, by rate limits
 
-`/api/v2/trains` has no key, no origin check and no rate limit. Upstream cost is
-*distinct station-days that miss the cache*, so hammering one station is free and
-walking the country is not — and `data/national.json` ships inside the app, so the list
-of every station to walk is public by construction.
-
-Against the sustainable ceilings in the table above:
+`/api/*` has no key and no login, and `data/national.json` ships inside the app, so the
+list of every station to walk is public by construction. Upstream cost is *distinct
+station-days that miss the cache*: hammering one station is free, walking the country
+is not.
 
 | | Free | Team |
 |---|---|---|
 | Sustainable per day | 1000 | 3571 |
 | One pass over all 2,619 stations | **2.6× a day's budget** | **73% of a day's budget** |
 
-One enumeration of the station list costs most of a day on the paid tier. At Team's
-40/min a script reaches that in about an hour, and the app is throttled for everyone
-until the window rolls.
+**Decided: two rate limits now, App Attest only if abuse is ever seen.** Both count in
+the shared Redis, so every Vercel instance sees the same numbers. The rules and the
+numbers are in `lib/limits.ts`, with tests.
 
-Nothing has been done about this. The cheap options, in increasing order of nuisance:
-a per-IP rate limit at the edge; a shared secret the app carries, which stops casual use
-without pretending to be security; or requiring an App Attest token, which is the only
-one that actually holds and is a real piece of work. **This wants a decision before the
-app is public, not after** — the bill arrives either way, but a limit added afterwards
-is a limit added during an incident.
+- **Per caller**, in `middleware.ts`: 60 requests a minute and 600 an hour from one IP
+  address. Past it, `429` with a sentence the app shows as it is. Generous on purpose —
+  a phone network can put many people behind one address.
+- **Upstream spend**, in `lib/rtt.ts`: at most 400 RTT requests an hour and 3,000 a day,
+  across every caller. 3,000 × 7 is 21,000, which leaves 4,000 of the week's 25,000 for
+  generators and testing. Past it, cold lookups get `503` and a sentence; any board
+  already in the cache still answers. So someone with many addresses can slow new
+  lookups down, but cannot spend the week.
+
+**Both fail open.** With Redis absent, slow (over 400 ms) or down, nothing is limited. A
+guard that takes the board down whenever its counter is unavailable is an outage. The
+in-process token bucket still paces what gets through.
+
+Checked against the real Redis store: calls one and two passed a limit of two, call
+three was refused with the right wait.
+
+**What it does not do:** prove a request comes from the app. That is App Attest, which
+needs the paid Apple Developer Program and several days' work. Not needed unless the
+spend ceiling is actually hit by someone who is not us.
 
 ---
 
@@ -757,4 +744,4 @@ is a limit added during an incident.
 - Vercel **Deployment Protection** was enabled and had to be turned off for the
   phone to reach the app. If a future deploy starts returning a Vercel login page,
   that setting has come back on. Turning it off exposed every preview deployment as
-  well — see *Exposure* above, which is a decision rather than a fixed thing.
+  well — see *Exposure* above; `middleware.ts` now refuses `/api` on any old URL.
