@@ -6,25 +6,17 @@
     {
       "layers" : [
         {
-          "image-name" : "lticon2 2.svg",
-          "name" : "lticon2 2",
+          "image-name" : "AppIconEmbossed.png",
+          "name" : "Last Train embossed",
           "position" : {
-            "scale" : 0.51,
+            "scale" : 1,
             "translation-in-points" : [
               0,
               0
             ]
           }
         }
-      ],
-      "shadow" : {
-        "kind" : "neutral",
-        "opacity" : 0.5
-      },
-      "translucency" : {
-        "enabled" : true,
-        "value" : 0.5
-      }
+      ]
     }
   ],
   "supported-platforms" : {

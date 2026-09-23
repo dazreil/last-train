@@ -65,7 +65,7 @@ targets:
       # targets rather than pushed down into LastTrainCore, which imports Foundation
       # and nothing else and is meant to keep it that way.
       - path: App/Shared
-      # The icon, authored in Icon Composer: three SVG layers plus icon.json, which
+      # The icon, authored in Icon Composer: the embossed artwork plus icon.json, which
       # actool composites into every appearance iOS 26 asks for. Declared as a file so
       # XcodeGen treats the bundle as one thing rather than recursing into its parts.
       - path: App/Resources/AppIcon.icon
