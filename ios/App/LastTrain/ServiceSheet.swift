@@ -137,6 +137,18 @@ struct ServiceSheet: View {
             .trimmingCharacters(in: .whitespaces)
     }
 
+    /**
+     Where in the list you get off.
+
+     The first time the train reaches your destination after leaving here — the same rule
+     `journey` uses, so the stop that is lit is the stop the "18 min to…" line above it is
+     timing. Nil without a destination, and nil if this train never gets there.
+     */
+    private var destinationIndex: Int? {
+        guard let destinationCrs else { return nil }
+        return onwardCalls.firstIndex(where: { $0.crs == destinationCrs })
+    }
+
     private var onwardCalls: [ServiceCall] {
         guard let calls else { return [] }
         guard let here = calls.calls.firstIndex(where: { $0.crs == station.crs }) else {
@@ -161,8 +173,15 @@ struct ServiceSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, Theme.Space.gutter)
         } else if !onwardCalls.isEmpty {
-            ForEach(onwardCalls) { call in
-                callRow(call)
+            // Keyed by position, not by the call's own id. That id is the station code, and a
+            // loop service passes some stations twice: the Kingston loop from Waterloo lists
+            // Vauxhall and Clapham Junction on the way out and again on the way back, as do
+            // 93 of 649 Waterloo departures on a weekday. Keyed by code, SwiftUI would get two
+            // rows with one identity, and a trip to Clapham Junction would light both.
+            // Nobody rides all the way round to get off there, which is why the first one
+            // after boarding is the one that is lit.
+            ForEach(Array(onwardCalls.enumerated()), id: \.offset) { index, call in
+                callRow(call, isDestination: index == destinationIndex)
             }
         } else if calls != nil {
             // A real answer: this is the far end of the line.
@@ -178,11 +197,30 @@ struct ServiceSheet: View {
         }
     }
 
-    private func callRow(_ call: ServiceCall) -> some View {
+    /**
+     One calling point. Your destination is lit, and every stop after it stays.
+
+     The stops beyond it are kept on purpose: where the train goes next is worth knowing
+     and costs nothing to show. So the list needs one row that says "this is yours".
+
+     **Lit in Service Blue, not red.** The One Red Rule in `DESIGN.md` reserves red for the
+     last train and names "emphasis" as exactly what it must never become. The collision is
+     real, not tidy-mindedness: open the last train's sheet and its time and label are
+     already red, so a red stop beneath them would read as a second claim about the last
+     train. Blue is also the colour of the "18 min to…" line directly above, which names
+     this same stop — the two are meant to be read together.
+
+     **Not underlined,** because on iOS an underline says "tap me" and these rows do not
+     do anything.
+
+     Never colour alone: the row is also heavier and carries the glowing edge bar the app
+     already uses for "your train", and VoiceOver hears "your stop".
+     */
+    private func callRow(_ call: ServiceCall, isDestination: Bool = false) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(call.time.map { ServiceDay.formatClock($0).spoken } ?? "--:--")
-                .font(Theme.Font.meta.monospacedDigit())
-                .foregroundStyle(Theme.textDim)
+                .font(Theme.Font.meta.monospacedDigit().weight(isDestination ? .semibold : .regular))
+                .foregroundStyle(isDestination ? Theme.serviceBlueLit : Theme.textDim)
                 // A *minimum*, not a width. `.caption` scales with the text size, so a
                 // fixed 46pt column was too narrow before the largest sizes — `05:08`
                 // wrapped after `05:0` and left the last digit alone on the next line,
@@ -196,8 +234,8 @@ struct ServiceSheet: View {
                 .frame(minWidth: 46, alignment: .leading)
 
             Text(call.name.withoutLondonPrefix)
-                .font(Theme.Font.body)
-                .foregroundStyle(Theme.text)
+                .font(Theme.Font.body.weight(isDestination ? .semibold : .regular))
+                .foregroundStyle(isDestination ? Theme.serviceBlueLit : Theme.text)
                 .fixedSize(horizontal: false, vertical: true)
                 .strikethrough(call.isCancelled)
 
@@ -213,6 +251,19 @@ struct ServiceSheet: View {
         .padding(.horizontal, Theme.Space.gutter)
         .padding(.vertical, 9)
         .overlay(alignment: .bottom) { CathodeRule(colour: Theme.serviceBlueLit.opacity(0.24)) }
+        .overlay(alignment: .leading) {
+            if isDestination {
+                // The same edge a followed train wears on the board.
+                Rectangle()
+                    .fill(Theme.serviceBlueLit)
+                    .frame(width: 3)
+                    .shadow(color: Theme.serviceBlueLit, radius: 7)
+            }
+        }
+        // Read as one line — "14:26, Southend Central, your stop" — rather than as a time
+        // and a name that VoiceOver visits separately.
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(isDestination ? "Your stop" : "")
     }
 
     private var skeleton: some View {
