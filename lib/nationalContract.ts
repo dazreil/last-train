@@ -243,8 +243,9 @@ export interface DestinationList {
   source?: 'timetable';
   /**
    * The busiest few of these destinations, busiest first — the likely answer, for the top
-   * of the picker. From the ORR Origin-Destination Matrix; empty for a short list, which
-   * fits on one screen anyway.
+   * of the picker. From the ORR Origin-Destination Matrix, and drawn only from this list, so
+   * a direction's list gets that direction's busiest. Empty when the list is no longer than
+   * the section would be.
    */
   popular?: { crs: string; direction: Compass | null }[];
   /** Where `popular` comes from, e.g. `ORR Origin-Destination Matrix 2024-25`. Shown, as the licence requires. */

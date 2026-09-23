@@ -338,7 +338,8 @@ public struct DestinationList: Decodable, Sendable, Equatable {
      The busiest few of these destinations, busiest first, as the server named them.
 
      From the Office of Rail and Road's count of journeys between every pair of stations.
-     Empty for a short list, which fits on one screen without a shortcut.
+     Drawn only from this list, so a direction's list gets that direction's busiest. Empty
+     when the list is no longer than the section would be.
      */
     public let popular: [PopularDestination]?
     /// Where `popular` comes from, to show beside it — the data's licence asks for that.

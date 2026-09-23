@@ -185,9 +185,15 @@ test('a station no direct train reaches is never offered, however busy', () => {
   assert.deepEqual(popularAmong(list, ['LST', 'KGX', 'C']).map((p) => p.crs), ['C']);
 });
 
-test('a short list gets no popular section, because it already fits on one screen', () => {
-  const list = many(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
-  assert.deepEqual(popularAmong(list, ['A', 'B', 'C']), []);
+test('a direction list gets its own busiest stations, however short', () => {
+  // "West of UPM": six stations, and Fenchurch Street last in route order.
+  const west = many(['EMP', 'BKG', 'RMF', 'WEH', 'LHS', 'FST']);
+  assert.deepEqual(popularAmong(west, ['WEH', 'FST', 'OCK', 'BKG']).map((p) => p.crs), ['WEH', 'FST', 'BKG']);
+});
+
+test('a list no longer than the section gets none, since it would print the list twice', () => {
+  assert.deepEqual(popularAmong(many(['A', 'B', 'C']), ['A', 'B', 'C']), []);
+  assert.equal(popularAmong(many(['A', 'B', 'C', 'D']), ['A', 'B', 'C']).length, 3);
 });
 
 test('a station listed two ways is offered once, the way more trains go', () => {

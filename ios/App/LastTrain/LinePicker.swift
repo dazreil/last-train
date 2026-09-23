@@ -69,7 +69,8 @@ struct LinePicker: View {
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
     @State private var destinations: [Destination] = []
-    /// The busiest few of `destinations`, for the top of the list. Empty for a short list.
+    /// The busiest few of `destinations`, for the top of the list — that direction's, when
+    /// the sheet is one direction. Empty when the list is no longer than the section.
     @State private var popular: [Destination] = []
     @State private var popularSource: String?
     @State private var isLoading = false

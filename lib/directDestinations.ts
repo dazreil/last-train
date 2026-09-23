@@ -111,8 +111,9 @@ export function directDestinations(
  * the ones in `destinations`, in that order. From Upminster that is West Ham, Fenchurch
  * Street and Barking — where the route order below them puts Fenchurch Street last.
  *
- * Nothing is offered for a short list. Below `minimumList` stations the whole list fits on
- * one screen, and a "popular" section would only repeat rows already in view.
+ * Offered for every list, filtered or not, so "West of UPM" gets the busiest *westbound*
+ * stations. The one exception is a list no longer than the section itself: three popular
+ * rows above a three-row list would be the whole list printed twice.
  *
  * A station listed under two directions appears here once, under the direction with more
  * trains: a shortcut is for the usual way, and the full list below still shows both.
@@ -120,10 +121,10 @@ export function directDestinations(
 export function popularAmong(
   destinations: readonly { crs: string; direction?: Compass | null; trains?: number }[],
   busiest: readonly string[],
-  { count = 3, minimumList = 8 }: { count?: number; minimumList?: number } = {}
+  { count = 3 }: { count?: number } = {}
 ): { crs: string; direction: Compass | null }[] {
   const distinct = new Set(destinations.map((d) => d.crs));
-  if (distinct.size < minimumList) return [];
+  if (distinct.size <= count) return [];
 
   const order = (d: Compass | null | undefined) => (d ? COMPASS_POINTS.indexOf(d) : 99);
   const out: { crs: string; direction: Compass | null }[] = [];
