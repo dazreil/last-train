@@ -19,6 +19,7 @@ import { NextResponse } from 'next/server';
 
 import { locationLineUp, serviceDetail } from '@/lib/rtt';
 import { DarwinError, departureBoard, normalize, toFastService, toServiceCalls } from '@/lib/darwin';
+import type { NormalizedService } from '@/lib/darwin';
 import { timetableBoard } from '@/lib/timetable';
 import {
   currentServiceDate,
@@ -351,14 +352,33 @@ export async function GET(request: Request) {
      `candidates` is counted after pricing rather than before -- an unreachable stop was
      never a candidate.
     */
-    const services = stored.services
+    const priced = stored.services
       .filter((service) => {
         const departure = service.stops[0]?.timeInstant;
         return Boolean(departure && departure >= laterFrom && departure < laterTo);
       })
-      .map((service) => toFastService(service, to.crs))
-      .filter((priced): priced is FastService => priced !== null)
-      .map((priced) => ({ ...priced, isScheduled: true }));
+      .map((service) => ({ service, fast: toFastService(service, to.crs) }))
+      .filter((pair): pair is { service: NormalizedService; fast: FastService } => pair.fast !== null);
+
+    const services = priced.map(({ fast }) => ({ ...fast, isScheduled: true }));
+
+    /*
+     Leave each train's stops where the detail sheet will look for them.
+
+     A timetable train's id is Darwin's run identifier, which nothing upstream can be
+     asked about: `/api/v2/service` serves a colon-less id from this cache or not at all.
+     The live board has always done this for its own trains; the later window did not,
+     so tapping any train past two hours opened a sheet that said its stops had expired
+     before it had ever loaded them.
+
+     In parallel, because Clapham Junction lists seventy trains in this window and one
+     round trip each, in series, would add seconds to the page turn that loads them.
+    */
+    await Promise.all(
+      priced.map(({ service }) =>
+        setCachedCalls(service.serviceId, toServiceCalls(service), DARWIN_CALLS_TTL)
+      )
+    );
 
     const hours = Math.round(stored.ageSeconds / 3600);
     const notice =
