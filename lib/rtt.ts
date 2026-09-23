@@ -14,6 +14,8 @@
 
 import 'server-only';
 
+import { sharedRedis } from './cache.ts';
+import { UPSTREAM_WINDOWS, count } from './limits.ts';
 import { createTokenBucket } from './pacing.ts';
 
 const BASE_URL = 'https://data.rtt.io';
@@ -98,6 +100,8 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * long enough to matter has already lost the race.
  */
 async function takeToken(): Promise<void> {
+  await withinSpendCeiling();
+
   const first = bucket.take();
   if (first.granted) return;
 
@@ -120,6 +124,28 @@ async function takeToken(): Promise<void> {
     'Realtime Trains rate limit reached.',
     429,
     Math.ceil(second.waitMs / 1000)
+  );
+}
+
+/**
+ * Refuse once the app has spent its share of the hour or the day, across every instance.
+ *
+ * The bucket above paces one process; this caps the total, so that nobody walking the
+ * station list can spend the week's quota. See `lib/limits.ts`. A `PacingRefusal`, so the
+ * retry in `request` does not fire for it: waiting two seconds does not refill an hour.
+ *
+ * Cached boards never reach here, so past the ceiling the app still answers for every
+ * station someone has already looked at. Only a cold lookup is refused.
+ */
+async function withinSpendCeiling(): Promise<void> {
+  const verdict = await count(sharedRedis(), 'rtt-spend', UPSTREAM_WINDOWS);
+  if (verdict.allowed) return;
+
+  console.warn(`[rtt] spend ceiling reached; refusing for ${verdict.retryAfterSeconds}s`);
+  throw new PacingRefusal(
+    'Too many lookups right now. Stations already looked at still work; try this one again later.',
+    503,
+    verdict.retryAfterSeconds
   );
 }
 
