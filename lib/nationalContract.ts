@@ -241,6 +241,14 @@ export interface DestinationList {
   direction: string | null;
   /** `timetable` for the whole service day; absent from the live two-hour paths. */
   source?: 'timetable';
+  /**
+   * The busiest few of these destinations, busiest first — the likely answer, for the top
+   * of the picker. From the ORR Origin-Destination Matrix; empty for a short list, which
+   * fits on one screen anyway.
+   */
+  popular?: { crs: string; direction: Compass | null }[];
+  /** Where `popular` comes from, e.g. `ORR Origin-Destination Matrix 2024-25`. Shown, as the licence requires. */
+  popularSource?: string;
   date: string;
   /** Nearest first, by journey time. That is also route order along the line. */
   destinations: Destination[];

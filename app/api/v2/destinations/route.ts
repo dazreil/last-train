@@ -40,7 +40,8 @@ import {
   type IsoDate,
 } from '@/lib/serviceDay';
 import { classify, COMPASS_POINTS, isCompass, type Compass } from '@/lib/compass';
-import { directDestinations } from '@/lib/directDestinations';
+import { directDestinations, popularAmong } from '@/lib/directDestinations';
+import { busiestFrom, popularitySource } from '@/lib/popularity';
 import { timetableBoard } from '@/lib/timetable';
 import type { NormalizedService } from '@/lib/darwin';
 import { coordinateFor, findStationByCrs } from '@/lib/nationalStations';
@@ -121,6 +122,7 @@ export async function GET(request: Request) {
       // everything it could have compared against.
       comparedWith: everyWay ? [...COMPASS_POINTS] : COMPASS_POINTS.filter((p) => p !== requested),
       source: 'timetable',
+      ...popularity(from.crs, destinations, everyWay ? null : (requested as Compass)),
     };
     return NextResponse.json(body, { headers: { 'x-source': 'timetable' } });
   }
@@ -322,6 +324,7 @@ export async function GET(request: Request) {
     destinations,
     truncated: services.length > priced.length,
     comparedWith,
+    ...popularity(from.crs, destinations, direction),
   };
 
   await setCached(cacheKey, body, ttl);
@@ -366,7 +369,33 @@ async function assembleList(
     .map(([crs, minutes]) => ({ crs, name: findStationByCrs(crs)?.name ?? crs, minutes }))
     .sort((a, b) => a.minutes - b.minutes || a.name.localeCompare(b.name));
 
-  return { from: { crs: from.crs, name: from.name }, direction, date, destinations, truncated, comparedWith };
+  return {
+    from: { crs: from.crs, name: from.name },
+    direction,
+    date,
+    destinations,
+    truncated,
+    comparedWith,
+    ...popularity(from.crs, destinations, direction as Compass),
+  };
+}
+
+/**
+ * The busiest few destinations, for the top of the picker, with their source.
+ *
+ * Every path that returns a list ends here, so the shortcut is the same whichever path
+ * answered. A live list carries no per-station direction, so it takes the one asked for.
+ */
+function popularity(
+  fromCrs: string,
+  destinations: readonly Destination[],
+  direction: Compass | null
+): Pick<DestinationList, 'popular' | 'popularSource'> {
+  const popular = popularAmong(
+    destinations.map((d) => ({ ...d, direction: d.direction ?? direction })),
+    busiestFrom(fromCrs)
+  );
+  return popular.length ? { popular, popularSource: popularitySource } : { popular: [] };
 }
 
 /**

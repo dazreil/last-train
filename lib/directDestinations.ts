@@ -103,3 +103,38 @@ export function directDestinations(
     (a, b) => order(a.direction) - order(b.direction) || a.minutes - b.minutes || a.name.localeCompare(b.name)
   );
 }
+
+/**
+ * The few destinations to put at the top: the busiest that a direct train actually reaches.
+ *
+ * `busiest` is every station's ranking from the ORR matrix, direct or not; this keeps only
+ * the ones in `destinations`, in that order. From Upminster that is West Ham, Fenchurch
+ * Street and Barking — where the route order below them puts Fenchurch Street last.
+ *
+ * Nothing is offered for a short list. Below `minimumList` stations the whole list fits on
+ * one screen, and a "popular" section would only repeat rows already in view.
+ *
+ * A station listed under two directions appears here once, under the direction with more
+ * trains: a shortcut is for the usual way, and the full list below still shows both.
+ */
+export function popularAmong(
+  destinations: readonly { crs: string; direction?: Compass | null; trains?: number }[],
+  busiest: readonly string[],
+  { count = 3, minimumList = 8 }: { count?: number; minimumList?: number } = {}
+): { crs: string; direction: Compass | null }[] {
+  const distinct = new Set(destinations.map((d) => d.crs));
+  if (distinct.size < minimumList) return [];
+
+  const order = (d: Compass | null | undefined) => (d ? COMPASS_POINTS.indexOf(d) : 99);
+  const out: { crs: string; direction: Compass | null }[] = [];
+  for (const crs of busiest) {
+    const here = destinations.filter((d) => d.crs === crs);
+    if (!here.length) continue;
+    const best = [...here].sort(
+      (a, b) => (b.trains ?? 0) - (a.trains ?? 0) || order(a.direction) - order(b.direction)
+    )[0];
+    out.push({ crs, direction: best.direction ?? null });
+    if (out.length === count) break;
+  }
+  return out;
+}

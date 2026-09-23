@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { directDestinations } from './directDestinations.ts';
+import { directDestinations, popularAmong } from './directDestinations.ts';
 import type { Compass } from './compass.ts';
 import type { NormalizedService, NormalizedStop } from './darwin.ts';
 
@@ -167,4 +167,38 @@ test('the list comes back grouped: compass order, then journey time', () => {
     nameOf
   );
   assert.deepEqual(list.map((d) => d.crs), ['N1', 'E1', 'W2', 'W1']);
+});
+
+
+const many = (crsList: string[], direction: Compass = 'west') =>
+  crsList.map((crs, i) => ({ crs, direction, trains: 10, minutes: i + 1 }));
+
+test('the busiest direct destinations come first, in the matrix order', () => {
+  // Upminster's real ranking, which includes places it cannot reach directly.
+  const list = many(['EMP', 'BKG', 'RMF', 'WEH', 'LHS', 'FST', 'OCK', 'WHR']);
+  const busiest = ['WEH', 'FST', 'LST', 'BKG', 'LHS'];
+  assert.deepEqual(popularAmong(list, busiest).map((p) => p.crs), ['WEH', 'FST', 'BKG']);
+});
+
+test('a station no direct train reaches is never offered, however busy', () => {
+  const list = many(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']);
+  assert.deepEqual(popularAmong(list, ['LST', 'KGX', 'C']).map((p) => p.crs), ['C']);
+});
+
+test('a short list gets no popular section, because it already fits on one screen', () => {
+  const list = many(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
+  assert.deepEqual(popularAmong(list, ['A', 'B', 'C']), []);
+});
+
+test('a station listed two ways is offered once, the way more trains go', () => {
+  const list = [
+    ...many(['A', 'B', 'C', 'D', 'E', 'F', 'G']),
+    { crs: 'TIE', direction: 'north' as Compass, trains: 3, minutes: 5 },
+    { crs: 'TIE', direction: 'south' as Compass, trains: 40, minutes: 5 },
+  ];
+  assert.deepEqual(popularAmong(list, ['TIE']), [{ crs: 'TIE', direction: 'south' }]);
+});
+
+test('a station with no matrix data gets no popular section rather than a wrong one', () => {
+  assert.deepEqual(popularAmong(many(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']), []), []);
 });
