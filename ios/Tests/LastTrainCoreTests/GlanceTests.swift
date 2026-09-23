@@ -202,7 +202,7 @@ struct GlancePinnedTests {
             Glance.of(
                 board: upminsterEastEvening(),
                 now: utcInstant("2026-08-05T18:00:00Z"), // 19:00 London
-                pinned: "2351"                            // the 23:51, not the last train
+                pinned: "2351|23:51"                      // the 23:51, not the last train
             )
         )
 
@@ -218,7 +218,7 @@ struct GlancePinnedTests {
             Glance.of(
                 board: upminsterEastEvening(),
                 now: utcInstant("2026-08-05T23:00:00Z"), // 00:00 London, 23:51 has gone
-                pinned: "2351"
+                pinned: "2351|23:51"
             )
         )
 
@@ -240,7 +240,7 @@ struct GlancePinnedTests {
             Glance.of(
                 board: upminsterEastEvening(),
                 now: utcInstant("2026-08-05T18:00:00Z"), // 19:00 London
-                pinned: "0042"
+                pinned: "0042|00:42"
             )
         )
 
@@ -255,7 +255,7 @@ struct GlancePinnedTests {
             Glance.of(
                 board: upminsterEastEvening(),
                 now: utcInstant("2026-08-05T18:00:00Z"),
-                pinned: "9Z99"
+                pinned: "9Z99|23:59"
             )
         )
         #expect(glance.label == .lastTrain)

@@ -73,11 +73,13 @@ public struct Glance: Sendable, Equatable {
         board: DepartureBoard,
         now: Date = Date(),
         /**
-         A headcode to lead with, while its train is still to come.
+         A `pinToken` to lead with, while its train is still to come.
 
-         Keyed on the headcode rather than the service id because `serviceId` carries its
+         Keyed on `pinToken` rather than the service id because `serviceId` carries its
          date — `gb-nr:F20585:2026-08-05` — so pinning one would mean nothing tomorrow.
-         `2D88` is the same train every day it runs, which is what a pin has to be.
+         `2D88|23:51` is the same train every day it runs, which is what a pin has to be.
+         The departure time is part of the token because replacement buses share a
+         headcode; see `BoardDeparture.pinToken`.
          */
         pinned: String? = nil
     ) -> Glance? {
