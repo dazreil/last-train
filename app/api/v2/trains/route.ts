@@ -39,7 +39,8 @@ import {
   type ServiceLocation,
 } from '@/lib/rtt';
 import { sortedDepartures, destinationNames, destinationCodes, type Departure } from '@/lib/journeys';
-import { DarwinError, departureBoard, normalize } from '@/lib/darwin';
+import { DarwinError, departureBoard, liveDepartures, normalize } from '@/lib/darwin';
+import { applyLive, needsLive } from '@/lib/liveOverlay';
 import { boardHasExpired, boardMode, selectBoard } from '@/lib/board';
 import { classify, COMPASS_POINTS, isCompass, tally, type Compass } from '@/lib/compass';
 import { routesFrom, waypointFor } from '@/lib/adjacency';
@@ -117,6 +118,29 @@ const answerKey = (
   advanced: boolean,
   to: string | null
 ) => `v2:${crs}:${direction}:${date}${advanced ? ':advanced' : ''}${to ? `:to:${to}` : ''}`;
+
+/**
+ * The board with live times laid over it, and how long the phone may keep the result.
+ *
+ * Applied to every response, cached or fresh, and never stored: the board underneath is
+ * kept for up to an hour, the live word for under a minute. Today only, and only when a
+ * departure is inside the live board's two hours. Any Darwin failure leaves the board as
+ * the timetable had it — a missing delay is better than no board.
+ */
+async function withLive(
+  body: NationalBoard,
+  crs: string,
+  isToday: boolean
+): Promise<{ body: NationalBoard; live: boolean }> {
+  if (!isToday || !needsLive(body.services, Date.now())) return { body, live: false };
+  try {
+    const rows = await liveDepartures(crs);
+    return { body: { ...body, services: applyLive(body.services, rows, Date.now()) }, live: true };
+  } catch (error) {
+    if (error instanceof DarwinError) return { body, live: false };
+    throw error;
+  }
+}
 
 const json = (body: unknown, init?: ResponseInit) =>
   new Response(JSON.stringify(body), {
@@ -202,9 +226,11 @@ async function confirmedAgainstDarwin(
       filterType: 'to',
       numRows: 100,
     });
+    // Every listed train, cancelled ones included: a cancelled train is real and stays
+    // on the board, struck through, rather than being dropped as a phantom.
     listed = new Set(
-      normalize(board)
-        .map((service) => service.stops[0]?.time)
+      (board.trainServices ?? [])
+        .map((service) => service.std)
         .filter((time): time is string => Boolean(time))
     );
   } catch (error) {
@@ -280,9 +306,11 @@ export async function GET(request: Request) {
     // A stored answer outlives its arrangement exactly once a day, when the first
     // train goes and a pre-service board becomes an ordinary one.
     if (hit && !boardHasExpired(hit.value)) {
-      return json(hit.value, {
+      const shown = await withLive(hit.value, from.crs, date === today);
+      return json(shown.body, {
         headers: {
-          'cache-control': `private, max-age=${Math.max(ttl - hit.ageSeconds, 0)}`,
+          // A board carrying live times is only good for a minute.
+          'cache-control': `private, max-age=${shown.live ? 60 : Math.max(ttl - hit.ageSeconds, 0)}`,
           'x-cache': 'HIT',
         },
       });
@@ -597,9 +625,10 @@ export async function GET(request: Request) {
     // in a minute or two rather than sit for the hour.
     await setCached(key, body, lastTrainSoon ? 120 : ttl);
 
-    return json(body, {
+    const shown = await withLive(body, from.crs, date === today);
+    return json(shown.body, {
       headers: {
-        'cache-control': `private, max-age=${ttl}`,
+        'cache-control': `private, max-age=${shown.live ? 60 : ttl}`,
         'x-cache': requestsSpent === 0 ? 'PARTIAL' : 'MISS',
         'x-ratelimit-remaining': JSON.stringify(rateLimitSnapshot()),
       },

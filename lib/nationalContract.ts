@@ -30,6 +30,17 @@ export interface NationalService {
   role: ServiceRole;
   /** Minutes to the requested destination. Null without a `to`, or when unreadable. */
   journeyMinutes: number | null;
+  /**
+   * The live board's word on this train, for departures in the next two hours on today's
+   * board. Absent or null means on time or not known — never "late".
+   */
+  expectedDep?: string | null;
+  /** The same, as a UTC instant like `depInstant`. */
+  expectedDepInstant?: string | null;
+  /** Running late with no estimate yet. */
+  isDelayed?: boolean;
+  /** Cancelled on the live board. Kept in the list, shown struck through. */
+  isCancelled?: boolean;
 }
 
 export interface SystemStatusView {
@@ -167,6 +178,13 @@ export interface FastService {
    * live departure looking equally certain about its platform and its punctuality.
    */
   isScheduled?: boolean;
+  /** Live estimates, when they differ from the timetable. London clock and naive ISO. */
+  expectedDeparture?: string | null;
+  expectedDepartureInstant?: string | null;
+  expectedArrival?: string | null;
+  expectedArrivalInstant?: string | null;
+  /** Running late with no estimate yet. */
+  isDelayed?: boolean;
 }
 
 /** Every direct train from A to B in the window, with arrivals worked out. */

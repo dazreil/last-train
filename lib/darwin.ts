@@ -32,6 +32,8 @@ interface DarwinCallingPoint {
   crs?: string;
   /** Scheduled time, `"HH:MM"`. */
   st?: string;
+  /** Expected time: `"HH:MM"`, `"On time"`, `"Delayed"` or `"Cancelled"`. */
+  et?: string;
   isCancelled?: boolean;
 }
 
@@ -48,6 +50,8 @@ interface DarwinService {
   serviceID?: string;
   /** Scheduled departure from the board station, `"HH:MM"`. */
   std?: string;
+  /** Expected departure: `"HH:MM"`, `"On time"`, `"Delayed"` or `"Cancelled"`. */
+  etd?: string;
   platform?: string;
   operator?: string;
   operatorCode?: string;
@@ -90,6 +94,14 @@ export interface NormalizedStop {
    * `DARWIN-INGEST.md` §3 stage 2.
    */
   canAlight?: boolean;
+  /**
+   * The live expected time, when it differs from `time`. Undefined or null when the
+   * train is on time or the feed does not say — the timetable never sets it.
+   */
+  expected?: string | null;
+  expectedInstant?: string | null;
+  /** Running late with no estimate yet: the feed says "Delayed". */
+  delayed?: boolean;
 }
 
 export interface NormalizedService {
@@ -166,6 +178,63 @@ export async function departureBoard(crs: string, query: BoardQuery = {}): Promi
   return (await res.json()) as DarwinBoard;
 }
 
+/** One row of the plain departure board: enough to lay live times over a timetable. */
+export interface LiveDeparture {
+  /** Scheduled departure, `"HH:MM"`. */
+  std: string;
+  /** `"HH:MM"`, `"On time"`, `"Delayed"` or `"Cancelled"`. */
+  etd: string | null;
+  destinationCrs: string | null;
+  destinationName: string;
+  isCancelled: boolean;
+}
+
+/** Recent plain boards per station, so a board opened by several people is one fetch. */
+const liveCache = new Map<string, { at: number; rows: LiveDeparture[] }>();
+const LIVE_CACHE_MS = 45_000;
+
+/**
+ * Every departure from `crs` in the next two hours, without calling points.
+ *
+ * The plain board, not the detailed one: it lists up to 150 trains, where the detailed
+ * board stops at ten, and a busy station's last trains are rarely in the first ten. Used
+ * to lay live expected times over the Last Train board, which comes from the timetable.
+ */
+export async function liveDepartures(crs: string): Promise<LiveDeparture[]> {
+  const cached = liveCache.get(crs);
+  if (cached && Date.now() - cached.at < LIVE_CACHE_MS) return cached.rows;
+
+  const key = API_KEY();
+  const base = BASE_URL();
+  if (!key || !base) throw new DarwinError('Darwin credentials are not configured.', 500);
+
+  let res: Response;
+  try {
+    res = await fetch(`${base}/GetDepartureBoard/${encodeURIComponent(crs)}?numRows=150`, {
+      headers: { 'x-apikey': key, Accept: 'application/json' },
+      signal: AbortSignal.timeout(8_000),
+    });
+  } catch {
+    throw new DarwinError('Could not reach the live departure board.', 502);
+  }
+  if (!res.ok) throw new DarwinError(`Live departure board returned ${res.status}.`, res.status);
+
+  const board = (await res.json()) as DarwinBoard;
+  const rows: LiveDeparture[] = [];
+  for (const service of board.trainServices ?? []) {
+    if (!service.std) continue;
+    rows.push({
+      std: service.std,
+      etd: service.etd ?? null,
+      destinationCrs: service.destination?.[0]?.crs ?? null,
+      destinationName: service.destination?.map((d) => d.locationName).filter(Boolean).join(' & ') ?? '',
+      isCancelled: Boolean(service.isCancelled) || service.etd?.trim() === 'Cancelled',
+    });
+  }
+  liveCache.set(crs, { at: Date.now(), rows });
+  return rows;
+}
+
 /** `"HH:MM"` to minutes since midnight, or null when it is a status word like `On time`. */
 function minutesOfDay(hhmm: string | undefined): number | null {
   if (!hhmm) return null;
@@ -201,6 +270,31 @@ function anchorOf(generatedAt: string | undefined): { date: IsoDate; minute: num
 }
 
 /**
+ * A live expected time, resolved against the scheduled one it replaces.
+ *
+ * Null unless the feed gives a different clock time: `On time`, `Delayed`, `Cancelled`
+ * and an estimate equal to the schedule all mean there is no new time to show. The
+ * estimate takes the scheduled time's date, stepping a day when it wraps past midnight —
+ * a 23:55 running 10 late is 00:05 tomorrow — and back one for the rare early running
+ * across midnight.
+ */
+export function expectedOf(
+  raw: string | undefined,
+  scheduledInstant: string,
+  scheduledMinute: number
+): { clock: string; instant: string } | null {
+  const minute = minutesOfDay(raw);
+  if (minute === null || minute === scheduledMinute) return null;
+  const date = scheduledInstant.slice(0, 10);
+  let dayShift = 0;
+  if (minute < scheduledMinute - 12 * 60) dayShift = 1;
+  else if (minute > scheduledMinute + 12 * 60) dayShift = -1;
+  const hhmm = raw!.trim();
+  const instant = `${addDays(date, dayShift)}T${hhmm}:00`;
+  return { clock: formatLondonTime(instant), instant };
+}
+
+/**
  * Turn a board into the shared shape, resolving every wall-clock time to a London ISO.
  *
  * The times on one train only ever move forward, so a step back is midnight: each time
@@ -221,17 +315,25 @@ export function normalize(board: DarwinBoard): NormalizedService[] {
 
     const board0 = service.subsequentCallingPoints?.[0]?.callingPoint ?? [];
     // Boarding point first, then everything the train calls at after it.
-    const raw: { name: string; crs: string | null; hhmm: string | undefined; cancelled: boolean }[] = [
+    const raw: {
+      name: string;
+      crs: string | null;
+      hhmm: string | undefined;
+      expected: string | undefined;
+      cancelled: boolean;
+    }[] = [
       {
         name: board.locationName ?? board.crs ?? 'Here',
         crs: board.crs ?? null,
         hhmm: service.std,
+        expected: service.etd,
         cancelled: Boolean(service.isCancelled),
       },
       ...board0.map((cp) => ({
         name: cp.locationName ?? 'Unknown',
         crs: cp.crs ?? null,
         hhmm: cp.st,
+        expected: cp.et,
         cancelled: Boolean(cp.isCancelled),
       })),
     ];
@@ -249,12 +351,16 @@ export function normalize(board: DarwinBoard): NormalizedService[] {
         instant = naive;
         clock = formatLondonTime(naive);
       }
+      const live = instant && minute !== null ? expectedOf(stop.expected, instant, minute) : null;
       return {
         crs: stop.crs,
         name: stop.name,
         time: clock,
         timeInstant: instant,
-        isCancelled: stop.cancelled,
+        isCancelled: stop.cancelled || stop.expected?.trim() === 'Cancelled',
+        expected: live?.clock ?? null,
+        expectedInstant: live?.instant ?? null,
+        delayed: stop.expected?.trim() === 'Delayed',
       };
     });
 
@@ -314,6 +420,13 @@ export function toFastService(service: NormalizedService, toCrs: string): FastSe
     arrival: alighting.time,
     arrivalInstant: alighting.timeInstant,
     platform: service.platform,
+    // The live board's estimates. Fast Train ranks by the expected arrival, so a late
+    // fast train is placed where it will really arrive.
+    expectedDeparture: boarding.expected ?? null,
+    expectedDepartureInstant: boarding.expectedInstant ?? null,
+    expectedArrival: alighting.expected ?? null,
+    expectedArrivalInstant: alighting.expectedInstant ?? null,
+    isDelayed: Boolean(boarding.delayed),
   };
 }
 
