@@ -155,7 +155,16 @@ The figure to clear is **£348/year** for RTT Team, plus **~£79/year** for the 
 Developer Program in any option needing in-app purchase — the current account is a free
 personal team. Call it **~£427/year** in that case.
 
-### Affiliate ticket sales — rejected for this app
+### Affiliate ticket sales — reconsidered, 24 September 2026
+
+**Now planned: a Trainline affiliate link on the detail sheet** (roadmap in `STATUS.md`).
+What changed since the rejection below: Fast Train already knows where you are going, so
+a "Buy ticket to Stratford" button is one tap on a journey the app has already been told,
+not a question it asks. The Last Train board still never asks — the button appears there
+only when you have set a destination yourself. The reasoning below still holds for the
+revenue: expect little.
+
+#### The original rejection, 12 August 2026
 
 The programmes are real: Trainline pays roughly **3% on new customers and 1% on
 existing** through Partnerize, Omio quotes **2–8%** varying by market, and the

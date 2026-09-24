@@ -590,6 +590,24 @@ Two rules from `DESIGN.md` are load-bearing and easy to break by accident:
 
 ### Worth doing, not blocking
 
+- **Buy tickets on Trainline — planned 24 September 2026, not built.** A "Buy ticket to
+  <destination>" button on the detail sheet, opening Trainline's search already filled
+  in: start, destination, date and the train's time. Fast Train always; Last Train only
+  when a destination is set. Blue outline, never red. No contactless note.
+  - **Affiliate:** Trainline's programme runs on Partnerize — about 3% of the fare for a
+    new Trainline customer, 1% for an existing one, 30-day cookie, apps accepted, free to
+    join. Apply at join.partnerize.com/trainline; they may want the app on the store
+    first. Until accepted the button is a plain link and earns nothing.
+  - **The real work is a station table.** Trainline's search takes its own station ids,
+    not CRS — `urn:trainline:generic:loc:BTN5268gb` for Brighton. A one-off generator
+    script maps the 2,619 CRS codes to them, validated like `national.json`, and
+    refuses to emit if any station is missing.
+  - The search URL: `thetrainline.com/book/results?origin=<urn>&destination=<urn>&
+    outwardDate=<London ISO>&outwardDateType=departAfter`, plus the Partnerize wrapper.
+  - Before submission: check Apple's tracking-permission (ATT) rules for affiliate
+    links. Linking out to buy real-world tickets is allowed.
+  - Expect 10–30p a sale. It helps; it does not pay for RTT on its own.
+
 - **Take a separate RTT development key.** Team allows five. Until then, testing and the
   generators spend production's quota, and now also production's spend ceiling.
 - **Resize the free-tier budgets.** `DETAIL_BUDGET` in `app/api/trains/route.ts` is the
