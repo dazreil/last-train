@@ -60,12 +60,7 @@ struct ServiceRow: View {
             .accessibilityHint("Opens calling points")
 
             HStack(spacing: 8) {
-                if let meta {
-                    Text(meta)
-                        .font(Theme.Font.meta)
-                        .foregroundStyle(Theme.textDim)
-                        .lineLimit(1)
-                }
+                RowDetail(essentials: essentials, operatorName: service.tocName)
                 Spacer(minLength: 8)
                 if let onFollow, service.headcode != nil {
                     // Pinned to one line: the last-train marker moved to a heading, so
@@ -109,14 +104,15 @@ struct ServiceRow: View {
         DestinationName(name: service.destination)
     }
 
-    private var meta: String? {
+    /// What the detail line must always show. The operator follows, and is the part that
+    /// gives way; see `RowDetail`.
+    private var essentials: [String] {
         var parts: [String] = []
         // The journey leads when there is one, as it does on the Fast Train row.
         if let minutes = service.journeyMinutes { parts.append("\(minutes) min") }
-        parts.append(service.tocName)
         if let platform = service.platform { parts.append("plat \(platform)") }
         if service.isReplacementBus { parts.append("Replacement bus") }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        return parts
     }
 
     private var spoken: String {
@@ -156,5 +152,37 @@ struct DestinationName: View {
                         .minimumScaleFactor(0.75)
                 }
         }
+    }
+}
+
+/**
+ The line under a departure: `22 min · plat 8 · West Midlands Trains`.
+
+ **The platform outranks the operator.** On a phone set to a larger text size, "West
+ Midlands Trains" filled the line and the platform was cut off the end — the one detail
+ you walk towards. So the essentials come first and are laid out first, and the operator
+ takes what is left, shortening to `West Midl…` when it must. The operator is the only
+ part allowed to be cut.
+ */
+struct RowDetail: View {
+    let essentials: [String]
+    let operatorName: String
+
+    var body: some View {
+        HStack(spacing: 0) {
+            if !essentials.isEmpty {
+                Text(essentials.joined(separator: " · "))
+                    .lineLimit(1)
+                    .layoutPriority(1)
+            }
+            if !operatorName.isEmpty {
+                Text((essentials.isEmpty ? "" : " · ") + operatorName)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+        }
+        .font(Theme.Font.meta)
+        .foregroundStyle(Theme.textDim)
+        .accessibilityElement(children: .combine)
     }
 }

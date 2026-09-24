@@ -268,7 +268,12 @@ struct BoardView: View {
                 // it is, the word itself already says.
                 .foregroundStyle(Theme.serviceBlueLit)
                 .shadow(color: Theme.serviceBlue.opacity(0.6), radius: 8)
-                .fixedSize(horizontal: true, vertical: false)
+                // Shrinks rather than holding its width: at the larger text sizes the two
+                // words and the gear no longer fit, and a masthead that will not give way
+                // widens the whole page past the screen edges.
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .layoutPriority(1)
                 .accessibilityAddTraits(.isHeader)
 
             Button {
@@ -278,7 +283,8 @@ struct BoardView: View {
                     .font(.system(.subheadline, design: .rounded).weight(.bold))
                     .tracking(Theme.tracking)
                     .foregroundStyle(Theme.textFaint)
-                    .fixedSize(horizontal: true, vertical: false)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
                     .frame(minHeight: 44)
                     .contentShape(Rectangle())
             }

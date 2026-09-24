@@ -249,7 +249,10 @@ struct FastRow: View {
             .accessibilityHint("Opens calling points")
 
             HStack(spacing: 8) {
-                Text(meta).font(Theme.Font.meta).foregroundStyle(Theme.textDim).lineLimit(1)
+                RowDetail(
+                    essentials: essentials,
+                    operatorName: service.tocName.isEmpty ? service.toc : service.tocName
+                )
                 Spacer(minLength: 8)
                 // Never wraps: the detail yields, the pill keeps its line.
                 FollowPill(isOn: isFollowed, colour: colour, isBusy: isBusy, action: onFollow)
@@ -281,12 +284,13 @@ struct FastRow: View {
     /// platform and its punctuality as a departure board is. The platform is kept, because
     /// a planned platform is usually right and is worth having — the word is what stops it
     /// being read as a promise.
-    private var meta: String {
+    /// Journey, platform and the scheduled caveat always show; the operator follows and
+    /// gives way. See `RowDetail`.
+    private var essentials: [String] {
         var parts = ["\(service.journeyMinutes) min"]
-        parts.append(service.tocName.isEmpty ? service.toc : service.tocName)
         if let platform = service.platform { parts.append("plat \(platform)") }
         if service.isScheduled { parts.append("scheduled") }
-        return parts.joined(separator: " · ")
+        return parts
     }
 
     private var spoken: String {
