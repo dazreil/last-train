@@ -386,7 +386,7 @@ final class FastModel {
         case .departed:
             activityMessage = "That train has already departed. Refresh Fast Train for the latest services."
         case .activitiesDisabled:
-            activityMessage = "Live Activities are turned off for Last Train in Settings."
+            activityMessage = "Live Activities are off for Last Train. Tap here to turn them on."
         case .invalidDeparture:
             activityMessage = "That departure time could not be read. Refresh Fast Train and try again."
         case .failed:

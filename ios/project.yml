@@ -114,8 +114,8 @@ targets:
         # only when the button is pressed -- the app never watches your position, since
         # a departure board is read standing still.
         NSLocationWhenInUseUsageDescription:
-          Last Train uses your location once, when you tap the nearest-station button,
-          to fill in the station you are standing at.
+          Last Train uses your location once, when you tap the arrow, to find the
+          stations near you.
         # Which API to talk to. Never RTT directly — the token stays server-side, so
         # this is always our own deployment. See IOS.md §3 and §5.
         BoardAPIBaseURL: $(BOARD_API_BASE_URL)

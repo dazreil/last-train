@@ -73,12 +73,16 @@ struct FastBoardView: View {
             }
 
             if let message = model.activityMessage {
-                Text(message)
-                    .font(Theme.Font.meta)
-                    .foregroundStyle(Theme.textDim)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, Theme.Space.gutter)
-                    .padding(.vertical, 10)
+                // Live Activities turned off is the one message with a fix a tap can reach:
+                // it opens this app's page in Settings, where the switch is.
+                SettingsLink(enabled: !TrainActivityController.isAvailable) {
+                    Text(message)
+                        .font(Theme.Font.meta)
+                        .foregroundStyle(Theme.textDim)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, Theme.Space.gutter)
+                .padding(.vertical, 10)
             }
 
             // The fastest train, once a later one is followed: kept below the hero under
@@ -328,5 +332,30 @@ struct StepHint: View {
         .buttonStyle(PressDim())
         .padding(.horizontal, Theme.Space.gutter)
         .padding(.top, 26)
+    }
+}
+
+/**
+ A line that opens this app's page in Settings when `enabled`, and is plain text when not.
+
+ For a permission the person turned off. iOS asks only once; after a "Don't Allow" the
+ only way back is Settings, and a line that says so and does nothing leaves them to find
+ the page themselves.
+ */
+struct SettingsLink<Label: View>: View {
+    let enabled: Bool
+    @ViewBuilder let label: () -> Label
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        if enabled, let url = URL(string: UIApplication.openSettingsURLString) {
+            Button { openURL(url) } label: {
+                label().frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+            }
+            .buttonStyle(PressDim())
+            .accessibilityHint("Opens Settings")
+        } else {
+            label()
+        }
     }
 }

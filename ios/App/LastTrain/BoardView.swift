@@ -1009,7 +1009,9 @@ struct BoardView: View {
             if mode == .last || fast.canPage { dayControl }
 
             if let locateError = model.locateError {
-                Text(locateError).font(Theme.Font.meta).foregroundStyle(Theme.textDim)
+                SettingsLink(enabled: LocationFinder.isDenied) {
+                    Text(locateError).font(Theme.Font.meta).foregroundStyle(Theme.textDim)
+                }
             }
         }
         .padding(.horizontal, Theme.Space.gutter)

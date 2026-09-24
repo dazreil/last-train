@@ -31,7 +31,7 @@ enum LocationFinder {
             switch self {
             // Names the fix rather than the fault. The button is still there, and a
             // station can always be typed instead.
-            case .denied: "Location is off for Last Train. Turn it on in Settings, or type a station."
+            case .denied: "Location is off for Last Train. Tap here to turn it on, or pick a station."
             case .unavailable: "Could not get your location."
             case .timedOut: "Could not get your location in time."
             }
@@ -102,7 +102,8 @@ enum LocationFinder {
         }
     }
 
-    private static var isDenied: Bool {
+    /// Read by the board too, so a denial line can open Settings rather than only name it.
+    static var isDenied: Bool {
         manager.authorizationStatus == .denied || manager.authorizationStatus == .restricted
     }
 
