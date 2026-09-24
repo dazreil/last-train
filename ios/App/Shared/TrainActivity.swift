@@ -26,6 +26,14 @@ struct TrainActivity: ActivityAttributes {
         /// When it leaves, as an instant. The countdown is derived from this on device.
         let departure: Date
         let platform: String?
+        /**
+         The live expected time as a clock, when it differs from the timetable.
+
+         The attributes cannot change once an activity starts, and they hold the time it
+         was followed at. A train that then runs late updates this instead, and the views
+         prefer it. Optional so an activity from an earlier build still decodes.
+         */
+        var departureText: String? = nil
     }
 
     let stationName: String
@@ -104,7 +112,7 @@ enum TrainActivityController {
         return await request(
             serviceId: service.serviceId,
             departure: departure,
-            departureText: service.dep,
+            departureText: service.liveDep,
             platform: service.platform,
             stationName: stationName,
             destination: service.destination.withoutLondonPrefix,
@@ -128,8 +136,8 @@ enum TrainActivityController {
     ) async -> TrainActivityStartResult {
         await request(
             serviceId: service.serviceId,
-            departure: service.departsAt,
-            departureText: service.departure,
+            departure: service.liveDepartsAt,
+            departureText: service.liveDeparture,
             // Fast rows carry a platform too; the Island caption used to drop it because
             // this passed nil. A Last Train follow kept it, so the two now match.
             platform: service.platform,
@@ -184,6 +192,27 @@ enum TrainActivityController {
         } catch {
             logger.error("Could not start Live Activity: \(error.localizedDescription, privacy: .public)")
             return .failed
+        }
+    }
+
+    /**
+     Move the countdown to a train's new expected time.
+
+     Called whenever the app reloads a board that holds the followed train. Does nothing
+     unless the time has actually changed, so an on-time train costs no update.
+     */
+    static func update(serviceId: String, departure: Date, departureText: String, platform: String?) async {
+        for activity in Activity<TrainActivity>.activities
+        where activity.attributes.serviceId == serviceId {
+            let current = activity.content.state
+            let shownText = current.departureText ?? activity.attributes.departureText
+            guard current.departure != departure || shownText != departureText else { continue }
+            let state = TrainActivity.ContentState(
+                departure: departure,
+                platform: platform ?? current.platform,
+                departureText: departureText
+            )
+            await activity.update(ActivityContent(state: state, staleDate: departure))
         }
     }
 

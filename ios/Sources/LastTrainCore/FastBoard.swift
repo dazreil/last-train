@@ -40,12 +40,37 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
      beside a live departure looking equally sure of its platform and its punctuality.
      */
     public let isScheduled: Bool
+    /**
+     The live board's estimates, when they differ from the timetable.
+
+     Nil when on time, not known, or from an older deployment. `departsAt` and
+     `arrivesAt` stay the timetable; the `live` pair below is what ranks and shows.
+     */
+    public let expectedDeparture: String?
+    public let expectedArrival: String?
+    public let expectedDepartsAt: Date?
+    public let expectedArrivesAt: Date?
+    /// Running late with no estimate yet.
+    public let isDelayed: Bool
 
     public var id: String { serviceId }
 
+    /// When it will really leave and arrive, as far as anyone knows.
+    public var liveDeparture: String { expectedDeparture ?? departure }
+    public var liveArrival: String { expectedArrival ?? arrival }
+    public var liveDepartsAt: Date { expectedDepartsAt ?? departsAt }
+    public var liveArrivesAt: Date { expectedArrivesAt ?? arrivesAt }
+
+    /// Minutes behind the timetable at departure, when the estimate is later.
+    public var minutesLate: Int? {
+        guard let expectedDepartsAt else { return nil }
+        let minutes = Int((expectedDepartsAt.timeIntervalSince(departsAt) / 60).rounded())
+        return minutes > 0 ? minutes : nil
+    }
+
     /// How long the journey takes, which is what makes one train beat another.
     public var journeyMinutes: Int {
-        Int((arrivesAt.timeIntervalSince(departsAt) / 60).rounded())
+        Int((liveArrivesAt.timeIntervalSince(liveDepartsAt) / 60).rounded())
     }
 
     public init(
@@ -59,7 +84,12 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         platform: String? = nil,
         departsAt: Date,
         arrivesAt: Date,
-        isScheduled: Bool = false
+        isScheduled: Bool = false,
+        expectedDeparture: String? = nil,
+        expectedArrival: String? = nil,
+        expectedDepartsAt: Date? = nil,
+        expectedArrivesAt: Date? = nil,
+        isDelayed: Bool = false
     ) {
         self.serviceId = serviceId
         self.headcode = headcode
@@ -72,12 +102,19 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         self.departsAt = departsAt
         self.arrivesAt = arrivesAt
         self.isScheduled = isScheduled
+        self.expectedDeparture = expectedDeparture
+        self.expectedArrival = expectedArrival
+        self.expectedDepartsAt = expectedDepartsAt
+        self.expectedArrivesAt = expectedArrivesAt
+        self.isDelayed = isDelayed
     }
 
     private enum CodingKeys: String, CodingKey {
         case serviceId, headcode, toc, tocName, destination
         case departure, departureInstant, arrival, arrivalInstant, platform
         case isScheduled
+        case expectedDeparture, expectedDepartureInstant, expectedArrival, expectedArrivalInstant
+        case isDelayed
     }
 
     /**
@@ -101,6 +138,14 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         platform = try container.decodeIfPresent(String.self, forKey: .platform)
         // Absent means live, which is what every deployment before the timetable sent.
         isScheduled = try container.decodeIfPresent(Bool.self, forKey: .isScheduled) ?? false
+        // All optional: a deployment before live times sends none, and reads as on time.
+        expectedDeparture = try container.decodeIfPresent(String.self, forKey: .expectedDeparture)
+        expectedArrival = try container.decodeIfPresent(String.self, forKey: .expectedArrival)
+        expectedDepartsAt = try container.decodeIfPresent(String.self, forKey: .expectedDepartureInstant)
+            .flatMap(ServiceDay.instant(from:))
+        expectedArrivesAt = try container.decodeIfPresent(String.self, forKey: .expectedArrivalInstant)
+            .flatMap(ServiceDay.instant(from:))
+        isDelayed = try container.decodeIfPresent(Bool.self, forKey: .isDelayed) ?? false
 
         let departureInstant = try container.decode(String.self, forKey: .departureInstant)
         let arrivalInstant = try container.decode(String.self, forKey: .arrivalInstant)
@@ -265,8 +310,10 @@ public enum FastBoard {
 
         return unique
             .sorted { left, right in
-                if left.arrivesAt != right.arrivesAt { return left.arrivesAt < right.arrivesAt }
-                return left.departsAt < right.departsAt
+                // By when it will really arrive: a late fast train is placed where it will
+                // get you there, not where the timetable said it would.
+                if left.liveArrivesAt != right.liveArrivesAt { return left.liveArrivesAt < right.liveArrivesAt }
+                return left.liveDepartsAt < right.liveDepartsAt
             }
             .prefix(limit)
             .map { $0 }
@@ -279,7 +326,8 @@ public enum FastBoard {
      now. A train that has left cannot be ranked into first place.
      */
     public static func upcoming(_ services: [FastService], now: Date = Date()) -> [FastService] {
-        services.filter { $0.departsAt > now }
+        // A train past its timetabled time but running late has not left yet.
+        services.filter { $0.liveDepartsAt > now }
     }
 }
 

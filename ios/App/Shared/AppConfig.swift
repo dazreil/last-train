@@ -187,6 +187,12 @@ enum SharedSelection {
         defaults.set(until, forKey: Key.pinUntil)
     }
 
+    /// Move a followed train's expiry to its new expected time. No pin, no change.
+    static func movePin(until: Date) {
+        guard defaults.string(forKey: Key.pinHeadcode) != nil else { return }
+        defaults.set(until, forKey: Key.pinUntil)
+    }
+
     /**
      Forget a followed train once it has left. True if one was forgotten.
 

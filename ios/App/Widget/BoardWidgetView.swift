@@ -61,7 +61,7 @@ struct BoardWidgetView: View {
     private var inline: some View {
         switch state {
         case .answer(let glance):
-            Text("\(ServiceDay.formatClock(glance.departure.dep).spoken) \(words(for: glance.label).lowercased())")
+            Text("\(ServiceDay.formatClock(glance.departure.liveDep).spoken) \(words(for: glance.label).lowercased())")
         case .exhausted:
             Text("No trains left")
         case .unset:
@@ -84,7 +84,7 @@ struct BoardWidgetView: View {
 
                 HStack(alignment: .center, spacing: 5) {
                     CathodeNumber(
-                        text: glance.departure.dep,
+                        text: glance.departure.liveDep,
                         colour: glance.isLastTrain ? Theme.lastTrainRedLit : Theme.serviceBlueLit,
                         scale: .compact
                     )
@@ -125,7 +125,7 @@ struct BoardWidgetView: View {
             case .answer(let glance):
                 Text(words(for: glance.label)).labelStyle(blockColour)
 
-                CathodeNumber(text: glance.departure.dep, colour: blockColour, scale: .row)
+                CathodeNumber(text: glance.departure.liveDep, colour: blockColour, scale: .row)
 
                 Text(glance.departure.destination.withoutLondonPrefix)
                     .font(Theme.Font.destination)
@@ -187,7 +187,7 @@ struct BoardWidgetView: View {
 
                     ForEach(glance.remaining.prefix(3)) { service in
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            Text(ServiceDay.formatClock(service.dep).spoken)
+                            Text(ServiceDay.formatClock(service.liveDep).spoken)
                                 .font(Theme.Font.meta.monospacedDigit())
                                 .fontWeight(service.id == glance.departure.id ? .bold : .regular)
                             Text(service.destination.withoutLondonPrefix)

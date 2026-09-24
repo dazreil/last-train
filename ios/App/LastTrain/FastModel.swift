@@ -315,6 +315,16 @@ final class FastModel {
             showsNextServiceDay = rolled
             page = 0
             updatedAt = Date()
+            // The followed train may be running late now: move its countdown to match.
+            if let activityServiceId,
+               let followed = ranked.first(where: { $0.serviceId == activityServiceId }) {
+                await TrainActivityController.update(
+                    serviceId: followed.serviceId,
+                    departure: followed.liveDepartsAt,
+                    departureText: followed.liveDeparture,
+                    platform: followed.platform
+                )
+            }
         } catch is CancellationError {
             // Somewhere else is already asking a better question. Leaving what is on
             // screen alone is the whole point: this is not a failure to report.

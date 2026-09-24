@@ -30,6 +30,31 @@ public struct BoardDeparture: Decodable, Sendable, Identifiable, Equatable {
     /// Minutes to the destination the board was asked for. Nil when none was, or when
     /// the calling pattern could not answer.
     public let journeyMinutes: Int?
+    /**
+     The live board's word, for trains in the next two hours on today's board.
+
+     All absent from an older deployment and from anything further ahead, which reads as
+     "on time or not known" — never as late. `dep` and `depInstant` stay the timetable;
+     `liveDep` and `liveInstant` are what to show and count down to.
+     */
+    public let expectedDep: String?
+    public let expectedDepInstant: String?
+    public let isDelayed: Bool?
+    public let isCancelled: Bool?
+
+    /// When it will really leave, as far as anyone knows: the estimate, else the timetable.
+    public var liveDep: String { expectedDep ?? dep }
+    public var liveDepInstant: String { expectedDepInstant ?? depInstant }
+    public var delayed: Bool { isDelayed ?? false }
+    public var cancelled: Bool { isCancelled ?? false }
+
+    /// Minutes behind the timetable, when there is an estimate that is later.
+    public var minutesLate: Int? {
+        guard let expected = expectedDepInstant.flatMap(ServiceDay.instant(from:)),
+              let scheduled = ServiceDay.instant(from: depInstant) else { return nil }
+        let minutes = Int((expected.timeIntervalSince(scheduled) / 60).rounded())
+        return minutes > 0 ? minutes : nil
+    }
 
     /**
      What a pin stores to find this exact departure again.
@@ -46,8 +71,8 @@ public struct BoardDeparture: Decodable, Sendable, Identifiable, Equatable {
 
     public var id: String { serviceId }
 
-    /// The departure as an absolute instant, for counting down to.
-    public var instant: Date? { ServiceDay.instant(from: depInstant) }
+    /// The departure as an absolute instant, for counting down to — the live one.
+    public var instant: Date? { ServiceDay.instant(from: liveDepInstant) }
 }
 
 public struct BoardStation: Decodable, Sendable, Equatable {
@@ -81,8 +106,15 @@ public struct DepartureBoard: Decodable, Sendable, Equatable {
     public let towardsByDirection: [Compass: [String]]
 
     /// The last train of `date` — the one thing on the board that is red.
+    /**
+     The genuine last train of the day on this board.
+
+     A train the live board has cancelled is not it: the one before takes the red, and
+     the cancelled one stays on the board, struck through. Only if every last-train row
+     is cancelled does the latest keep the name, so the board still has one to point at.
+     */
     public var lastTrain: BoardDeparture? {
-        services.last { $0.role == .last }
+        services.last { $0.role == .last && !$0.cancelled } ?? services.last { $0.role == .last }
     }
 
     public var lastTrains: [BoardDeparture] { services.filter { $0.role == .last } }

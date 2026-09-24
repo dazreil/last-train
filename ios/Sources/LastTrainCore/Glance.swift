@@ -84,7 +84,7 @@ public struct Glance: Sendable, Equatable {
         pinned: String? = nil
     ) -> Glance? {
         let remaining = board.services.filter { service in
-            guard let instant = ServiceDay.instant(from: service.depInstant) else {
+            guard let instant = ServiceDay.instant(from: service.liveDepInstant) else {
                 // Unparseable is treated as gone rather than as still to come. A time
                 // that cannot be read cannot be relied on to tell you to run.
                 return false
@@ -146,7 +146,7 @@ public struct Glance: Sendable, Equatable {
      */
     public static func changePoints(board: DepartureBoard, now: Date = Date()) -> [Date] {
         board.services
-            .compactMap { ServiceDay.instant(from: $0.depInstant) }
+            .compactMap { ServiceDay.instant(from: $0.liveDepInstant) }
             .filter { $0 > now }
             .sorted()
             .map { $0.addingTimeInterval(1) }

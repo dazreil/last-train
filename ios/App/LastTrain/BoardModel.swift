@@ -207,6 +207,7 @@ final class BoardModel {
                 guard !Task.isCancelled else { return }
                 board = result
                 updatedAt = Date()
+                followLiveTimes(result)
             } catch is CancellationError {
                 return
             } catch {
@@ -347,9 +348,28 @@ final class BoardModel {
             following ? service.pinToken : nil,
             crs: station.crs,
             direction: direction,
-            until: following ? ServiceDay.instant(from: service.depInstant) : nil
+            until: following ? ServiceDay.instant(from: service.liveDepInstant) : nil
         )
         WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    /**
+     Carry a board's live times to what outlives it.
+
+     A followed train that is now running late must not be forgotten at its old time, so
+     the pin's expiry moves with it. And the widget, which fetched its own board earlier,
+     is told to fetch again whenever this board carries live news — a delay, a
+     cancellation — so the lock screen does not keep the timetable's time.
+     */
+    private func followLiveTimes(_ board: DepartureBoard) {
+        if let pinned = board.services.first(where: { isPinned($0) }),
+           let instant = ServiceDay.instant(from: pinned.liveDepInstant) {
+            SharedSelection.movePin(until: instant)
+        }
+        let hasLiveNews = board.services.contains {
+            $0.expectedDep != nil || $0.delayed || $0.cancelled
+        }
+        if hasLiveNews { WidgetCenter.shared.reloadAllTimelines() }
     }
 
     /// Bumped when a pin changes other than by a tap here, so views re-read it.

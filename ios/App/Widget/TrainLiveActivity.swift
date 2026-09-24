@@ -29,7 +29,7 @@ struct TrainLiveActivity: Widget {
                             .tracking(Theme.tracking)
                             .foregroundStyle(activityColour(context))
                         CathodeNumber(
-                            text: context.attributes.departureText,
+                            text: (context.state.departureText ?? context.attributes.departureText),
                             colour: activityColour(context),
                             scale: .compact
                         )
@@ -57,7 +57,7 @@ struct TrainLiveActivity: Widget {
                     .font(.caption2.weight(.semibold))
                 }
             } compactLeading: {
-                Text(ServiceDay.formatClock(context.attributes.departureText).spoken)
+                Text(ServiceDay.formatClock((context.state.departureText ?? context.attributes.departureText)).spoken)
                     .font(.system(.caption, design: .monospaced).weight(.bold))
                     .foregroundStyle(activityColour(context))
                     .lineLimit(1)
@@ -90,7 +90,7 @@ struct TrainLiveActivity: Widget {
                         .tracking(Theme.tracking)
                         .foregroundStyle(activityColour(context))
                     CathodeNumber(
-                        text: context.attributes.departureText,
+                        text: (context.state.departureText ?? context.attributes.departureText),
                         colour: activityColour(context),
                         scale: .row
                     )

@@ -145,7 +145,7 @@ struct FastBoardView: View {
     private func sheetService(_ service: FastService, isHero: Bool, followed: Bool) -> SheetService {
         SheetService(
             serviceId: service.serviceId,
-            dep: service.departure,
+            dep: service.liveDeparture,
             destination: service.destination,
             tocName: service.tocName.isEmpty ? service.toc : service.tocName,
             platform: service.platform,
@@ -231,7 +231,8 @@ struct FastRow: View {
         VStack(alignment: .leading, spacing: 8) {
             Button(action: onOpen) {
                 HStack(alignment: .center, spacing: 13) {
-                    CathodeNumber(text: service.departure, colour: colour, scale: .row)
+                    // The live time, as on the Last Train board.
+                    CathodeNumber(text: service.liveDeparture, colour: colour, scale: .row)
                         .frame(maxWidth: 190, alignment: .leading)
 
                     // The name rather than the code, two lines reserved so every row is
@@ -251,10 +252,7 @@ struct FastRow: View {
             .accessibilityHint("Opens calling points")
 
             HStack(spacing: 8) {
-                RowDetail(
-                    essentials: essentials,
-                    operatorName: service.tocName.isEmpty ? service.toc : service.tocName
-                )
+                RowDetail(live: LiveNote(service), essentials: essentials)
                 Spacer(minLength: 8)
                 // Never wraps: the detail yields, the pill keeps its line.
                 FollowPill(isOn: isFollowed, colour: colour, isBusy: isBusy, action: onFollow)
@@ -297,7 +295,9 @@ struct FastRow: View {
 
     private var spoken: String {
         (isFollowed ? "Your train. " : "")
-            + "Departs \(ServiceDay.formatClock(service.departure).spoken), arrives \(ServiceDay.formatClock(service.arrival).spoken), \(service.journeyMinutes) minutes"
+            + "Departs \(ServiceDay.formatClock(service.liveDeparture).spoken), arrives \(ServiceDay.formatClock(service.liveArrival).spoken), \(service.journeyMinutes) minutes"
+            + (service.minutesLate.map { ", \($0) minutes late" } ?? "")
+            + (service.isDelayed ? ", delayed" : "")
             // Said out loud too. A caveat only sighted users get is not a caveat.
             + (service.isScheduled ? ", scheduled time" : "")
     }

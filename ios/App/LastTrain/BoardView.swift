@@ -1364,7 +1364,7 @@ struct BoardView: View {
         let topLabel: String? = isLast ? "Last train" : (followed ? "Following" : nil)
         return SheetService(
             serviceId: service.serviceId,
-            dep: service.dep,
+            dep: service.liveDep,
             destination: service.destination,
             tocName: service.tocName,
             platform: service.platform,

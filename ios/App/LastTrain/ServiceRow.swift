@@ -61,9 +61,9 @@ struct ServiceRow: View {
             .accessibilityHint("Opens calling points")
 
             HStack(spacing: 8) {
-                RowDetail(essentials: essentials, operatorName: service.tocName)
+                RowDetail(live: LiveNote(service), essentials: essentials)
                 Spacer(minLength: 8)
-                if let onFollow, service.headcode != nil {
+                if let onFollow, service.headcode != nil, !service.cancelled {
                     // Pinned to one line: the last-train marker moved to a heading, so
                     // nothing shares this line but the detail, and the pill never wraps.
                     FollowPill(isOn: isFollowed, colour: colour, action: onFollow)
@@ -76,6 +76,9 @@ struct ServiceRow: View {
         .padding(.vertical, 12 - rowSqueeze)
         .background(CathodeGauze(tint: colour, density: 11).opacity(0.55))
         .overlay(alignment: .bottom) { CathodeRule(colour: colour.opacity(0.42)) }
+        // A cancelled train stays on the board, greyed and struck through, so its absence
+        // is explained rather than silent.
+        .opacity(service.cancelled ? 0.45 : 1)
     }
 
     /// The way into the calling points. An information mark rather than a chevron: the
@@ -87,7 +90,13 @@ struct ServiceRow: View {
     }
 
     private var time: some View {
-        CathodeNumber(text: service.dep, colour: colour, scale: .row)
+        // The live time: when it will really leave. The timetable's is on the line below.
+        CathodeNumber(text: service.liveDep, colour: colour, scale: .row)
+            .overlay {
+                if service.cancelled {
+                    Rectangle().fill(colour).frame(height: 3)
+                }
+            }
             .frame(maxWidth: 190, alignment: .leading)
     }
 
@@ -120,7 +129,10 @@ struct ServiceRow: View {
 
     private var spoken: String {
         (isLastTrain ? "Last train. " : "")
-            + "\(service.tocName) service departing \(ServiceDay.formatClock(service.dep).spoken), towards \(service.destination)"
+            + (service.cancelled ? "Cancelled. " : "")
+            + "\(service.tocName) service departing \(ServiceDay.formatClock(service.liveDep).spoken), towards \(service.destination)"
+            + (service.minutesLate.map { ", \($0) minutes late" } ?? "")
+            + (service.delayed ? ", delayed" : "")
             + (service.isReplacementBus ? ", replacement bus" : "")
     }
 }
@@ -168,25 +180,59 @@ struct DestinationName: View {
  part allowed to be cut.
  */
 struct RowDetail: View {
+    var live: LiveNote = LiveNote()
     let essentials: [String]
-    let operatorName: String
 
+    /**
+     `due 23:19 · 5 min late · plat 2`. The live word leads and is the one part lit, since
+     it is the news; the rest is dim. The operator is not here any more: it made room for
+     the delay, and it is on the detail sheet behind the ⓘ.
+     */
     var body: some View {
-        HStack(spacing: 0) {
-            if !essentials.isEmpty {
-                Text(essentials.joined(separator: " · "))
-                    .lineLimit(1)
-                    .layoutPriority(1)
-            }
-            if !operatorName.isEmpty {
-                Text((essentials.isEmpty ? "" : " · ") + operatorName)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
+        var parts: [Text] = []
+        if let due = live.due { parts.append(Text(due).foregroundColor(Theme.textDim)) }
+        if let alert = live.alert { parts.append(Text(alert).foregroundColor(Theme.text)) }
+        for item in essentials { parts.append(Text(item).foregroundColor(Theme.textDim)) }
+        let line = parts.enumerated().reduce(Text("")) { joined, next in
+            next.offset == 0 ? next.element : joined + Text(" · ").foregroundColor(Theme.textDim) + next.element
         }
-        .font(Theme.Font.meta)
-        .foregroundStyle(Theme.textDim)
-        .accessibilityElement(children: .combine)
+        return line
+            .font(Theme.Font.meta)
+            .lineLimit(1)
+            .truncationMode(.tail)
+    }
+}
+
+/**
+ What the live board says about a train, as the words the detail line shows.
+
+ `due` is the timetabled time when the train is running late, and `alert` the news:
+ `5 min late`, `Delayed`, or `Cancelled`. Both nil when it is on time or not known.
+ */
+struct LiveNote {
+    var due: String? = nil
+    var alert: String? = nil
+
+    init() {}
+
+    init(_ service: BoardDeparture) {
+        if service.cancelled {
+            alert = "Cancelled"
+        } else if service.delayed {
+            alert = "Delayed"
+        } else if let late = service.minutesLate {
+            due = "due \(ServiceDay.formatClock(service.dep).spoken)"
+            alert = "\(late) min late"
+        }
+    }
+
+    init(_ service: FastService) {
+        if service.isDelayed {
+            alert = "Delayed"
+        } else if let late = service.minutesLate {
+            due = "due \(ServiceDay.formatClock(service.departure).spoken)"
+            alert = "\(late) min late"
+        }
     }
 }
 
