@@ -228,7 +228,10 @@ Mono measures 0.66em, which at 44px consumed 145px of a 375pt screen and forced 
 station name onto a second line. Measure before substituting a face.
 
 **The Real Length Rule.** Station names are never truncated and never ellipsised. If a
-name is long it wraps. "London Fenchurch S…" loses the only word that identifies it —
+name is long it wraps. On the iOS boards every row reserves two lines for the name,
+whether it needs them or not, so rows are one height and the board does not change size
+between stations; a name too long for two lines shrinks slightly (to 75%) rather than
+being cut. "London Fenchurch S…" loses the only word that identifies it —
 so London termini drop the "London" for display instead, with the full name kept in
 the tooltip and the accessible name.
 

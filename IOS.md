@@ -129,8 +129,9 @@ in the app, e.g. long-press the masthead. Ships disabled.
 ### Three things true before submission
 
 **All three are met, as of 24 September 2026.** The Team plan was bought on 15 August;
-the token has never left the server; and the board footer reads *"Powered by Realtime
-Trains and National Rail Enquiries"*, with both names linked.
+the token has never left the server; and Settings credits Realtime Trains, National
+Rail Enquiries and the ORR, each linked. The credit moved there from a board footer on
+24 September 2026 — see item 3.
 
 1. **A paid plan. Confirmed in writing with RTT, 1 August 2026: a free App Store app
    still needs a commercial one**, because of the number of calls it makes. Being
@@ -156,8 +157,10 @@ Trains and National Rail Enquiries"*, with both names linked.
    production for quota, which on the free tier it does.
 2. **The token still never reaches the device**, paid or not. The app talks to our
    API, never to `data.rtt.io`. See §5.
-3. **Visible attribution** — RTT require clear credit with a link in any
-   public-facing app. Permanent, not buried in an About sheet.
+3. **Visible attribution** — RTT require "clearly visible credit" with a link in any
+   public-facing app (API terms §5.1). They do not say where. It is in Settings, behind
+   the gear on every screen. **Email RTT and get written confirmation that this counts
+   before submitting**; §5.2 allows it to be settled under a commercial licence.
 
 ---
 

@@ -35,10 +35,11 @@ Where each answer comes from:
 | Fast Train, 2–4 hours, and the destination lists | Darwin timetable store, published nightly — see `DARWIN-INGEST.md` |
 | Popular destinations | `data/popularity.json`, from the ORR matrix, refreshed each December |
 
-**Next:** `IOS.md` §9 step 7 — submission. The RTT Team plan is paid for, the credit
-line is in the app (*"Powered by Realtime Trains and National Rail Enquiries"*), and
-the open-API question is closed by rate limits (see *Exposure*). What remains is
-confirming the information flow end to end, then App Store submission.
+**Next:** `IOS.md` §9 step 7 — submission. The RTT Team plan is paid for, the credits
+are in Settings (Realtime Trains, National Rail Enquiries, ORR), and the open-API
+question is closed by rate limits (see *Exposure*). What remains is RTT's written OK on
+where the credit sits, confirming the information flow end to end, then App Store
+submission.
 
 | | |
 |---|---|
@@ -580,8 +581,11 @@ Two rules from `DESIGN.md` are load-bearing and easy to break by accident:
    by hand. Check `/api/timetable-health` the morning after it runs on its own.
 2. **Confirm the information flow end to end** — every screen answers from the source
    in the table at the top, and a failure in any one of them says so in words.
-3. **Submit.** `IOS.md` §9 step 7. The RTT Team plan is paid; the credit line is in
-   the app; the API is rate limited.
+3. **Get RTT's written OK on the credit in Settings.** Their API terms (§5.1) ask for
+   "clearly visible credit" with a link and do not say where. Settings is one tap from
+   every screen. §5.2 lets it be settled under the Team licence.
+4. **Submit.** `IOS.md` §9 step 7. The RTT Team plan is paid; the credits are in
+   Settings; the API is rate limited.
 
 ### Worth doing, not blocking
 

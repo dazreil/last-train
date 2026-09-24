@@ -249,7 +249,12 @@ timetable of its own regardless.
 - **Red means "this is the last train", and nothing else.** Never errors, alerts,
   operators, or emphasis. The moment it means two things it means nothing
 - Visible attribution to Realtime Trains, required by their terms for any
-  public-facing app. Permanent, not buried in an About sheet
+  public-facing app: "clearly visible credit … with a link" (API terms §5.1). Where it
+  goes is not specified. **Decided 24 September 2026:** it lives in Settings, one tap
+  from every screen by the gear in the masthead, so the board fits one screen. Confirm
+  with RTT in writing before submission; §5.2 lets them waive or settle it under a
+  commercial licence. The earlier line here, "not buried in an About sheet", was our
+  own reading, not theirs
 - The British Rail double arrow is a protected mark. The app uses an original
   directional mark instead
 - Voice: plain and factual. No transit jargon the interface does not need. An empty

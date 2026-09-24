@@ -57,7 +57,8 @@ LAST TRAIN, EARLIER TRAINS, FASTEST TRAIN, LATER TRAINS, FIRST BACK → `section
 | "Couldn't refresh" banner over the dimmed old board | `staleNotice` |
 | "Try again" pill | `retryButton` |
 | Grey loading blocks | `loadingBoard` |
-| The "Powered by… / Updated…" footer | `footnote` |
+| The gear, top right | opens `SettingsView` |
+| Settings: home station, credits, about | `SettingsView` (home is `HomeJourney`) |
 
 ## The look (background / texture)
 | What you see | Name |
