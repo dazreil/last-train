@@ -39,7 +39,49 @@ struct HomeJourney: Equatable {
         defaults.set(home?.direction.rawValue, forKey: Key.direction)
     }
 
-    var label: String { "\(station.name) · \(direction.rawValue.capitalized)" }
+    var label: String { "\(station.name.withoutLondonPrefix) · \(direction.rawValue.capitalized)" }
+}
+
+/**
+ The stations you start from, kept on the phone for the hold menus (`HOLD-MENUS.md` §4).
+
+ App-only defaults, like `HomeJourney`: the widget has no use for it. The ranking lives in
+ `LastTrainCore.StationUsage`, where it is tested.
+ */
+enum UsageStore {
+    private static let key = "lastTrain.usage"
+
+    static var current: StationUsage {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let usage = try? JSONDecoder().decode(StationUsage.self, from: data)
+        else { return StationUsage() }
+        return usage
+    }
+
+    /// Count a start station you chose. Never called for the launch restoring where you
+    /// left off, which is not a choice.
+    static func record(_ station: Station) {
+        var usage = current
+        usage.record(station.crs)
+        if let data = try? JSONEncoder().encode(usage) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
+    }
+
+    static func clear() { UserDefaults.standard.removeObject(forKey: key) }
+
+    /// Up to four of each, as stations, with no station in both lists.
+    static func menuLists() -> (mostUsed: [Station], recent: [Station]) {
+        let usage = current
+        let most = usage.mostUsed()
+        let recent = usage.recent(excluding: Set(most))
+        return (most.compactMap(Stations.find), recent.compactMap(Stations.find))
+    }
+
+    /// Most recent first, for "Set home from recent", which wants recency alone.
+    static func recentStations(limit: Int = 4) -> [Station] {
+        current.recent(limit: limit).compactMap(Stations.find)
+    }
 }
 
 /**
@@ -55,9 +97,12 @@ struct SettingsView: View {
     /// The board on screen, offered as the home journey. Nil when there is no station or
     /// no direction chosen yet, so there is nothing to offer.
     let current: HomeJourney?
+    /// Everything back to how it was installed. Owned by the board, which holds the state.
+    var onReset: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
     @State private var home = HomeJourney.current
+    @State private var confirmingReset = false
 
     var body: some View {
         NavigationStack {
@@ -67,6 +112,7 @@ struct SettingsView: View {
                     homeSection
                     creditsSection
                     aboutSection
+                    resetSection
                 }
                 .scrollContentBackground(.hidden)
             }
@@ -188,6 +234,33 @@ struct SettingsView: View {
         let short = info?["CFBundleShortVersionString"] as? String ?? "?"
         let build = info?["CFBundleVersion"] as? String ?? "?"
         return "\(short) (\(build))"
+    }
+
+    // MARK: Reset
+
+    /**
+     `HOLD-MENUS.md` §3. Here rather than under a hold on ✕, where one slip on a platform
+     would wipe everything. The confirming button is plain, not the system's red
+     "destructive" style: red is the last train and nothing else.
+     */
+    private var resetSection: some View {
+        Section {
+            Button("Reset app…") { confirmingReset = true }
+                .tint(Theme.textDim)
+                .listRowBackground(rowBackground)
+                .confirmationDialog("Reset Last Train?", isPresented: $confirmingReset, titleVisibility: .visible) {
+                    Button("Reset") {
+                        onReset()
+                        dismiss()
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("This forgets your home journey, every remembered destination, the train you are following, your most used and recent stations, and the mode. The board goes back to blank. The lock screen widget keeps its own setting.")
+                }
+        } footer: {
+            Text("Everything the app remembers, back to how it was installed.")
+                .foregroundStyle(Theme.textFaint)
+        }
     }
 
     // MARK: Shared

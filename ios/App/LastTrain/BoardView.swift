@@ -1,4 +1,5 @@
 import SwiftUI
+import WidgetKit
 
 import LastTrainCore
 
@@ -20,6 +21,8 @@ private enum PresentedSheet: Identifiable {
     case nearby
     case destination
     case settings
+    /// "Trains into" a station: pick where you would come from.
+    case into(Station)
     case service(SheetService)
 
     var id: String {
@@ -28,6 +31,7 @@ private enum PresentedSheet: Identifiable {
         case .nearby: "nearby"
         case .destination: "destination"
         case .settings: "settings"
+        case .into(let station): "into-\(station.crs)"
         case .service(let service): "service-\(service.id)"
         }
     }
@@ -53,6 +57,17 @@ struct BoardView: View {
     @State private var refreshRequests = 0
     /// True while a reversed journey's direction is being looked up.
     @State private var isSwapping = false
+    /**
+     True while a home is being chosen from the house menu.
+
+     Picking a station only gives half a home; the board then asks which way, and the
+     home is saved once a direction is chosen — so a home can only be a direction that
+     has trains, as when it is set from Settings.
+     */
+    @State private var settingHome = false
+    /// Bumped when the home changes, so the bar re-reads it: the home lives in defaults,
+    /// which observation cannot see.
+    @State private var homeRevision = 0
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -179,6 +194,19 @@ struct BoardView: View {
             }
         }
         .onOpenURL { model.open($0) }
+        // A home picked from the house menu is half a home until it has a direction. Saved
+        // the moment one is chosen, by the compass row or by a destination.
+        .onChange(of: "\(directionChosen):\(model.station?.crs ?? "-"):\(model.direction.rawValue)") {
+            guard settingHome, directionChosen, let station = model.station else { return }
+            HomeJourney.store(HomeJourney(station: station, direction: model.direction))
+            settingHome = false
+            homeRevision += 1
+        }
+        // Closing the picker without choosing a station abandons setting a home, so a later
+        // ordinary journey does not become one by surprise.
+        .onChange(of: presented?.id) { _, now in
+            if now == nil, settingHome, model.station == nil { settingHome = false }
+        }
         // The destination is half the bar in both modes now, so it is read here rather
         // than inside Fast Train's view — Last Train shows it too.
         .task(id: "\(model.station?.crs ?? "-"):\(model.direction.rawValue):\(directionChosen)") {
@@ -256,8 +284,22 @@ struct BoardView: View {
                         destinationCrs: fast.destination?.crs
                     )
                 }
+            case .into(let end):
+                // The stations with a direct train to `end`, every direction at once. The
+                // board is untouched until one is picked, so cancelling changes nothing.
+                LinePicker(
+                    from: end,
+                    direction: nil,
+                    date: model.requestedDate,
+                    title: "Trains into \(end.crs)",
+                    selectedCrs: nil
+                ) { picked, _, heading in
+                    Task {
+                        await adoptJourney(from: picked, to: end, fallback: heading?.opposite ?? model.direction)
+                    }
+                }
             case .settings:
-                SettingsView(current: currentJourney)
+                SettingsView(current: currentJourney, onReset: resetApp)
             }
         }
     }
@@ -291,6 +333,28 @@ struct BoardView: View {
             _ = try? await BoardClient(baseURL: AppConfig.apiBaseURL)
                 .destinations(from: station.crs, direction: heading)
         }
+    }
+
+    /// Everything the app remembers, back to how it was installed. `HOLD-MENUS.md` §3.
+    /// The widget's own configuration is left alone: it is set on the widget.
+    private func resetApp() {
+        HomeJourney.store(nil)
+        homeRevision += 1
+        settingHome = false
+        SharedSelection.clearAllDestinations()
+        SharedSelection.setPin(nil, crs: "", direction: .west)
+        UsageStore.clear()
+        Task {
+            await TrainActivityController.stop()
+            fast.syncActivityState()
+        }
+        mode = .last
+        model.clearNearby()
+        fast.release()
+        directionChosen = false
+        model.direction = .west
+        model.station = nil
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     /// The board on screen as a home journey, once it has both a station and a chosen
@@ -497,102 +561,199 @@ struct BoardView: View {
             // journey to clear.
             locateButton
             if model.station != nil, fast.destination != nil { swapButton }
-            if model.station != nil { clearButton }
-            else if HomeJourney.current != nil { homeButton }
+            if model.station != nil { clearButton } else { homeButton }
         }
     }
 
     /// Wipes the chosen journey back to the "Where?" prompt. Sits next to the locate
     /// button because clearing and re-finding are the two things you do to the pair.
+    ///
+    /// Hold for the menu in `HOLD-MENUS.md` §2: Clear (the tap), then Go home.
     private var clearButton: some View {
-        Button {
-            clearJourney()
+        Menu {
+            Button("Clear", systemImage: "xmark") { clearJourney() }
+            if let home {
+                Button("Go home · \(home.station.crs) \(home.direction.rawValue.capitalized)", systemImage: "house") {
+                    goHome()
+                }
+            }
         } label: {
-            Image(systemName: "xmark")
-                .font(.body.weight(.semibold))
-                .foregroundStyle(Theme.textDim)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
+            barIcon("xmark")
+        } primaryAction: {
+            clearJourney()
         }
-        .buttonStyle(PressDim())
+        .modifier(BarMenuStyle())
         .accessibilityLabel("Clear journey")
     }
 
-    /// Turns the journey round: `EUS → MKC` becomes `MKC → EUS`. Only there once both
-    /// ends are set, since there is nothing to turn round before that.
-    private var swapButton: some View {
-        Button {
-            Task { await swapJourney() }
-        } label: {
-            Group {
-                if isSwapping { ProgressView().tint(Theme.textDim) }
-                else { Image(systemName: "arrow.left.arrow.right") }
-            }
+    /// One of the bar's icons, sized to its 44-point target.
+    private func barIcon(_ name: String) -> some View {
+        Image(systemName: name)
             .font(.body.weight(.semibold))
             .foregroundStyle(Theme.textDim)
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
+    }
+
+    /// The home journey, re-read whenever it changes.
+    private var home: HomeJourney? {
+        _ = homeRevision
+        return HomeJourney.current
+    }
+
+    /// Turns the journey round: `EUS → MKC` becomes `MKC → EUS`. Only there once both
+    /// ends are set, since there is nothing to turn round before that.
+    ///
+    /// Hold for the menu in `HOLD-MENUS.md` §2: Reverse (the tap), Continue from the end,
+    /// and Trains into the start. Labels name the real stations.
+    private var swapButton: some View {
+        Menu {
+            Button("Reverse", systemImage: "arrow.left.arrow.right") {
+                Task { await swapJourney() }
+            }
+            if let end = fast.destination {
+                Button("Continue from \(end.crs)", systemImage: "arrow.right.to.line") {
+                    continueFrom(end)
+                }
+            }
+            if let start = model.station {
+                Button("Trains into \(start.crs)", systemImage: "arrow.left.to.line") {
+                    presented = .into(start)
+                }
+            }
+        } label: {
+            Group {
+                if isSwapping { ProgressView().tint(Theme.textDim) }
+                else { barIcon("arrow.left.arrow.right") }
+            }
+            .frame(width: 44, height: 44)
+        } primaryAction: {
+            Task { await swapJourney() }
         }
-        .buttonStyle(PressDim())
+        .modifier(BarMenuStyle())
         .disabled(isSwapping)
         .accessibilityLabel("Reverse journey")
     }
 
     /**
-     The way back, as its own journey.
+     "I have arrived; what can I get from here?" The end becomes the start and the end is
+     left blank: `EUS → MKC` becomes `MKC → —`, and the board asks which way, as it does
+     for any new station.
+     */
+    private func continueFrom(_ end: Station) {
+        model.clearNearby()
+        directionChosen = false
+        model.station = end
+        UsageStore.record(end)
+    }
 
-     The direction is **asked for, not assumed to be the opposite one**. A destination's
-     direction has to be the board's own rule, or the reversed board opens empty — and on a
-     line that turns, like the Tilbury loop, the way back is not always the mirror of the
-     way out. So the unfiltered list from the far end is read, and the old start's
-     direction taken from it. Only if that fails does the opposite stand in.
+    /**
+     A journey from `start` to `end`, with the direction looked up rather than guessed.
+
+     A destination's direction has to be the board's own rule, or the board opens empty —
+     and on a line that turns, like the Tilbury loop, it is not always the mirror of the
+     other way. So the unfiltered list from `start` is read and `end`'s direction taken
+     from it. `fallback` stands in only if that fails.
 
      Filed before the station and direction change, for the reason `adoptEnd` gives:
      changing either re-reads what is filed, and would otherwise find nothing.
      */
-    private func swapJourney() async {
-        guard !isSwapping, let start = model.station, let end = fast.destination else { return }
+    private func adoptJourney(from start: Station, to end: Station, fallback: Compass) async {
         isSwapping = true
         defer { isSwapping = false }
 
         let client = BoardClient(baseURL: AppConfig.apiBaseURL)
-        let list = try? await client.destinations(
-            from: end.crs,
-            direction: nil,
-            date: model.requestedDate
-        )
-        let heading = list?.destinations.first(where: { $0.crs == start.crs })?.direction
-        let direction = heading ?? model.direction.opposite
+        let list = try? await client.destinations(from: start.crs, direction: nil, date: model.requestedDate)
+        let heading = list?.destinations.first(where: { $0.crs == end.crs })?.direction
+        let direction = heading ?? fallback
 
-        fast.choose(start, at: end, direction: direction)
+        fast.choose(end, at: start, direction: direction)
         directionChosen = true
         model.direction = direction
-        model.station = end
+        model.station = start
+        UsageStore.record(start)
     }
 
-    /// On the blank board, the way back to your home journey. ✕ clears; this is where
-    /// you go from there, so the two take turns in the same place.
+    /// The way back, as its own journey. The direction is asked for, not assumed to be
+    /// the opposite one; see `adoptJourney`.
+    private func swapJourney() async {
+        guard !isSwapping, let start = model.station, let end = fast.destination else { return }
+        await adoptJourney(from: end, to: start, fallback: model.direction.opposite)
+    }
+
+    /**
+     On the blank board, where ✕ was: the two take turns in the same place.
+
+     With a home, a tap goes home and a hold opens the menu. With none there is nowhere to
+     go, so a tap opens the menu (`HOLD-MENUS.md` §2 and §6).
+     */
+    @ViewBuilder
     private var homeButton: some View {
-        Button {
-            goHome()
-        } label: {
-            Image(systemName: "house")
-                .font(.body.weight(.semibold))
-                .foregroundStyle(Theme.textDim)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
+        if home != nil {
+            Menu { homeMenu } label: { barIcon("house") } primaryAction: { goHome() }
+                .modifier(BarMenuStyle())
+                .accessibilityLabel("Go to home journey")
+        } else {
+            Menu { homeMenu } label: { barIcon("house") }
+                .modifier(BarMenuStyle())
+                .accessibilityLabel("Set a home journey")
         }
-        .buttonStyle(PressDim())
-        .accessibilityLabel("Go to home journey")
     }
 
-    /// The home journey, by the house button. Never applied on its own — only by this tap.
+    @ViewBuilder
+    private var homeMenu: some View {
+        if let home {
+            Button("Go home · \(home.station.crs) \(home.direction.rawValue.capitalized)", systemImage: "house") {
+                goHome()
+            }
+        }
+        Button("Set home from nearest", systemImage: "location") {
+            settingHome = true
+            Task {
+                await model.locate()
+                if model.nearby.isEmpty { settingHome = false } else { presented = .nearby }
+            }
+        }
+        Button("Set home from search", systemImage: "magnifyingglass") {
+            settingHome = true
+            model.clearNearby()
+            presented = .start
+        }
+        let recent = UsageStore.recentStations()
+        if !recent.isEmpty {
+            Menu("Set home from recent") {
+                ForEach(recent, id: \.crs) { station in
+                    Button("\(station.name.withoutLondonPrefix) · \(station.crs)") {
+                        settingHome = true
+                        startFrom(station)
+                    }
+                }
+            }
+        }
+        if home != nil {
+            Button("Clear home", systemImage: "house.slash") {
+                HomeJourney.store(nil)
+                homeRevision += 1
+            }
+        }
+    }
+
+    /// The home journey, by the house or the ✕ menu. Never applied on its own.
     private func goHome() {
         guard let home = HomeJourney.current else { return }
         model.clearNearby()
         directionChosen = true
         model.direction = home.direction
         model.station = home.station
+        UsageStore.record(home.station)
+    }
+
+    /// A new start picked from a menu: a new journey, so it asks which way.
+    private func startFrom(_ station: Station) {
+        model.clearNearby()
+        if station.crs != model.station?.crs { directionChosen = false }
+        model.station = station
+        UsageStore.record(station)
     }
 
     private func clearJourney() {
@@ -610,7 +771,19 @@ struct BoardView: View {
 
     /// Shown when a station has been picked but no direction chosen yet. The compass row
     /// above is where the answer is; this only names the question.
+    @ViewBuilder
     private var directionPrompt: some View {
+        if settingHome, let station = model.station {
+            notice(
+                title: "Which way is home?",
+                body: "Pick the direction, or where you are going, above. \(station.name) then becomes your home journey."
+            )
+        } else {
+            plainDirectionPrompt
+        }
+    }
+
+    private var plainDirectionPrompt: some View {
         notice(
             title: "Which way?",
             // Either answers it: a destination sets the direction by itself.
@@ -640,6 +813,7 @@ struct BoardView: View {
             directionChosen = false
         }
         model.station = picked
+        UsageStore.record(picked)
     }
 
     /**
@@ -655,6 +829,7 @@ struct BoardView: View {
             set: { picked in
                 if picked?.crs != model.station?.crs { directionChosen = false }
                 model.station = picked
+                if let picked { UsageStore.record(picked) }
             }
         )
     }
@@ -672,6 +847,7 @@ struct BoardView: View {
             fast.clearDestination(at: picked, direction: model.direction)
             directionChosen = false
             model.station = picked
+            UsageStore.record(picked)
             return
         }
         let direction = directionChosen ? model.direction : (heading ?? model.direction)
@@ -720,27 +896,48 @@ struct BoardView: View {
 
     /// The nearest-station control, now an arrow alone in the station box — the label went
     /// to save the room, the action did not.
+    ///
+    /// Hold for the menu in `HOLD-MENUS.md` §2: Nearest (the tap), then the stations you
+    /// start from most, then the most recent that are not already listed.
     private var locateButton: some View {
-        Button {
-            Task {
-                await model.locate()
-                // Found some — offer them in the picker. A failure leaves the one-line
-                // reason under the bar instead.
-                if !model.nearby.isEmpty { presented = .nearby }
+        Menu {
+            Button("Nearest station", systemImage: "location.fill") { locate() }
+            let lists = UsageStore.menuLists()
+            if !lists.mostUsed.isEmpty {
+                Section("Most used") {
+                    ForEach(lists.mostUsed, id: \.crs) { station in
+                        Button("\(station.name.withoutLondonPrefix) · \(station.crs)") { startFrom(station) }
+                    }
+                }
+            }
+            if !lists.recent.isEmpty {
+                Section("Recent") {
+                    ForEach(lists.recent, id: \.crs) { station in
+                        Button("\(station.name.withoutLondonPrefix) · \(station.crs)") { startFrom(station) }
+                    }
+                }
             }
         } label: {
             Group {
                 if model.isLocating { ProgressView().tint(Theme.textDim) }
-                else { Image(systemName: "location.fill") }
+                else { barIcon("location.fill") }
             }
-            .font(.body.weight(.semibold))
-            .foregroundStyle(Theme.textDim)
             .frame(width: 44, height: 44)
-            .contentShape(Rectangle())
+        } primaryAction: {
+            locate()
         }
-        .buttonStyle(PressDim())
+        .modifier(BarMenuStyle())
         .disabled(model.isLocating)
         .accessibilityLabel("Nearest station")
+    }
+
+    private func locate() {
+        Task {
+            await model.locate()
+            // Found some — offer them in the picker. A failure leaves the one-line
+            // reason under the bar instead.
+            if !model.nearby.isEmpty { presented = .nearby }
+        }
     }
 
     /// The date stepper (Last) and the page stepper (Fast), named the way the main design
@@ -1233,5 +1430,17 @@ struct BoardHaptics: ViewModifier {
             .sensoryFeedback(trigger: nearbyCount) { old, new in new > 0 && old == 0 ? .success : nil }
             .sensoryFeedback(trigger: locateError) { _, new in new == nil ? nil : .warning }
             .sensoryFeedback(trigger: errorMessage) { _, new in new == nil ? nil : .error }
+    }
+}
+
+/// The bar's menus look like the buttons they replaced: the plain icon, no menu chrome,
+/// and the same dim on press.
+private struct BarMenuStyle: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .menuStyle(.button)
+            .buttonStyle(PressDim())
+            .tint(Theme.textDim)
+            .accessibilityHint("Hold for more options")
     }
 }

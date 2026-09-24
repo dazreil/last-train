@@ -168,6 +168,13 @@ enum SharedSelection {
 
     /// Pass `nil` to unpin. Only one train is pinned at a time, deliberately: a widget
     /// showing a choice between two trains is not a glance.
+    /// Forget every remembered destination, for Reset in Settings.
+    static func clearAllDestinations() {
+        defaults.removeObject(forKey: Key.destinations)
+        defaults.removeObject(forKey: Key.destination)
+        defaults.removeObject(forKey: Key.destinationScope)
+    }
+
     static func setPin(_ headcode: String?, crs: String, direction: Compass, until: Date? = nil) {
         guard let headcode, !headcode.isEmpty else {
             defaults.removeObject(forKey: Key.pinHeadcode)

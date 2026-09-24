@@ -559,6 +559,7 @@ as `systemMedium` — so the harness has to build each family's view directly.
 | `IOS.md` | The approved spec for the national iOS app, and the record of how each part was decided. |
 | `DARWIN-INGEST.md` | The Darwin timetable ingest: what the file holds, how it is parsed, stored and delivered. |
 | `UI-GLOSSARY.md` | Plain names for each piece of the iOS screen, and the code name that matches it. |
+| `HOLD-MENUS.md` | Hold menus on the journey bar buttons, the station usage record, and Reset in Settings. Built 24 September 2026. |
 | `README.md` | How to run it, how the API is laid out, and deployment. |
 
 The original brief (`PROJECT.md`) and the UI design brief were supplied as
