@@ -72,7 +72,12 @@ struct FastBoardView: View {
             )
         } else {
             if let hero = model.hero {
-                sectionHeading(heroTitle, colour: Theme.lastTrainRedLit)
+                // A followed train leads with no heading, as on the Last Train board: its
+                // pill already says "Following", and a heading as well added a line that
+                // pushed the board past the screen. The fastest keeps its heading below.
+                if !isFollowingHero {
+                    sectionHeading("Fastest train", colour: Theme.lastTrainRedLit)
+                }
                 row(hero, isHero: true)
             }
 
@@ -152,23 +157,11 @@ struct FastBoardView: View {
     }
 
     /// Whether the hero is up there because you followed it, rather than because it is
-    /// the fastest. The two headings both turn on this.
+    /// the fastest. It then leads with no heading, and the fastest gets its own below.
+    /// "Fastest train" stays the name even when the board has rolled to tomorrow's first
+    /// services: they are still the fastest.
     private var isFollowingHero: Bool {
         model.hero?.serviceId == model.activityServiceId
-    }
-
-    /**
-     What the pinned train is.
-
-     A followed train says so. Otherwise it is the fastest train to the destination — the
-     first you can be there on, which is the whole question this mode answers. It stays
-     "Fastest train" even when the board has rolled to tomorrow's first services: they are
-     still the fastest, and the earlier "First tomorrow" / "Other trains tomorrow" pair
-     wrapped to two lines where the shorter, still-true titles do not.
-     */
-    private var heroTitle: String {
-        if isFollowingHero { return "Following" }
-        return "Fastest train"
     }
 
     /**
