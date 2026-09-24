@@ -57,24 +57,27 @@ struct TrainLiveActivity: Widget {
                     .font(.caption2.weight(.semibold))
                 }
             } compactLeading: {
-                Text(ServiceDay.formatClock((context.state.departureText ?? context.attributes.departureText)).spoken)
-                    .font(.system(.caption, design: .monospaced).weight(.bold))
+                // A train, not a time: the departure time and the countdown side by side
+                // made the island far too wide. The colour still says which train — red for
+                // the last one — and the time itself is in the expanded island.
+                Image(systemName: "tram.fill")
+                    .font(.caption.weight(.bold))
                     .foregroundStyle(activityColour(context))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
             } compactTrailing: {
-                // The narrow compact slot cannot hold `HH:MM:SS`, so a far train truncated
-                // to `2:––` — the seconds drawn as dashes. Drop the hours field and let the
-                // value scale to fit, so it stays a live, correct countdown at any distance.
-                countdown(to: context.state.departure, showsHours: false)
+                minuteCountdown(to: context.isStale ? .distantPast : context.state.departure)
                     .font(.system(.caption, design: .monospaced).weight(.bold))
                     .foregroundStyle(Theme.paper)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.6)
+                    // The system reserves room for the longest value a live date can take,
+                    // and the island grows to it. `1h 59m` is the longest a followed train
+                    // can show (four hours ahead at most), so the slot is sized to that.
+                    .minimumScaleFactor(0.7)
+                    .frame(maxWidth: 42, alignment: .trailing)
             } minimal: {
-                countdown(to: context.state.departure)
+                minuteCountdown(to: context.isStale ? .distantPast : context.state.departure)
                     .font(.system(.caption2, design: .monospaced).weight(.bold))
                     .foregroundStyle(activityColour(context))
+                    .lineLimit(1)
             }
             .widgetURL(URL(string: "lasttrain://board"))
         }
@@ -134,6 +137,33 @@ struct TrainLiveActivity: Widget {
      was not any time at all, which is the worst way for a clock to be wrong. The system
      sizes these slots; let it.
      */
+    /**
+     Hours and minutes, no seconds, for the small island.
+
+     Seconds are what made the compact countdown wide, and to the minute is all a glance
+     needs. iOS 18's live duration counts itself down on the device like the full timer;
+     iOS 17 has no such source and keeps the full countdown.
+     */
+    @ViewBuilder
+    private func minuteCountdown(to departure: Date) -> some View {
+        if departure <= Date.now {
+            // Gone. A live range cannot run backwards, so this is drawn, not counted.
+            Text("0m").monospacedDigit()
+        } else if #available(iOS 18.0, *) {
+            // `26m`, `1h 5m`, counted on the device. A range from now to the departure, in
+            // the narrow style: the minute timer read "16 minutes", as wide as what it
+            // replaced, and a duration offset counts the other way and read "-26m".
+            Text(
+                .dateRange(endingAt: departure),
+                format: Date.ComponentsFormatStyle(style: .narrow, fields: [.hour, .minute])
+            )
+            .monospacedDigit()
+        } else {
+            countdown(to: departure, showsHours: false)
+                .minimumScaleFactor(0.6)
+        }
+    }
+
     private func countdown(to departure: Date, showsHours: Bool = true) -> some View {
         Text(timerInterval: Date.now...departure, countsDown: true, showsHours: showsHours)
             .monospacedDigit()
