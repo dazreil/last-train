@@ -297,8 +297,9 @@ export function expectedOf(
 /**
  * Turn a board into the shared shape, resolving every wall-clock time to a London ISO.
  *
- * The times on one train only ever move forward, so a step back is midnight: each time
- * that reads earlier than the one before it takes the next day. The same rule spans the
+ * The times on one train only ever move forward, so a big step back is midnight: a time
+ * more than twelve hours earlier than the one before it takes the next day. A small step
+ * back is not — it is a late train still listed after its timetabled minute. The same rule spans the
  * gap from the board's own clock to the first departure, so a train just past midnight on
  * a board generated just before it is dated tomorrow without a special case.
  */
@@ -345,7 +346,12 @@ export function normalize(board: DarwinBoard): NormalizedService[] {
       let instant: string | null = null;
       let clock: string | null = null;
       if (minute !== null) {
-        if (minute < previous) dayOffset += 1;
+        // Only a big step back is midnight. A train running late stays on the board past
+        // its timetabled time, so its time can sit a few minutes before the board's own
+        // clock: the 21:37 still listed at 21:40, four minutes late. Rolling that to
+        // tomorrow put it at the bottom of the list, 24 hours away, unfollowable, and
+        // never "departed" — so it stuck. Midnight is a step back of hours, not minutes.
+        if (previous - minute > 12 * 60) dayOffset += 1;
         previous = minute;
         const naive = `${addDays(anchor.date, dayOffset)}T${stop.hhmm}:00`;
         instant = naive;
