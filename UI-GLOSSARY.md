@@ -6,7 +6,7 @@ Read top of the screen to bottom. **What you see → `the name`.**
 ## Top bar
 | What you see | Name |
 | --- | --- |
-| The "LAST TRAIN / FAST TRAIN" title you tap to switch | `masthead` |
+| The "LAST TRAIN / FAST TRAIN" title you tap to switch; hold it to refresh | `masthead` |
 | The whole "WCF → UPM" area under the title | `stationHeader` |
 | The "WCF → UPM" line itself | `journeyBar` |
 | Each station code (WCF, UPM) | `codeButton` |

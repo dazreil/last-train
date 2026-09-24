@@ -45,6 +45,10 @@ struct BoardView: View {
     /// The top safe-area inset, measured so the scroll-edge fade covers exactly the status
     /// bar and Dynamic Island — no more, so it never dims the masthead at rest.
     @State private var topInset: CGFloat = 0
+    /// True while a refresh asked for by holding the masthead is in flight.
+    @State private var isRefreshing = false
+    /// Bumped on each hold-to-refresh, to fire the haptic.
+    @State private var refreshRequests = 0
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -81,6 +85,11 @@ struct BoardView: View {
                 .padding(.bottom, 30)
             }
             .scrollIndicators(.hidden)
+            // No scrolling, and no bounce, while the board fits the screen — which it does
+            // on a current phone at normal text sizes. It still scrolls when it cannot fit,
+            // on a small phone or at large text, because a board you cannot reach the
+            // bottom of has silently dropped its first train back.
+            .scrollBounceBehavior(.basedOnSize)
 
             // The wordmark used to slide up behind the status bar and Dynamic Island, colliding
             // with the clock and reading "LAST TRAI … AIN" under the pill. This fade sits over
@@ -117,16 +126,6 @@ struct BoardView: View {
                 errorMessage: model.errorMessage
             )
         )
-        .refreshable {
-            // Refresh whichever board is on screen. It used to always refresh Last Train,
-            // so a pull in Fast Train refreshed a hidden board and its "Updated" stamp
-            // never moved.
-            if mode == .fast, let station = model.station {
-                await fast.load(at: station, direction: model.direction, refresh: true)
-            } else {
-                await model.load(refresh: true)
-            }
-        }
         .task { await model.load() }
         .task {
             await TrainActivityController.tidy()
@@ -234,6 +233,20 @@ struct BoardView: View {
         }
     }
 
+    /// Refresh whichever board is on screen — not always Last Train, which once left a
+    /// hold in Fast Train refreshing a hidden board.
+    private func refresh() async {
+        guard !isRefreshing else { return }
+        refreshRequests += 1
+        isRefreshing = true
+        defer { isRefreshing = false }
+        if mode == .fast, let station = model.station {
+            await fast.load(at: station, direction: model.direction, refresh: true)
+        } else {
+            await model.load(refresh: true)
+        }
+    }
+
     /// The board on screen as a home journey, once it has both a station and a chosen
     /// direction. Offered by Settings as the thing to make home.
     private var currentJourney: HomeJourney? {
@@ -298,15 +311,32 @@ struct BoardView: View {
             // Home journey, credits and the facts the footer used to carry. The footer
             // pushed the board into scrolling; this costs nothing on the board itself.
             Button { presented = .settings } label: {
-                Image(systemName: "gearshape")
-                    .font(.system(.body, design: .rounded).weight(.semibold))
-                    .foregroundStyle(Theme.textFaint)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
+                Group {
+                    if isRefreshing {
+                        ProgressView().tint(Theme.textDim)
+                    } else {
+                        Image(systemName: "gearshape")
+                            .font(.system(.body, design: .rounded).weight(.semibold))
+                            .foregroundStyle(Theme.textFaint)
+                    }
+                }
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
             }
             .buttonStyle(PressDim())
             .accessibilityLabel("Settings and credits")
         }
+        /*
+         Hold the masthead to refresh. It replaced pull-to-refresh, which needed the board
+         to scroll: a board that moves under a thumb on a platform reads as a web page, and
+         a refresh by accident costs an upstream request. Holding is deliberate and works
+         one-handed. Returning to the app after a minute already refreshes on its own, so
+         this is for the case where you want it *now*.
+         */
+        .contentShape(Rectangle())
+        .onLongPressGesture(minimumDuration: 0.5) { Task { await refresh() } }
+        .sensoryFeedback(.impact(weight: .medium), trigger: refreshRequests)
+        .accessibilityAction(named: "Refresh") { Task { await refresh() } }
         .padding(.horizontal, Theme.Space.gutter)
         .padding(.top, 18)
     }
