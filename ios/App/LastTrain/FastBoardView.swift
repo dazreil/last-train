@@ -214,6 +214,7 @@ struct FastRow: View {
     private var colour: Color { isHero ? Theme.lastTrainRedLit : Theme.serviceBlueLit }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.rowSqueeze) private var rowSqueeze
 
     var body: some View {
         // The same two gestures as a Last Train row: tap the time or destination to open
@@ -254,7 +255,7 @@ struct FastRow: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Theme.Space.gutter)
-        .padding(.vertical, 12)
+        .padding(.vertical, 12 - rowSqueeze)
         .background(CathodeGauze(tint: colour, density: 11).opacity(0.55))
         .overlay(alignment: .bottom) { CathodeRule(colour: colour.opacity(0.42)) }
         .overlay(alignment: .leading) {

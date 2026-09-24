@@ -20,6 +20,7 @@ struct ServiceRow: View {
     var onFollow: (() -> Void)? = nil
 
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.rowSqueeze) private var rowSqueeze
 
     /// Red is the train that leads the board — the last train when nothing is followed,
     /// or the followed train once one is. Demoted into the list it goes blue like any
@@ -72,7 +73,7 @@ struct ServiceRow: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Theme.Space.gutter)
-        .padding(.vertical, 12)
+        .padding(.vertical, 12 - rowSqueeze)
         .background(CathodeGauze(tint: colour, density: 11).opacity(0.55))
         .overlay(alignment: .bottom) { CathodeRule(colour: colour.opacity(0.42)) }
     }
@@ -186,5 +187,31 @@ struct RowDetail: View {
         .font(Theme.Font.meta)
         .foregroundStyle(Theme.textDim)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/**
+ Points taken off the top and bottom padding of every board row, so the board fits the
+ screen without scrolling.
+
+ `BoardView` measures how far the page overflows and sets this just high enough to cover
+ it, up to `maximum`. Past that the page scrolls, which it must: a board you cannot reach
+ the bottom of has dropped its first train back. Measured on the device rather than tuned
+ to one text size, because the owner's phone is set larger than the simulator and each
+ fixed trim so far fitted one and not the other.
+ */
+enum RowSqueeze {
+    /// Rows keep at least 4 points above and below.
+    static let maximum: CGFloat = 8
+}
+
+private struct RowSqueezeKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 0
+}
+
+extension EnvironmentValues {
+    var rowSqueeze: CGFloat {
+        get { self[RowSqueezeKey.self] }
+        set { self[RowSqueezeKey.self] = newValue }
     }
 }

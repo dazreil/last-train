@@ -87,10 +87,8 @@ a hold opens the menu. With none, there is nowhere to go, so a tap opens the men
 | 4 | Set home from recent | A submenu of your recent stations. |
 | 5 | Clear home | Removes the home. The house then stops showing. |
 
-**A home is a station and a direction** (`HomeJourney`). Items 2–4 choose only a
-station, so after picking one the board opens on it and asks which way, exactly as a
-new station does. The home is saved once the direction is chosen. This keeps the
-existing rule that a home can only be a direction that has trains.
+**A home is a station** (`HomeStation`). It was a station and a direction until the
+fix below; picking one now sets it at once.
 
 Items 1 and 5 show only when a home is set.
 
@@ -188,3 +186,16 @@ Differences from the plan above:
   own wording ("Most journeys from here", minutes from the target) is the destinations
   sheet's and reads slightly off in this use. Worth a caption of its own if it confuses.
 - **Menu station names drop "London"**, as the board does.
+
+### Fixes after the first build, 24 September 2026
+
+- **Home is a station, not a journey.** Going home used to restore the destination
+  remembered under the home's direction, so from `BSO → UPM` "Go home" opened
+  `UPM → BSO` — Reverse under another name. Home now sets the start only and the board
+  asks which way.
+- **Both station codes share one size.** Each used to shrink on its own, so the longer
+  code came out smaller and kept its size when the two swapped. The pair now steps down
+  a text size together (`ViewThatFits`) until it fits.
+- **The board trims its rows to fit.** It measures how far the page overflows and takes
+  up to 8 points off the top and bottom of each row to cover it (`RowSqueeze`). Past that
+  it scrolls. Fixed trims had each fitted the simulator and not the owner's phone.

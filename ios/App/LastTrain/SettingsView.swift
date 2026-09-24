@@ -3,49 +3,43 @@ import SwiftUI
 import LastTrainCore
 
 /**
- Your usual journey, two taps away.
+ Your home station, two taps away.
 
  The app always opens where you left it. ✕ clears the journey, and on the blank board a
- house button takes its place and brings you home. It used to be applied at every launch, which jumped the board away
- from a train you were following whenever iOS had closed the app in the background.
+ house button takes its place and brings you home.
 
- A station **and** a direction, because the board is the pair: a station alone would open
- on whichever direction was last used there, which is the problem this exists to remove.
- Set from the board on screen rather than chosen from a list, so a home can only ever be a
- direction that has trains.
+ **A station, not a journey.** It was a station and a direction until 24 September 2026,
+ and going home then brought back whatever destination was remembered under that
+ direction — so from `BSO → UPM`, going home to Upminster eastbound opened `UPM → BSO`,
+ which read as Reverse rather than as home. Home now sets the start and nothing else; the
+ board asks which way, like any new station.
 
  App-only defaults: the widget has its own configuration and never reads this.
  */
-struct HomeJourney: Equatable {
+struct HomeStation: Equatable {
     let station: Station
-    let direction: Compass
 
-    private enum Key {
-        static let crs = "lastTrain.home.station"
-        static let direction = "lastTrain.home.direction"
+    private static let key = "lastTrain.home.station"
+    /// Written by the old journey form. Removed on the next store.
+    private static let legacyDirectionKey = "lastTrain.home.direction"
+
+    static var current: HomeStation? {
+        UserDefaults.standard.string(forKey: key).flatMap(Stations.find).map(HomeStation.init)
     }
 
-    static var current: HomeJourney? {
+    static func store(_ home: HomeStation?) {
         let defaults = UserDefaults.standard
-        guard let station = defaults.string(forKey: Key.crs).flatMap(Stations.find),
-              let direction = defaults.string(forKey: Key.direction).flatMap(Compass.init(rawValue:))
-        else { return nil }
-        return HomeJourney(station: station, direction: direction)
+        defaults.set(home?.station.crs, forKey: key)
+        defaults.removeObject(forKey: legacyDirectionKey)
     }
 
-    static func store(_ home: HomeJourney?) {
-        let defaults = UserDefaults.standard
-        defaults.set(home?.station.crs, forKey: Key.crs)
-        defaults.set(home?.direction.rawValue, forKey: Key.direction)
-    }
-
-    var label: String { "\(station.name.withoutLondonPrefix) · \(direction.rawValue.capitalized)" }
+    var label: String { station.name.withoutLondonPrefix }
 }
 
 /**
  The stations you start from, kept on the phone for the hold menus (`HOLD-MENUS.md` §4).
 
- App-only defaults, like `HomeJourney`: the widget has no use for it. The ranking lives in
+ App-only defaults, like `HomeStation`: the widget has no use for it. The ranking lives in
  `LastTrainCore.StationUsage`, where it is tested.
  */
 enum UsageStore {
@@ -96,12 +90,12 @@ enum UsageStore {
 struct SettingsView: View {
     /// The board on screen, offered as the home journey. Nil when there is no station or
     /// no direction chosen yet, so there is nothing to offer.
-    let current: HomeJourney?
+    let current: HomeStation?
     /// Everything back to how it was installed. Owned by the board, which holds the state.
     var onReset: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
-    @State private var home = HomeJourney.current
+    @State private var home = HomeStation.current
     @State private var confirmingReset = false
 
     var body: some View {
@@ -140,7 +134,7 @@ struct SettingsView: View {
 
             if let current, current != home {
                 Button("Make \(current.label) home") {
-                    HomeJourney.store(current)
+                    HomeStation.store(current)
                     home = current
                 }
                 .listRowBackground(rowBackground)
@@ -150,7 +144,7 @@ struct SettingsView: View {
                 // Not `role: .destructive`: that draws the button red, and red is the last
                 // train and nothing else.
                 Button("Clear home") {
-                    HomeJourney.store(nil)
+                    HomeStation.store(nil)
                     home = nil
                 }
                 .tint(Theme.textDim)
@@ -160,7 +154,7 @@ struct SettingsView: View {
             header("Home")
         } footer: {
             Text(home == nil
-                 ? "The app opens where you left it. Set a home and, after ✕, a house button takes you to it. To choose one, open that station and direction on the board first."
+                 ? "The app opens where you left it. Set a home and, after ✕, a house button takes you to it. Hold the house to choose one, or use the station on the board."
                  : "The app opens where you left it. Press ✕, then the house button, to come back here. The widget keeps its own setting.")
                 .foregroundStyle(Theme.textFaint)
         }

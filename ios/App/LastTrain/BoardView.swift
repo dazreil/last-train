@@ -57,14 +57,14 @@ struct BoardView: View {
     @State private var refreshRequests = 0
     /// True while a reversed journey's direction is being looked up.
     @State private var isSwapping = false
-    /**
-     True while a home is being chosen from the house menu.
-
-     Picking a station only gives half a home; the board then asks which way, and the
-     home is saved once a direction is chosen — so a home can only be a direction that
-     has trains, as when it is set from Settings.
-     */
+    /// True while a home is being chosen from the house menu: the next station picked
+    /// becomes home.
     @State private var settingHome = false
+    /// The page's height, the space it has, and the row trim that makes one fit the
+    /// other. See `fitRows`.
+    @State private var contentHeight: CGFloat = 0
+    @State private var viewportHeight: CGFloat = 0
+    @State private var rowSqueeze: CGFloat = 0
     /// Bumped when the home changes, so the bar re-reads it: the home lives in defaults,
     /// which observation cannot see.
     @State private var homeRevision = 0
@@ -104,6 +104,15 @@ struct BoardView: View {
                 // A little room past the last row and no more. This was 30 points, and on
                 // its own it made a board that fitted the screen scroll a little.
                 .padding(.bottom, 12)
+                .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) {
+                    contentHeight = $0
+                    fitRows()
+                }
+                .environment(\.rowSqueeze, rowSqueeze)
+            }
+            .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) {
+                viewportHeight = $0
+                fitRows()
             }
             .scrollIndicators(.hidden)
             // Runs under the home indicator rather than stopping above it: those 34 points
@@ -194,11 +203,10 @@ struct BoardView: View {
             }
         }
         .onOpenURL { model.open($0) }
-        // A home picked from the house menu is half a home until it has a direction. Saved
-        // the moment one is chosen, by the compass row or by a destination.
-        .onChange(of: "\(directionChosen):\(model.station?.crs ?? "-"):\(model.direction.rawValue)") {
-            guard settingHome, directionChosen, let station = model.station else { return }
-            HomeJourney.store(HomeJourney(station: station, direction: model.direction))
+        // The station picked while setting a home becomes it, from whichever list it came.
+        .onChange(of: model.station?.crs) {
+            guard settingHome, let station = model.station else { return }
+            HomeStation.store(HomeStation(station: station))
             settingHome = false
             homeRevision += 1
         }
@@ -299,9 +307,25 @@ struct BoardView: View {
                     }
                 }
             case .settings:
-                SettingsView(current: currentJourney, onReset: resetApp)
+                SettingsView(current: currentStation, onReset: resetApp)
             }
         }
+    }
+
+    /**
+     Trim each row just enough for the page to fit, from 0 to `RowSqueeze.maximum`.
+
+     Worked from the page's natural height — what it would be with no trim — so the answer
+     does not chase its own effect: trimming shortens the page, and a rule reading only the
+     shortened page would undo the trim on the next pass. Eight is two edges of four rows,
+     the number a board carries; with more or fewer rows it lands close and settles.
+     */
+    private func fitRows() {
+        guard viewportHeight > 0, contentHeight > 0 else { return }
+        let natural = contentHeight + rowSqueeze * 8
+        let needed = ((natural - viewportHeight) / 8).rounded(.up)
+        let squeeze = min(max(needed, 0), RowSqueeze.maximum)
+        if squeeze != rowSqueeze { rowSqueeze = squeeze }
     }
 
     /// Refresh whichever board is on screen — not always Last Train, which once left a
@@ -338,7 +362,7 @@ struct BoardView: View {
     /// Everything the app remembers, back to how it was installed. `HOLD-MENUS.md` §3.
     /// The widget's own configuration is left alone: it is set on the widget.
     private func resetApp() {
-        HomeJourney.store(nil)
+        HomeStation.store(nil)
         homeRevision += 1
         settingHome = false
         SharedSelection.clearAllDestinations()
@@ -357,11 +381,10 @@ struct BoardView: View {
         WidgetCenter.shared.reloadAllTimelines()
     }
 
-    /// The board on screen as a home journey, once it has both a station and a chosen
-    /// direction. Offered by Settings as the thing to make home.
-    private var currentJourney: HomeJourney? {
-        guard directionChosen, let station = model.station else { return nil }
-        return HomeJourney(station: station, direction: model.direction)
+    /// The station on screen, offered by Settings as the thing to make home.
+    private var currentStation: HomeStation? {
+        guard let station = model.station else { return nil }
+        return HomeStation(station: station)
     }
 
     private var fastKey: String {
@@ -529,29 +552,18 @@ struct BoardView: View {
      the other; the full name is always one tap away in the list that opens.
      */
     private var journeyBar: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            codeButton(
-                model.station?.crs,
-                placeholder: "Where?",
-                label: "Departure station, \(model.station?.name ?? "not set")"
-            ) {
-                model.clearNearby()
-                presented = .start
-            }
-
-            if model.station != nil {
-                Image(systemName: "arrow.right")
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(Theme.textDim)
-                    .accessibilityHidden(true)
-
-                codeButton(
-                    fast.destination?.crs,
-                    placeholder: "—",
-                    label: "Destination, \(fast.destination?.name ?? "not set")"
-                ) {
-                    fast.askWhereTo()
-                }
+        HStack(alignment: .center, spacing: 10) {
+            /*
+             Both codes at one size, the largest that fits. Each used to shrink on its own,
+             so `UPM` came out smaller than `BSO` and kept its own size when the two swapped
+             ends. The whole pair now steps down a size together until it fits beside the
+             buttons.
+            */
+            ViewThatFits(in: .horizontal) {
+                codes(.largeTitle)
+                codes(.title)
+                codes(.title2)
+                codes(.title3)
             }
 
             Spacer(minLength: 8)
@@ -573,7 +585,7 @@ struct BoardView: View {
         Menu {
             Button("Clear", systemImage: "xmark") { clearJourney() }
             if let home {
-                Button("Go home · \(home.station.crs) \(home.direction.rawValue.capitalized)", systemImage: "house") {
+                Button("Go home · \(home.station.crs)", systemImage: "house") {
                     goHome()
                 }
             }
@@ -595,10 +607,10 @@ struct BoardView: View {
             .contentShape(Rectangle())
     }
 
-    /// The home journey, re-read whenever it changes.
-    private var home: HomeJourney? {
+    /// The home station, re-read whenever it changes.
+    private var home: HomeStation? {
         _ = homeRevision
-        return HomeJourney.current
+        return HomeStation.current
     }
 
     /// Turns the journey round: `EUS → MKC` becomes `MKC → EUS`. Only there once both
@@ -692,18 +704,18 @@ struct BoardView: View {
         if home != nil {
             Menu { homeMenu } label: { barIcon("house") } primaryAction: { goHome() }
                 .modifier(BarMenuStyle())
-                .accessibilityLabel("Go to home journey")
+                .accessibilityLabel("Go to home station")
         } else {
             Menu { homeMenu } label: { barIcon("house") }
                 .modifier(BarMenuStyle())
-                .accessibilityLabel("Set a home journey")
+                .accessibilityLabel("Set a home station")
         }
     }
 
     @ViewBuilder
     private var homeMenu: some View {
         if let home {
-            Button("Go home · \(home.station.crs) \(home.direction.rawValue.capitalized)", systemImage: "house") {
+            Button("Go home · \(home.station.crs)", systemImage: "house") {
                 goHome()
             }
         }
@@ -732,18 +744,19 @@ struct BoardView: View {
         }
         if home != nil {
             Button("Clear home", systemImage: "house.slash") {
-                HomeJourney.store(nil)
+                HomeStation.store(nil)
                 homeRevision += 1
             }
         }
     }
 
-    /// The home journey, by the house or the ✕ menu. Never applied on its own.
+    /// The home station, by the house or the ✕ menu. Never applied on its own.
     private func goHome() {
-        guard let home = HomeJourney.current else { return }
+        guard let home = HomeStation.current else { return }
         model.clearNearby()
-        directionChosen = true
-        model.direction = home.direction
+        // The start and nothing else: no direction and no destination, so the board asks
+        // which way. Carrying a remembered destination is what made home look like Reverse.
+        directionChosen = false
         model.station = home.station
         UsageStore.record(home.station)
     }
@@ -771,19 +784,7 @@ struct BoardView: View {
 
     /// Shown when a station has been picked but no direction chosen yet. The compass row
     /// above is where the answer is; this only names the question.
-    @ViewBuilder
     private var directionPrompt: some View {
-        if settingHome, let station = model.station {
-            notice(
-                title: "Which way is home?",
-                body: "Pick the direction, or where you are going, above. \(station.name) then becomes your home journey."
-            )
-        } else {
-            plainDirectionPrompt
-        }
-    }
-
-    private var plainDirectionPrompt: some View {
         notice(
             title: "Which way?",
             // Either answers it: a destination sets the direction by itself.
@@ -857,21 +858,51 @@ struct BoardView: View {
     }
 
     /// One half of the bar. Dim and named while empty, lit and coded once set.
+    /// The two codes and the arrow between them, at one text style.
+    private func codes(_ style: Font.TextStyle) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            codeButton(
+                model.station?.crs,
+                placeholder: "Where?",
+                style: style,
+                label: "Departure station, \(model.station?.name ?? "not set")"
+            ) {
+                model.clearNearby()
+                presented = .start
+            }
+
+            if model.station != nil {
+                Image(systemName: "arrow.right")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(Theme.textDim)
+                    .accessibilityHidden(true)
+
+                codeButton(
+                    fast.destination?.crs,
+                    placeholder: "—",
+                    style: style,
+                    label: "Destination, \(fast.destination?.name ?? "not set")"
+                ) {
+                    fast.askWhereTo()
+                }
+            }
+        }
+        .fixedSize()
+    }
+
     private func codeButton(
         _ crs: String?,
         placeholder: String,
+        style: Font.TextStyle,
         label: String,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             Text(crs ?? placeholder)
-                .font(.system(.largeTitle, design: .rounded).weight(.medium))
+                .font(.system(style, design: .rounded).weight(.medium))
                 .monospacedDigit()
                 .foregroundStyle(crs == nil ? Theme.textDim : Theme.text)
                 .lineLimit(1)
-                // Shrinks rather than holding its width, so two codes and three buttons
-                // still fit the bar at large text instead of widening the page.
-                .minimumScaleFactor(0.6)
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressDim())

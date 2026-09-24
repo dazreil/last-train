@@ -13,7 +13,7 @@ Read top of the screen to bottom. **What you see → `the name`.**
 | The arrow that finds your nearest station; hold for Most used / Recent | `locateButton` |
 | The ⇄ that turns the journey round; hold for Continue from / Trains into | `swapButton` |
 | The **×** clear button; hold for Clear / Go home | `clearButton` |
-| The house that replaces × on the blank board; tap for home, hold to set or clear it | `homeButton` |
+| The house that replaces × on the blank board; tap for the home station, hold to set or clear it | `homeButton` |
 | The "WEST / EAST / SOUTH" row | `directionPicker` |
 | The "which way?" prompt after you clear (Last Train) | `directionPrompt` |
 
