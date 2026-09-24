@@ -20,12 +20,11 @@ struct FastBoardView: View {
                 results
             }
         }
-        .task(id: "\(station.crs):\(direction.rawValue)") {
-            model.adopt(station: station, direction: direction)
-            // Fast Train cannot answer without a destination, but it no longer opens the
-            // picker for you: picking a station used to drop you straight into a sheet you
-            // did not ask for. It rests on the prompt below instead, which is itself the tap.
-        }
+        // The remembered destination is read by `BoardView`, for both modes, and only once a
+        // direction has been chosen. This view used to read it as well, ignoring that — so
+        // going home in Fast Train brought back the destination filed under the old
+        // direction, and home looked like Reverse. Fast Train cannot answer without a
+        // destination, and rests on the prompt below until one is chosen.
         // Reaching the last loaded page pulls in the two-to-four-hour window on its own, so
         // the pager grows to meet the trains rather than offering a page that isn't there.
         // Keyed on the page and the count so it re-checks after a fetch folds trains in.

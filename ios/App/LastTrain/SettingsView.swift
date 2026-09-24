@@ -120,6 +120,14 @@ enum JourneyStore {
         var id: String { "\(from.crs)-\(to.crs)" }
     }
 
+    /// Up to five that start at `station`.
+    static func list(from station: Station) -> [Entry] {
+        current.list(from: station.crs).compactMap { journey in
+            guard let from = Stations.find(journey.from), let to = Stations.find(journey.to) else { return nil }
+            return Entry(from: from, to: to, direction: journey.direction)
+        }
+    }
+
     /// Up to five, with the stations resolved, leaving out the journey on screen.
     static func list(excluding from: Station?, _ to: Station?) -> [Entry] {
         let current = from.flatMap { from in to.map { (from: from.crs, to: $0.crs) } }

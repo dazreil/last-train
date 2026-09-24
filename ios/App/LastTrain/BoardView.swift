@@ -44,10 +44,11 @@ struct BoardView: View {
     /// reopened comes back in the mode you left it in, not reset to Last Train.
     @AppStorage("lastTrain.mode") private var mode: AppMode = .last
     @State private var presented: PresentedSheet?
-    /// Whether a direction has been chosen for the station on screen. True on open — the
-    /// remembered journey shows at once — and set false by a clear, so a freshly picked
-    /// station asks which way before it names a train rather than assuming west.
-    @State private var directionChosen = true
+    /// Whether a direction has been chosen for the station on screen. Set false by a clear,
+    /// by going home, and by picking a new station, so the board asks which way before it
+    /// names a train rather than assuming west. Remembered across launches like the rest of
+    /// the journey: an app left asking "which way?" reopens asking it, not on a guessed west.
+    @AppStorage("lastTrain.directionChosen") private var directionChosen = true
     /// The top safe-area inset, measured so the scroll-edge fade covers exactly the status
     /// bar and Dynamic Island — no more, so it never dims the masthead at rest.
     @State private var topInset: CGFloat = 0
@@ -85,7 +86,12 @@ struct BoardView: View {
                             // A freshly picked station asks which way before it shows a
                             // board — the same beat Fast Train has, where the destination is
                             // chosen first. The remembered journey skips it: it opens chosen.
-                            if directionChosen { lastTrainResults } else { directionPrompt }
+                            if directionChosen {
+                                lastTrainResults
+                            } else {
+                                directionPrompt
+                                recentJourneysList(from: station)
+                            }
                         case .fast:
                             FastBoardView(
                                 station: station,
@@ -93,13 +99,17 @@ struct BoardView: View {
                                 model: fast,
                                 onInspect: { presented = .service($0) }
                             )
+                            // Nowhere to go yet: the journeys you have made from here.
+                            if fast.destination == nil {
+                                recentJourneysList(from: station)
+                            }
                         }
                     } else {
                         notice(
                             title: "Choose where you are",
                             body: "Pick a station, then where you are going."
                         )
-                        recentJourneysList
+                        recentJourneysList(from: nil)
                     }
                 }
                 // A little room past the last row and no more. This was 30 points, and on
@@ -701,18 +711,19 @@ struct BoardView: View {
     }
 
     /**
-     Up to five recent journeys, on the blank board where ✕ leaves you.
+     Up to five recent journeys, one tap each to reopen the whole board.
 
-     The board is empty here anyway, and this is exactly when you want a different journey,
-     so it costs nothing and saves the two pickers. Followed journeys rank higher; see
-     `RecentJourneys`.
+     On the blank board where ✕ leaves you, every journey. With a start station but nowhere
+     to go yet — after the house, or after picking a station — only the journeys from that
+     station, so going home then tapping your usual trip is two taps. The board is empty in
+     both places, so it costs nothing. Followed journeys rank higher; see `RecentJourneys`.
      */
     @ViewBuilder
-    private var recentJourneysList: some View {
-        let journeys = JourneyStore.list(excluding: nil, nil)
+    private func recentJourneysList(from start: Station?) -> some View {
+        let journeys = start.map { JourneyStore.list(from: $0) } ?? JourneyStore.list(excluding: nil, nil)
         if !journeys.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                heading("Recent journeys", colour: Theme.serviceBlueLit)
+                heading(start.map { "Recent from \($0.crs)" } ?? "Recent journeys", colour: Theme.serviceBlueLit)
                 ForEach(journeys, id: \.id) { journey in
                     Button {
                         openJourney(from: journey.from, to: journey.to, direction: journey.direction)

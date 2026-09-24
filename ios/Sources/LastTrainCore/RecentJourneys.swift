@@ -95,6 +95,22 @@ public struct RecentJourneys: Codable, Equatable, Sendable {
             .map { $0 }
     }
 
+    /**
+     The journeys that start at `from`, highest ranked first.
+
+     For a board with a start station and nothing else — after going home, or after
+     picking a station — where the question is only "where to, from here?". The same
+     ranking, followed journeys still nudged up; up to five.
+     */
+    public func list(from: String, limit: Int = RecentJourneys.shown) -> [Journey] {
+        let start = from.uppercased()
+        return journeys
+            .filter { $0.from == start }
+            .sorted(by: Self.ranksAbove)
+            .prefix(max(limit, 0))
+            .map { $0 }
+    }
+
     /// Past capacity, the lowest ranked goes.
     private mutating func trim() {
         guard journeys.count > Self.capacity else { return }

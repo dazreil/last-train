@@ -94,6 +94,17 @@ struct RecentJourneysTests {
         #expect(!recent.journeys.contains { $0.from == "S01" })
     }
 
+    @Test("from one station: only its journeys, in rank order, followed ones nudged up")
+    func fromOneStation() {
+        var recent = RecentJourneys()
+        recent.record(from: "UPM", to: "BSO", direction: .east, at: Self.at(0))
+        recent.record(from: "FST", to: "UPM", direction: .east, at: Self.at(1))
+        recent.markFollowed(from: "UPM", to: "FST", direction: .west, at: Self.at(2))
+        recent.record(from: "UPM", to: "SOC", direction: .east, at: Self.at(3))
+        #expect(Self.codes(recent.list(from: "upm")) == ["UPM-FST", "UPM-SOC", "UPM-BSO"])
+        #expect(recent.list(from: "EUS").isEmpty)
+    }
+
     @Test("it survives a round trip through JSON, as the app stores it")
     func codable() throws {
         var recent = RecentJourneys()
