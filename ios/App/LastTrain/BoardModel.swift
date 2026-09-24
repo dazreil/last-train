@@ -116,6 +116,7 @@ final class BoardModel {
         // nothing moves without a tap.
         self.direction = SharedSelection.direction
         self.station = SharedSelection.station
+        SharedSelection.clearDepartedPin()
     }
 
     /**
@@ -297,6 +298,9 @@ final class BoardModel {
      reappear at Barking — headcodes are only unique within a route.
      */
     var pinnedHeadcode: String? {
+        // Read so the view is told when a pin is forgotten: the pin itself lives in
+        // shared defaults, which observation cannot see.
+        _ = pinRevision
         guard let station else { return nil }
         return SharedSelection.pinnedHeadcode(for: station.crs, direction: direction)
     }
@@ -342,8 +346,25 @@ final class BoardModel {
         SharedSelection.setPin(
             following ? service.pinToken : nil,
             crs: station.crs,
-            direction: direction
+            direction: direction,
+            until: following ? ServiceDay.instant(from: service.depInstant) : nil
         )
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    /// Bumped when a pin changes other than by a tap here, so views re-read it.
+    private var pinRevision = 0
+
+    /**
+     Unfollow a train that has already left. Called when the app opens or comes back.
+
+     Fast Train's equivalent is `TrainActivityController.tidy`, which ends a Live Activity
+     whose train has gone. This is the same rule for the Last Train pin. Not counted in
+     `pinChanges`, so no haptic fires for an unfollow you did not make.
+     */
+    func clearDepartedPin() {
+        guard SharedSelection.clearDepartedPin() else { return }
+        pinRevision += 1
         WidgetCenter.shared.reloadAllTimelines()
     }
 

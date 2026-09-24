@@ -42,6 +42,9 @@ enum SharedSelection {
         static let direction = "lastTrain.direction"
         static let pinHeadcode = "lastTrain.pin.headcode"
         static let pinScope = "lastTrain.pin.scope"
+        /// When the pinned train leaves. The token alone recurs every day it runs, so this
+        /// is what says the one you followed has gone.
+        static let pinUntil = "lastTrain.pin.until"
         static let widgetFailures = "lastTrain.widget.failures"
         /// Scope (`CRS:direction`) to destination CRS, one entry per pair.
         static let destinations = "lastTrain.fast.destinations"
@@ -165,13 +168,33 @@ enum SharedSelection {
 
     /// Pass `nil` to unpin. Only one train is pinned at a time, deliberately: a widget
     /// showing a choice between two trains is not a glance.
-    static func setPin(_ headcode: String?, crs: String, direction: Compass) {
+    static func setPin(_ headcode: String?, crs: String, direction: Compass, until: Date? = nil) {
         guard let headcode, !headcode.isEmpty else {
             defaults.removeObject(forKey: Key.pinHeadcode)
             defaults.removeObject(forKey: Key.pinScope)
+            defaults.removeObject(forKey: Key.pinUntil)
             return
         }
         defaults.set(headcode, forKey: Key.pinHeadcode)
         defaults.set(scope(crs, direction), forKey: Key.pinScope)
+        defaults.set(until, forKey: Key.pinUntil)
+    }
+
+    /**
+     Forget a followed train once it has left. True if one was forgotten.
+
+     A pin is a headcode and a time, `2D88|23:51`, which recurs every day that train runs —
+     so without its departure it would follow tomorrow's 23:51 too, and the day after. A pin
+     made before this was stored has no departure and is left alone.
+     */
+    @discardableResult
+    static func clearDepartedPin(now: Date = Date()) -> Bool {
+        guard let until = defaults.object(forKey: Key.pinUntil) as? Date, until <= now else {
+            return false
+        }
+        defaults.removeObject(forKey: Key.pinHeadcode)
+        defaults.removeObject(forKey: Key.pinScope)
+        defaults.removeObject(forKey: Key.pinUntil)
+        return true
     }
 }

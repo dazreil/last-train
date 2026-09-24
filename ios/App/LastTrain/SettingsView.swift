@@ -3,11 +3,10 @@ import SwiftUI
 import LastTrainCore
 
 /**
- Your usual journey, one tap away.
+ Your usual journey, two taps away.
 
- The app always opens where you left it. Home is where the clear button takes you: press ✕
- anywhere else and you are back on your own last train home; press it again at home and
- the journey clears. It used to be applied at every launch, which jumped the board away
+ The app always opens where you left it. ✕ clears the journey, and on the blank board a
+ house button takes its place and brings you home. It used to be applied at every launch, which jumped the board away
  from a train you were following whenever iOS had closed the app in the background.
 
  A station **and** a direction, because the board is the pair: a station alone would open
@@ -115,8 +114,8 @@ struct SettingsView: View {
             header("Home")
         } footer: {
             Text(home == nil
-                 ? "The app opens where you left it. Set a home and the ✕ button takes you back to it. To choose one, open that station and direction on the board first."
-                 : "The app opens where you left it. Press ✕ to come back here; press it again here to clear. The widget keeps its own setting.")
+                 ? "The app opens where you left it. Set a home and, after ✕, a house button takes you to it. To choose one, open that station and direction on the board first."
+                 : "The app opens where you left it. Press ✕, then the house button, to come back here. The widget keeps its own setting.")
                 .foregroundStyle(Theme.textFaint)
         }
     }

@@ -164,6 +164,8 @@ struct BoardView: View {
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             Task {
+                // A followed train that has left is unfollowed, in both modes.
+                model.clearDepartedPin()
                 await TrainActivityController.tidy()
                 fast.syncActivityState()
                 // Back in hand on the platform: reload if the board has aged or the service
@@ -513,7 +515,7 @@ struct BoardView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressDim())
-        .accessibilityLabel(clearGoesHome == nil ? "Clear journey" : "Go to home journey")
+        .accessibilityLabel("Clear journey")
     }
 
     /// Turns the journey round: `EUS → MKC` becomes `MKC → EUS`. Only there once both
@@ -568,11 +570,11 @@ struct BoardView: View {
         model.station = end
     }
 
-    /// On the blank board, the way back to your home journey — the clear button has
-    /// nothing to clear there, so this takes its place.
+    /// On the blank board, the way back to your home journey. ✕ clears; this is where
+    /// you go from there, so the two take turns in the same place.
     private var homeButton: some View {
         Button {
-            clearJourney()
+            goHome()
         } label: {
             Image(systemName: "house")
                 .font(.body.weight(.semibold))
@@ -584,25 +586,16 @@ struct BoardView: View {
         .accessibilityLabel("Go to home journey")
     }
 
-    /// Where the clear button goes: home, unless you are already there.
-    private var clearGoesHome: HomeJourney? {
-        guard let home = HomeJourney.current else { return nil }
-        let atHome = directionChosen
-            && model.station?.crs == home.station.crs
-            && model.direction == home.direction
-        return atHome ? nil : home
+    /// The home journey, by the house button. Never applied on its own — only by this tap.
+    private func goHome() {
+        guard let home = HomeJourney.current else { return }
+        model.clearNearby()
+        directionChosen = true
+        model.direction = home.direction
+        model.station = home.station
     }
 
     private func clearJourney() {
-        // With a home journey set, X goes home first; pressed again at home, it clears.
-        // Home is never applied on its own — only by this tap.
-        if let home = clearGoesHome {
-            model.clearNearby()
-            directionChosen = true
-            model.direction = home.direction
-            model.station = home.station
-            return
-        }
         guard let station = model.station else { return }
         fast.clearDestination(at: station, direction: model.direction)
         model.clearNearby()
