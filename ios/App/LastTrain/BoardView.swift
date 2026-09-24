@@ -865,10 +865,15 @@ struct BoardView: View {
 
         return VStack(alignment: .leading, spacing: 0) {
             if let hero {
-                // The hero always names itself above the numerals — "Last train", or
-                // "Following" once a different train is pinned — so its detail line carries
-                // only the detail and the pill, never a tag as well.
-                heading(heroIsPinnedNonLast ? "Following" : "Last train", colour: Theme.lastTrainRedLit)
+                // The last train names itself above the numerals. A followed train that is
+                // not the last one leads with no heading: its pill already says
+                // "Following", and a heading as well added a line — one more than the
+                // unfollowed board, which was enough to push it past the screen and make
+                // it scroll. The displaced last train keeps its own heading below, so the
+                // count of headings is the same either way.
+                if !heroIsPinnedNonLast {
+                    heading("Last train", colour: Theme.lastTrainRedLit)
+                }
                 serviceRow(hero, board: board)
             }
 
