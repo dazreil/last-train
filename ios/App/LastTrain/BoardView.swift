@@ -96,6 +96,7 @@ struct BoardView: View {
                             FastBoardView(
                                 station: station,
                                 direction: model.direction,
+                                hint: directionChosen ? "Choose a destination" : "Choose a direction or a destination",
                                 model: fast,
                                 onInspect: { presented = .service($0) }
                             )
@@ -105,10 +106,10 @@ struct BoardView: View {
                             }
                         }
                     } else {
-                        notice(
-                            title: "Choose where you are",
-                            body: "Pick a station, then where you are going."
-                        )
+                        stepHint("Pick a station or tap the arrow") {
+                            model.clearNearby()
+                            presented = .start
+                        }
                         recentJourneysList(from: nil)
                     }
                 }
@@ -868,13 +869,9 @@ struct BoardView: View {
     }
 
     /// Shown when a station has been picked but no direction chosen yet. The compass row
-    /// above is where the answer is; this only names the question.
+    /// above is one answer and a destination the other: a destination sets the direction.
     private var directionPrompt: some View {
-        notice(
-            title: "Which way?",
-            // Either answers it: a destination sets the direction by itself.
-            body: "Pick where you are going, or the direction your train is heading, above."
-        )
+        stepHint("Choose a direction or a destination") { fast.askWhereTo() }
     }
 
     /**
@@ -1429,6 +1426,16 @@ struct BoardView: View {
         .buttonStyle(PressDim())
         .frame(minHeight: 48, alignment: .leading)
         .accessibilityLabel("Try again")
+    }
+
+    /**
+     The one line under the bar before a journey is set, the same in both modes:
+     "Pick a station or tap the arrow", then "Choose a direction or a destination", then,
+     in Fast Train, "Choose a destination". No heading above it — the bar already asks
+     "Where?", and a heading only said the same thing again. A tap does the step it names.
+     */
+    private func stepHint(_ text: String, action: @escaping () -> Void) -> some View {
+        StepHint(text: text, action: action)
     }
 
     private func notice(

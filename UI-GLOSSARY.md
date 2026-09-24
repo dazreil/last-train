@@ -15,7 +15,7 @@ Read top of the screen to bottom. **What you see → `the name`.**
 | The **×** clear button; hold for Clear / Go home | `clearButton` |
 | The house that replaces × on the blank board; tap for the home station, hold to set or clear it | `homeButton` |
 | The "WEST / EAST / SOUTH" row | `directionPicker` |
-| The "which way?" prompt after you clear (Last Train) | `directionPrompt` |
+| "Choose a direction or a destination", after a station is picked (Last Train) | `directionPrompt` → `StepHint` |
 
 ## The stepper (row like "TODAY MON ›" or "1ST 2ND ›")
 | What you see | Name |
@@ -54,8 +54,9 @@ LAST TRAIN, EARLIER TRAINS, FASTEST TRAIN, LATER TRAINS, FIRST BACK → `section
 ## Messages
 | What you see | Name |
 | --- | --- |
-| "Where are you going?" (Fast) | `emptyPrompt` |
-| "Choose where you are" / "Nothing westbound" | `notice` |
+| "Choose a direction or a destination" / "Choose a destination" (Fast) | `emptyPrompt` → `StepHint` |
+| "Pick a station or tap the arrow", on the blank board | `stepHint` → `StepHint` |
+| "Nothing westbound" and other notices | `notice` |
 | The recent journeys on the blank board | `recentJourneysList` |
 | "Couldn't refresh" banner over the dimmed old board | `staleNotice` |
 | "Try again" pill | `retryButton` |

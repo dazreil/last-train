@@ -5,6 +5,9 @@ import LastTrainCore
 struct FastBoardView: View {
     let station: Station
     let direction: Compass
+    /// The line shown before a destination is chosen, which `BoardView` words: it knows
+    /// whether a direction has been chosen yet, and this view does not.
+    let hint: String
     @Bindable var model: FastModel
     /// Opening a row hands the shared detail sheet up to `BoardView`, which owns it for
     /// both boards.
@@ -34,26 +37,10 @@ struct FastBoardView: View {
         }
     }
 
-    /// The rest state before a destination is chosen. It is the tap that opens the picker,
-    /// so choosing where to go is a deliberate act, not a sheet that springs up on you.
+    /// The rest state before a destination is chosen: one line, and a tap on it opens the
+    /// picker, so choosing where to go is a deliberate act, not a sheet that springs up.
     private var emptyPrompt: some View {
-        Button {
-            model.askWhereTo()
-        } label: {
-            VStack(alignment: .leading, spacing: 9) {
-                Text("Where are you going?").font(Theme.Font.heading).foregroundStyle(Theme.text)
-                Text("Tap to choose a direct destination. Fast Train ranks the next services by when they get you there.")
-                    .font(Theme.Font.body)
-                    .foregroundStyle(Theme.textDim)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .multilineTextAlignment(.leading)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(PressDim())
-        .padding(.horizontal, Theme.Space.gutter)
-        .padding(.top, 26)
+        StepHint(text: hint) { model.askWhereTo() }
     }
 
     @ViewBuilder
@@ -320,5 +307,26 @@ struct FastRow: View {
             + (service.isDelayed ? ", delayed" : "")
             // Said out loud too. A caveat only sighted users get is not a caveat.
             + (service.isScheduled ? ", scheduled time" : "")
+    }
+}
+
+/// The one line under the bar before a journey is set; see `BoardView.stepHint`.
+struct StepHint: View {
+    let text: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(text)
+                .font(Theme.Font.body)
+                .foregroundStyle(Theme.textDim)
+                .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressDim())
+        .padding(.horizontal, Theme.Space.gutter)
+        .padding(.top, 26)
     }
 }
