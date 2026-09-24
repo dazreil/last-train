@@ -110,8 +110,17 @@ final class BoardModel {
 
     init(client: BoardClient = BoardClient(baseURL: AppConfig.apiBaseURL)) {
         self.client = client
-        self.direction = SharedSelection.direction
-        self.station = SharedSelection.station
+        // A home journey, when one is set, wins over wherever the app was left: it is the
+        // board you open this for. Stored back as the shared selection so a widget that
+        // follows the app follows it here too.
+        if let home = HomeJourney.current {
+            self.direction = home.direction
+            self.station = home.station
+            SharedSelection.store(station: home.station, direction: home.direction)
+        } else {
+            self.direction = SharedSelection.direction
+            self.station = SharedSelection.station
+        }
     }
 
     /**

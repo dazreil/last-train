@@ -232,12 +232,9 @@ struct FastRow: View {
                     CathodeNumber(text: service.departure, colour: colour, scale: .row)
                         .frame(maxWidth: 190, alignment: .leading)
 
-                    // The name rather than the code, wrapping to a second line where it must
-                    // and sitting within the height of the time beside it.
-                    Text(service.destination.withoutLondonPrefix)
-                        .font(Theme.Font.destination)
-                        .foregroundStyle(Theme.text)
-                        .lineLimit(2)
+                    // The name rather than the code, two lines reserved so every row is
+                    // one height, as on the Last Train board.
+                    DestinationName(name: service.destination)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     Image(systemName: "chevron.right")

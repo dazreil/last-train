@@ -19,6 +19,7 @@ private enum PresentedSheet: Identifiable {
     case start
     case nearby
     case destination
+    case settings
     case service(SheetService)
 
     var id: String {
@@ -26,6 +27,7 @@ private enum PresentedSheet: Identifiable {
         case .start: "start"
         case .nearby: "nearby"
         case .destination: "destination"
+        case .settings: "settings"
         case .service(let service): "service-\(service.id)"
         }
     }
@@ -75,8 +77,6 @@ struct BoardView: View {
                             body: "Pick a station, then where you are going."
                         )
                     }
-
-                    footnote
                 }
                 .padding(.bottom, 30)
             }
@@ -228,8 +228,17 @@ struct BoardView: View {
                         destinationCrs: fast.destination?.crs
                     )
                 }
+            case .settings:
+                SettingsView(current: currentJourney)
             }
         }
+    }
+
+    /// The board on screen as a home journey, once it has both a station and a chosen
+    /// direction. Offered by Settings as the thing to make home.
+    private var currentJourney: HomeJourney? {
+        guard directionChosen, let station = model.station else { return nil }
+        return HomeJourney(station: station, direction: model.direction)
     }
 
     private var fastKey: String {
@@ -279,6 +288,18 @@ struct BoardView: View {
             )
 
             Spacer(minLength: 0)
+
+            // Home journey, credits and the facts the footer used to carry. The footer
+            // pushed the board into scrolling; this costs nothing on the board itself.
+            Button { presented = .settings } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(.body, design: .rounded).weight(.semibold))
+                    .foregroundStyle(Theme.textFaint)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(PressDim())
+            .accessibilityLabel("Settings and credits")
         }
         .padding(.horizontal, Theme.Space.gutter)
         .padding(.top, 18)
@@ -736,6 +757,14 @@ struct BoardView: View {
             Text("Couldn’t refresh").font(Theme.Font.heading)
             Text(message).font(Theme.Font.body).foregroundStyle(Theme.textDim)
                 .fixedSize(horizontal: false, vertical: true)
+            // The age of what is still on screen. This lived in the footer as "Updated
+            // 23:41" on every board; it only matters when the board is not current, which
+            // is exactly when this banner is up.
+            if let updated = model.updatedAt {
+                Text("Times below are from \(ServiceDay.formatClock(ServiceDay.formatLondonTime(updated)).spoken).")
+                    .font(Theme.Font.meta)
+                    .foregroundStyle(Theme.textDim)
+            }
             retryButton { await model.load(refresh: true) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -920,40 +949,6 @@ struct BoardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Theme.Space.gutter)
         .padding(.top, 34)
-    }
-
-    private var footnote: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // Attribution for both feeds: Realtime Trains behind Last Train, National Rail
-            // (Darwin) behind Fast Train and the destinations list. The names are links.
-            Text("Powered by [Realtime Trains](https://www.realtimetrains.co.uk) and [National Rail Enquiries](https://www.nationalrail.co.uk).")
-                .foregroundStyle(Theme.textFaint)
-                .tint(Theme.serviceBlueLit)
-
-            Text(footnoteInfo)
-                .foregroundStyle(Theme.textDim)
-        }
-        .font(Theme.Font.meta)
-        .fixedSize(horizontal: false, vertical: true)
-        .padding(.horizontal, Theme.Space.gutter)
-        .padding(.top, 22)
-        .padding(.bottom, 12)
-    }
-
-    /// `Updated 23:41 · Direct trains only · Service day starts 03:00`. The freshness stamp
-    /// folded in here rather than given a line and a blank one of its own. The time is
-    /// present only once an answer is on screen.
-    private var footnoteInfo: String {
-        var parts: [String] = []
-        if let updated = mode == .last ? model.updatedAt : fast.updatedAt {
-            // Route the stamp through the same 12/24 clock as every board time, so a
-            // 12-hour device reads "Updated 5:22 PM" and not a stray "Updated 17:22".
-            let clock = ServiceDay.formatClock(ServiceDay.formatLondonTime(updated)).spoken
-            parts.append("Updated \(clock)")
-        }
-        parts.append("Direct trains only")
-        parts.append("Service day starts \(ServiceDay.formatClock("03:00").spoken)")
-        return parts.joined(separator: " · ")
     }
 }
 

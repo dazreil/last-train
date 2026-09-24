@@ -96,16 +96,17 @@ struct ServiceRow: View {
     /**
      Where it goes, by name.
 
-     `Shoeburyness`, not `SRY` — wrapping to a second line where it must, sitting within
-     the height of the time beside it. The code read faster and cost less width; the name
-     is what most people know a station by, and this is the trial of preferring it.
+     `Shoeburyness`, not `SRY` — the name is what most people know a station by.
+
+     **Every row is the same height, whatever the name.** Two lines are always reserved,
+     so `Grays` leaves the second one empty and `Birmingham International` fills it, and
+     the board no longer changes size from one station to the next. A name too long even
+     for two lines shrinks a little rather than being cut: the Real Length Rule in
+     `DESIGN.md` still holds. At accessibility sizes the row stacks and grows instead,
+     because there the words matter more than a steady outline.
      */
     private var destination: some View {
-        Text(service.destination.withoutLondonPrefix)
-            .font(Theme.Font.destination)
-            .foregroundStyle(Theme.text)
-            .lineLimit(2)
-            .fixedSize(horizontal: false, vertical: true)
+        DestinationName(name: service.destination)
     }
 
     private var meta: String? {
@@ -122,5 +123,38 @@ struct ServiceRow: View {
         (isLastTrain ? "Last train. " : "")
             + "\(service.tocName) service departing \(ServiceDay.formatClock(service.dep).spoken), towards \(service.destination)"
             + (service.isReplacementBus ? ", replacement bus" : "")
+    }
+}
+
+/// A destination on a board row, two lines reserved so every row is one height. Shared by
+/// both boards; see `ServiceRow.destination` for why.
+struct DestinationName: View {
+    let name: String
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    var body: some View {
+        if typeSize.isAccessibilitySize {
+            Text(name.withoutLondonPrefix)
+                .font(Theme.Font.destination)
+                .foregroundStyle(Theme.text)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            // The box is always two lines tall, measured by a hidden two-line stand-in;
+            // the name sits centred in it, so a one-line name lines up with the middle of
+            // the time rather than hanging from the top of an empty second line.
+            Text(verbatim: "A\nA")
+                .font(Theme.Font.destination)
+                .hidden()
+                // Full width, so the name in the overlay gets the row's width to wrap in
+                // rather than the stand-in's.
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .overlay(alignment: .leading) {
+                    Text(name.withoutLondonPrefix)
+                        .font(Theme.Font.destination)
+                        .foregroundStyle(Theme.text)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.75)
+                }
+        }
     }
 }
