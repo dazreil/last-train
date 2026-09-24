@@ -243,6 +243,9 @@ final class FastModel {
 
         isLoading = true
         errorMessage = nil
+        // A note about a follow that failed on the old board ("already departed") is
+        // about trains no longer shown; it goes with them.
+        activityMessage = nil
         defer { isLoading = false }
 
         do {

@@ -77,6 +77,11 @@ struct FastBoardView: View {
                 // pushed the board past the screen. The fastest keeps its heading below.
                 if !isFollowingHero {
                     sectionHeading("Fastest train", colour: Theme.lastTrainRedLit)
+                } else if model.demotedFastest == nil {
+                    // Following the fastest itself: no second heading arrives below to take
+                    // this one's place, so dropping it moved every row up. The line stays and
+                    // only the words go — the pill already says "Following".
+                    sectionHeading("Fastest train", colour: Theme.lastTrainRedLit, showsText: false)
                 }
                 row(hero, isHero: true)
             }
@@ -156,9 +161,25 @@ struct FastBoardView: View {
         )
     }
 
-    private func sectionHeading(_ text: String, colour: Color = Theme.serviceBlueLit) -> some View {
-        Text(text)
-            .cathodeSection(colour)
+    private func sectionHeading(
+        _ text: String,
+        colour: Color = Theme.serviceBlueLit,
+        showsText: Bool = true
+    ) -> some View {
+        Group {
+            if showsText {
+                Text(text).cathodeSection(colour)
+            } else {
+                // The same height as a titled heading, measured by the hidden title, with
+                // the line running the full width where the words were.
+                Text(text)
+                    .labelStyle(colour)
+                    .hidden()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .overlay { CathodeRule(colour: colour) }
+                    .accessibilityHidden(true)
+            }
+        }
             .padding(.horizontal, Theme.Space.gutter)
             .padding(.top, 18)
             .padding(.bottom, 7)
