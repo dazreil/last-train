@@ -82,9 +82,15 @@ struct BoardView: View {
                         )
                     }
                 }
-                .padding(.bottom, 30)
+                // A little room past the last row and no more. This was 30 points, and on
+                // its own it made a board that fitted the screen scroll a little.
+                .padding(.bottom, 12)
             }
             .scrollIndicators(.hidden)
+            // Runs under the home indicator rather than stopping above it: those 34 points
+            // are what let the board fit at one text size larger than the default, which
+            // is where a phone set a notch bigger stopped fitting and began to scroll.
+            .ignoresSafeArea(.container, edges: .bottom)
             // No scrolling, and no bounce, while the board fits the screen — which it does
             // on a current phone at normal text sizes. It still scrolls when it cannot fit,
             // on a small phone or at large text, because a board you cannot reach the
@@ -890,7 +896,7 @@ struct BoardView: View {
         Text(text)
             .cathodeSection(colour)
             .padding(.horizontal, Theme.Space.gutter)
-            .padding(.top, 16)
+            .padding(.top, 12)
             .padding(.bottom, 6)
     }
 
