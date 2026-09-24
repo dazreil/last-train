@@ -199,3 +199,18 @@ Differences from the plan above:
 - **The board trims its rows to fit.** It measures how far the page overflows and takes
   up to 8 points off the top and bottom of each row to cover it (`RowSqueeze`). Past that
   it scrolls. Fixed trims had each fitted the simulator and not the owner's phone.
+
+### Recent journeys, added 24 September 2026
+
+A journey is a start and a destination; `UPM → BSO` and `BSO → UPM` are two. Kept on
+the phone (`JourneyStore`, ranked by `LastTrainCore.RecentJourneys`, tested), twenty
+kept and five shown.
+
+- **On the blank board**, under "Choose where you are": the five most recent, one tap
+  each to reopen the board with both ends and the direction.
+- **Hold either station code**: the same list, leaving out the journey on screen. The
+  codes were the one part of the bar without a hold.
+- **A journey you followed a train on ranks higher.** It counts as if used a day later
+  than it was, so it rises above anything used in the last day, then settles back.
+- Recorded when a destination is picked, on Reverse and Trains into, and when a recent
+  journey is reopened. Cleared by Reset.

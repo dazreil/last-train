@@ -9,7 +9,7 @@ Read top of the screen to bottom. **What you see → `the name`.**
 | The "LAST TRAIN / FAST TRAIN" title you tap to switch; hold it to refresh | `masthead` |
 | The whole "WCF → UPM" area under the title | `stationHeader` |
 | The "WCF → UPM" line itself | `journeyBar` |
-| Each station code (WCF, UPM) | `codeButton` |
+| Each station code (WCF, UPM); hold for recent journeys | `codeButton` |
 | The arrow that finds your nearest station; hold for Most used / Recent | `locateButton` |
 | The ⇄ that turns the journey round; hold for Continue from / Trains into | `swapButton` |
 | The **×** clear button; hold for Clear / Go home | `clearButton` |
@@ -56,6 +56,7 @@ LAST TRAIN, EARLIER TRAINS, FASTEST TRAIN, LATER TRAINS, FIRST BACK → `section
 | --- | --- |
 | "Where are you going?" (Fast) | `emptyPrompt` |
 | "Choose where you are" / "Nothing westbound" | `notice` |
+| The recent journeys on the blank board | `recentJourneysList` |
 | "Couldn't refresh" banner over the dimmed old board | `staleNotice` |
 | "Try again" pill | `retryButton` |
 | Grey loading blocks | `loadingBoard` |

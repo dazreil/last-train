@@ -79,6 +79,60 @@ enum UsageStore {
 }
 
 /**
+ The journeys you have made, kept on the phone for the blank board and the station-code
+ menu. The ranking lives in `LastTrainCore.RecentJourneys`, where it is tested.
+ */
+enum JourneyStore {
+    private static let key = "lastTrain.recentJourneys"
+
+    static var current: RecentJourneys {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let recent = try? JSONDecoder().decode(RecentJourneys.self, from: data)
+        else { return RecentJourneys() }
+        return recent
+    }
+
+    private static func save(_ recent: RecentJourneys) {
+        if let data = try? JSONEncoder().encode(recent) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
+    }
+
+    /// A journey you set: a start and a destination, and the direction between them.
+    static func record(from: Station, to: Station, direction: Compass) {
+        var recent = current
+        recent.record(from: from.crs, to: to.crs, direction: direction)
+        save(recent)
+    }
+
+    /// A train was followed on this journey, which ranks it higher.
+    static func markFollowed(from: Station, to: Station, direction: Compass) {
+        var recent = current
+        recent.markFollowed(from: from.crs, to: to.crs, direction: direction)
+        save(recent)
+    }
+
+    /// One recent journey, with its stations resolved.
+    struct Entry {
+        let from: Station
+        let to: Station
+        let direction: Compass
+        var id: String { "\(from.crs)-\(to.crs)" }
+    }
+
+    /// Up to five, with the stations resolved, leaving out the journey on screen.
+    static func list(excluding from: Station?, _ to: Station?) -> [Entry] {
+        let current = from.flatMap { from in to.map { (from: from.crs, to: $0.crs) } }
+        return self.current.list(excluding: current).compactMap { journey in
+            guard let from = Stations.find(journey.from), let to = Stations.find(journey.to) else { return nil }
+            return Entry(from: from, to: to, direction: journey.direction)
+        }
+    }
+
+    static func clear() { UserDefaults.standard.removeObject(forKey: key) }
+}
+
+/**
  Settings: your home journey, the credits, and what the app is.
 
  The credits live here rather than under the board. The board has to fit one screen, and
@@ -249,7 +303,7 @@ struct SettingsView: View {
                     }
                     Button("Cancel", role: .cancel) {}
                 } message: {
-                    Text("This forgets your home journey, every remembered destination, the train you are following, your most used and recent stations, and the mode. The board goes back to blank. The lock screen widget keeps its own setting.")
+                    Text("This forgets your home station, every remembered destination, the train you are following, your most used and recent stations, your recent journeys, and the mode. The board goes back to blank. The lock screen widget keeps its own setting.")
                 }
         } footer: {
             Text("Everything the app remembers, back to how it was installed.")

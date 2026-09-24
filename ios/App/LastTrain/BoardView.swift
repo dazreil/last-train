@@ -99,6 +99,7 @@ struct BoardView: View {
                             title: "Choose where you are",
                             body: "Pick a station, then where you are going."
                         )
+                        recentJourneysList
                     }
                 }
                 // A little room past the last row and no more. This was 30 points, and on
@@ -368,6 +369,7 @@ struct BoardView: View {
         SharedSelection.clearAllDestinations()
         SharedSelection.setPin(nil, crs: "", direction: .west)
         UsageStore.clear()
+        JourneyStore.clear()
         Task {
             await TrainActivityController.stop()
             fast.syncActivityState()
@@ -684,6 +686,74 @@ struct BoardView: View {
         model.direction = direction
         model.station = start
         UsageStore.record(start)
+        JourneyStore.record(from: start, to: end, direction: direction)
+    }
+
+    /// A recent journey, reopened as it was: both ends and the direction between them.
+    private func openJourney(from: Station, to: Station, direction: Compass) {
+        model.clearNearby()
+        fast.choose(to, at: from, direction: direction)
+        directionChosen = true
+        model.direction = direction
+        model.station = from
+        UsageStore.record(from)
+        JourneyStore.record(from: from, to: to, direction: direction)
+    }
+
+    /**
+     Up to five recent journeys, on the blank board where ✕ leaves you.
+
+     The board is empty here anyway, and this is exactly when you want a different journey,
+     so it costs nothing and saves the two pickers. Followed journeys rank higher; see
+     `RecentJourneys`.
+     */
+    @ViewBuilder
+    private var recentJourneysList: some View {
+        let journeys = JourneyStore.list(excluding: nil, nil)
+        if !journeys.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                heading("Recent journeys", colour: Theme.serviceBlueLit)
+                ForEach(journeys, id: \.id) { journey in
+                    Button {
+                        openJourney(from: journey.from, to: journey.to, direction: journey.direction)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("\(journey.from.crs) → \(journey.to.crs)")
+                                .font(.system(.title3, design: .rounded).weight(.semibold))
+                                .foregroundStyle(Theme.text)
+                            Text("\(journey.from.name.withoutLondonPrefix) to \(journey.to.name.withoutLondonPrefix)")
+                                .font(Theme.Font.meta)
+                                .foregroundStyle(Theme.textDim)
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                        .padding(.horizontal, Theme.Space.gutter)
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(PressDim())
+                    .overlay(alignment: .bottom) { CathodeRule(colour: Theme.serviceBlueLit.opacity(0.3)) }
+                    .accessibilityLabel("\(journey.from.name) to \(journey.to.name)")
+                }
+            }
+            .padding(.top, 14)
+        }
+    }
+
+    /// The same five, for the menu under either station code.
+    @ViewBuilder
+    private var recentJourneysMenu: some View {
+        let journeys = JourneyStore.list(excluding: model.station, fast.destination)
+        Section("Recent journeys") {
+            ForEach(journeys, id: \.id) { journey in
+                Button {
+                    openJourney(from: journey.from, to: journey.to, direction: journey.direction)
+                } label: {
+                    Text("\(journey.from.crs) → \(journey.to.crs)")
+                    Text("\(journey.from.name.withoutLondonPrefix) to \(journey.to.name.withoutLondonPrefix)")
+                }
+            }
+        }
     }
 
     /// The way back, as its own journey. The direction is asked for, not assumed to be
@@ -855,6 +925,7 @@ struct BoardView: View {
         fast.choose(picked, at: start, direction: direction)
         directionChosen = true
         model.direction = direction
+        JourneyStore.record(from: start, to: picked, direction: direction)
     }
 
     /// One half of the bar. Dim and named while empty, lit and coded once set.
@@ -890,6 +961,7 @@ struct BoardView: View {
         .fixedSize()
     }
 
+    @ViewBuilder
     private func codeButton(
         _ crs: String?,
         placeholder: String,
@@ -897,16 +969,23 @@ struct BoardView: View {
         label: String,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
-            Text(crs ?? placeholder)
-                .font(.system(style, design: .rounded).weight(.medium))
-                .monospacedDigit()
-                .foregroundStyle(crs == nil ? Theme.textDim : Theme.text)
-                .lineLimit(1)
-                .contentShape(Rectangle())
+        let text = Text(crs ?? placeholder)
+            .font(.system(style, design: .rounded).weight(.medium))
+            .monospacedDigit()
+            .foregroundStyle(crs == nil ? Theme.textDim : Theme.text)
+            .lineLimit(1)
+            .contentShape(Rectangle())
+        // Hold either code for recent journeys, the one hold the bar did not have yet.
+        // A plain button until there is a journey to offer, so the hold never opens empty.
+        if JourneyStore.list(excluding: model.station, fast.destination).isEmpty {
+            Button(action: action) { text }
+                .buttonStyle(PressDim())
+                .accessibilityLabel(label)
+        } else {
+            Menu { recentJourneysMenu } label: { text } primaryAction: { action() }
+                .modifier(BarMenuStyle())
+                .accessibilityLabel(label)
         }
-        .buttonStyle(PressDim())
-        .accessibilityLabel(label)
     }
 
     private var stationHeader: some View {
@@ -1267,7 +1346,13 @@ struct BoardView: View {
             isRed: isHero,
             isFollowed: followed,
             onOpen: { presented = .service(sheetService(service, board: board)) },
-            onFollow: { model.setPin(service, following: !followed) }
+            onFollow: {
+                model.setPin(service, following: !followed)
+                // Following ranks the journey higher among the recent ones.
+                if !followed, let station = model.station, let destination = fast.destination {
+                    JourneyStore.markFollowed(from: station, to: destination, direction: model.direction)
+                }
+            }
         )
     }
 

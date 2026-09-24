@@ -130,7 +130,15 @@ struct FastBoardView: View {
             isBusy: model.isChangingActivity,
             isHero: isHero,
             onOpen: { onInspect(sheetService(service, isHero: isHero, followed: followed)) },
-            onFollow: { Task { await model.toggleActivity(service, at: station, direction: direction) } }
+            onFollow: {
+                Task {
+                    await model.toggleActivity(service, at: station, direction: direction)
+                    // Following ranks the journey higher among the recent ones.
+                    if model.activityServiceId == service.serviceId, let destination = model.destination {
+                        JourneyStore.markFollowed(from: station, to: destination, direction: direction)
+                    }
+                }
+            }
         )
     }
 
