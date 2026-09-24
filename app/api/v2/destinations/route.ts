@@ -42,7 +42,7 @@ import {
 import { classify, COMPASS_POINTS, isCompass, type Compass } from '@/lib/compass';
 import { directDestinations, popularAmong } from '@/lib/directDestinations';
 import { busiestFrom, popularitySource } from '@/lib/popularity';
-import { timetableBoard } from '@/lib/timetable';
+import { timetableBoard, timetableStatus } from '@/lib/timetable';
 import type { NormalizedService } from '@/lib/darwin';
 import { coordinateFor, findStationByCrs } from '@/lib/nationalStations';
 import { waypointFor } from '@/lib/adjacency';
@@ -106,7 +106,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'date must be YYYY-MM-DD.' }, { status: 400 });
   }
 
-  const fromTimetable = await timetableList(from, date);
+  const fromTimetable = await cachedTimetableList(from, date, params.get('refresh') === '1');
   if (fromTimetable) {
     const destinations = everyWay
       ? fromTimetable
@@ -124,7 +124,14 @@ export async function GET(request: Request) {
       source: 'timetable',
       ...popularity(from.crs, destinations, everyWay ? null : (requested as Compass)),
     };
-    return NextResponse.json(body, { headers: { 'x-source': 'timetable' } });
+    return NextResponse.json(body, {
+      headers: {
+        'x-source': 'timetable',
+        // The list only changes when a new snapshot is published, once a night, so the
+        // phone may reuse it for a quarter of an hour without asking.
+        'cache-control': 'private, max-age=900',
+      },
+    });
   }
 
   if (everyWay) {
@@ -436,6 +443,37 @@ function collect(origin: string, locations: ServiceLocation[], best: Map<string,
  * covers this day and nothing leaves this station — and is returned as one, rather than
  * falling through to a live lookup that would reach the same conclusion more slowly.
  */
+/** How long a computed list is kept. Its key names the snapshot, so this is only tidying. */
+const LIST_TTL_SECONDS = 26 * 3600;
+
+/**
+ * `timetableList`, remembered per station, day **and snapshot**.
+ *
+ * Measured 24 September 2026: every open of the picker recomputed the whole day's list —
+ * unpack the board, walk every train's calls, classify each — for 0.2–0.5 seconds of
+ * server time, though the answer cannot change until the next nightly publish. The key
+ * carries the snapshot's id, so a new publish is a new key and nothing stale is served.
+ * The meta read that names it is one small value; the board it saves is up to 200 KiB.
+ */
+async function cachedTimetableList(
+  from: { crs: string; name: string },
+  date: IsoDate,
+  refresh: boolean
+): ReturnType<typeof timetableList> {
+  const status = await timetableStatus();
+  const id = status.configured && status.meta ? status.meta.timetableId : null;
+  if (!id) return timetableList(from, date);
+
+  const listKey = `dl:${from.crs}:${date}:${id}`;
+  if (!refresh) {
+    const hit = await getCached<Awaited<ReturnType<typeof timetableList>>>(listKey);
+    if (hit?.value) return hit.value;
+  }
+  const list = await timetableList(from, date);
+  if (list) await setCached(listKey, list, LIST_TTL_SECONDS);
+  return list;
+}
+
 async function timetableList(
   from: { crs: string; name: string },
   date: IsoDate
