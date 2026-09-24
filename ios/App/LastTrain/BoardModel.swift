@@ -21,7 +21,7 @@ final class BoardModel {
             guard station != oldValue else { return }
             resetAutomaticDay()
             persist()
-            Task { await load() }
+            scheduleLoad()
         }
     }
 
@@ -30,7 +30,7 @@ final class BoardModel {
             guard direction != oldValue else { return }
             resetAutomaticDay()
             persist()
-            Task { await load() }
+            scheduleLoad()
         }
     }
 
@@ -44,7 +44,7 @@ final class BoardModel {
     var destinationCrs: String? {
         didSet {
             guard destinationCrs != oldValue else { return }
-            Task { await load() }
+            scheduleLoad()
         }
     }
 
@@ -159,6 +159,26 @@ final class BoardModel {
     /// selected one — a direction only means something once you know where it leads.
     var towards: [Compass: String] {
         board?.towardsLabels ?? [:]
+    }
+
+    private var pendingLoad: Task<Void, Never>?
+
+    /**
+     Load once the current burst of changes has settled.
+
+     A station, a direction and a destination often change together — at launch, on a
+     swap, on a deep link — and each used to start its own request, every one but the last
+     cancelled after it had already gone. Measured at launch: two requests, the first
+     thrown away. Each change now restarts a 50 ms wait, so a burst costs one request and
+     the wait is shorter than a frame or two.
+     */
+    func scheduleLoad() {
+        pendingLoad?.cancel()
+        pendingLoad = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(50))
+            guard !Task.isCancelled else { return }
+            await self?.load()
+        }
     }
 
     func load(refresh: Bool = false) async {

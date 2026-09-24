@@ -134,14 +134,30 @@ struct BoardView: View {
                 errorMessage: model.errorMessage
             )
         )
-        .task { await model.load() }
+        .task { model.scheduleLoad() }
         .task {
             await TrainActivityController.tidy()
             fast.syncActivityState()
         }
+        /*
+         Fast Train loads whenever there is a journey, in either mode, so switching to it is
+         instant rather than a wait on the network. It costs no Realtime Trains quota: the
+         answer comes from Darwin and the timetable store, with RTT only as a fallback.
+         The short wait lets a burst of changes — a swap sets three things — settle into
+         one request.
+        */
         .task(id: fastKey) {
-            guard mode == .fast, let station = model.station else { return }
+            guard let station = model.station, fast.destination != nil else { return }
+            try? await Task.sleep(for: .milliseconds(50))
+            guard !Task.isCancelled else { return }
             await fast.load(at: station, direction: model.direction)
+        }
+        // Loaded in the background, it may have aged by the time you look: switching to
+        // Fast Train refreshes a board over a minute old.
+        .onChange(of: mode) { _, now in
+            guard now == .fast, let station = model.station, fast.destination != nil else { return }
+            if let updated = fast.updatedAt, Date().timeIntervalSince(updated) < 60 { return }
+            Task { await fast.load(at: station, direction: model.direction) }
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
@@ -173,6 +189,7 @@ struct BoardView: View {
                 fast.release()
             }
             model.destinationCrs = fast.destination?.crs
+            prefetchDestinations(from: station)
         }
         // Both modes ask the same pair now, so the destination has to reach the Last
         // Train query too — not only Fast Train's.
@@ -255,6 +272,23 @@ struct BoardView: View {
         }
     }
 
+    /**
+     Ask for the destination list before the picker is opened.
+
+     The picker used to fetch on open and show grey rows while it waited. This sends the
+     same request as soon as a station or direction changes, and the server marks the list
+     reusable for a quarter of an hour, so by the time the picker asks the phone already
+     has it. Today only: a future date can fall back to Realtime Trains, which costs quota.
+     */
+    private func prefetchDestinations(from station: Station) {
+        guard model.requestedDate == nil else { return }
+        let heading: Compass? = directionChosen ? model.direction : nil
+        Task.detached(priority: .utility) {
+            _ = try? await BoardClient(baseURL: AppConfig.apiBaseURL)
+                .destinations(from: station.crs, direction: heading)
+        }
+    }
+
     /// The board on screen as a home journey, once it has both a station and a chosen
     /// direction. Offered by Settings as the thing to make home.
     private var currentJourney: HomeJourney? {
@@ -263,7 +297,7 @@ struct BoardView: View {
     }
 
     private var fastKey: String {
-        "\(mode.rawValue):\(model.station?.crs ?? "-"):\(model.direction.rawValue):\(fast.destination?.crs ?? "-"):\(fast.selectionToken)"
+        "\(model.station?.crs ?? "-"):\(model.direction.rawValue):\(fast.destination?.crs ?? "-"):\(fast.selectionToken)"
     }
 
     // MARK: - Header
