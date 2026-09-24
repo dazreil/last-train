@@ -260,6 +260,11 @@ export interface DestinationList {
   /** `timetable` for the whole service day; absent from the live two-hour paths. */
   source?: 'timetable';
   /**
+   * True when the timetable behind this list is older than it should be — the nightly
+   * publish has been missed. Still the best list there is; absent when it is current.
+   */
+  stale?: boolean;
+  /**
    * The busiest few of these destinations, busiest first — the likely answer, for the top
    * of the picker. From the ORR Origin-Destination Matrix, and drawn only from this list, so
    * a direction's list gets that direction's busiest. Empty when the list is no longer than

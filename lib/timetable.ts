@@ -5,7 +5,10 @@ import { findStationByCrs } from './nationalStations.ts';
 import {
   ageSecondsOf,
   boardKey,
+  indexKey,
+  judgeMissingBoard,
   META_KEY,
+  type MissingBoard,
   toNormalizedService,
   unpackBoard,
   type TimetableMeta,
@@ -49,8 +52,13 @@ export type TimetableResult =
   | { status: 'stale'; services: NormalizedService[]; meta: TimetableMeta; ageSeconds: number }
   /** No shared store is configured. Local development, or a deployment without one. */
   | { status: 'unconfigured' }
-  /** The store answered, but holds no board for that station and day. */
-  | { status: 'missing'; meta: TimetableMeta | null }
+  /**
+   * The store answered, but holds no board for that station and day, and cannot prove
+   * the station has no trains. `reason` says which: see `MissingBoard`. (`empty` is never
+   * here — a proven empty day comes back `ok` with no services.) `meta` is null when no
+   * snapshot has been published at all.
+   */
+  | { status: 'missing'; meta: TimetableMeta | null; reason: Exclude<MissingBoard, 'empty'> | 'unpublished' }
   /** The store failed. Distinct from empty, because the caller must not cache it. */
   | { status: 'error'; message: string };
 
@@ -90,18 +98,27 @@ export async function timetableBoard(
   if (!redis) return { status: 'unconfigured' };
 
   try {
-    const [packed, meta] = await Promise.all([
-      redis.get<string>(boardKey(crs, serviceDate)),
-      readMeta(),
-    ]);
+    // Meta first, then the board it names. Read together, a publish landing between the
+    // two reads could pair a board from one snapshot with the description of another.
+    const meta = await readMeta();
+    if (!meta) return { status: 'missing', meta: null, reason: 'unpublished' };
 
-    if (!packed || !meta) return { status: 'missing', meta };
+    const snapshotId = meta.keyed === 'snapshot' ? meta.timetableId : null;
+    const packed = await redis.get<string>(boardKey(crs, serviceDate, snapshotId));
+    const ageSeconds = ageSecondsOf(meta, now);
+    const status = ageSeconds > STALE_AFTER_SECONDS ? 'stale' : 'ok';
+
+    if (!packed) {
+      const index = snapshotId ? await redis.get<string>(indexKey(snapshotId, serviceDate)) : null;
+      const verdict = judgeMissingBoard(meta, index, crs, serviceDate);
+      // Proven: the day is covered and this station has no trains in it.
+      if (verdict === 'empty') return { status, services: [], meta, ageSeconds };
+      return { status: 'missing', meta, reason: verdict };
+    }
 
     const services = unpackBoard(packed).map((departure) =>
       toNormalizedService(departure, crs.toUpperCase(), serviceDate, meta.operators ?? {}, nameOf)
     );
-    const ageSeconds = ageSecondsOf(meta, now);
-    const status = ageSeconds > STALE_AFTER_SECONDS ? 'stale' : 'ok';
     return { status, services, meta, ageSeconds };
   } catch (error) {
     return { status: 'error', message: note(error) };
@@ -117,7 +134,8 @@ export async function timetableBoard(
  */
 export async function timetableStatus(now: Date = new Date()): Promise<
   | { configured: false }
-  | { configured: true; meta: null }
+  /** `error` when the store failed, rather than answered with nothing. */
+  | { configured: true; meta: null; error?: boolean }
   | { configured: true; meta: TimetableMeta; ageSeconds: number; stale: boolean }
 > {
   if (!sharedRedis()) return { configured: false };
@@ -128,6 +146,6 @@ export async function timetableStatus(now: Date = new Date()): Promise<
     return { configured: true, meta, ageSeconds, stale: ageSeconds > STALE_AFTER_SECONDS };
   } catch (error) {
     note(error);
-    return { configured: true, meta: null };
+    return { configured: true, meta: null, error: true };
   }
 }

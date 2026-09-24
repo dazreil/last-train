@@ -334,7 +334,9 @@ export async function GET(request: Request) {
         stored.status === 'unconfigured'
           ? 'Later trains need the timetable, which this server has not been set up with.'
           : stored.status === 'missing'
-            ? 'No timetable has been published for today yet.'
+            ? stored.reason === 'lost'
+              ? 'Part of the timetable is missing just now. Try again in a few minutes.'
+              : 'No timetable has been published for today yet.'
             : 'The timetable could not be read just now.';
       const body: FastBoard = { ...shell, services: [], candidates: 0, truncated: false, notice };
       // Never cached. Every one of these is a condition that can be fixed in a minute, and

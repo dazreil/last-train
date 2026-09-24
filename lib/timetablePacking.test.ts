@@ -3,6 +3,11 @@ import { test } from 'node:test';
 
 import {
   boardKey,
+  coverageProblems,
+  indexHas,
+  judgeMissingBoard,
+  indexKey,
+  packIndex,
   clockOf,
   instantOf,
   packBoard,
@@ -150,4 +155,47 @@ test('the origin survives, since the sheet names it', () => {
 test('boardKey is stable and case-insensitive on the station', () => {
   assert.equal(boardKey('upm', '2026-09-10'), 'tt:board:UPM:2026-09-10');
   assert.equal(boardKey('UPM', '2026-09-10'), 'tt:board:UPM:2026-09-10');
+});
+
+test('a snapshot keys its boards by its own id, so two snapshots never share a key', () => {
+  assert.equal(boardKey('upm', '2026-09-10', '20260910020536'), 'tt:board:20260910020536:UPM:2026-09-10');
+  assert.notEqual(boardKey('UPM', '2026-09-10', 'a'), boardKey('UPM', '2026-09-10', 'b'));
+  // An old snapshot's boards keep their old names until they expire.
+  assert.equal(boardKey('UPM', '2026-09-10', null), 'tt:board:UPM:2026-09-10');
+  assert.equal(indexKey('20260910020536', '2026-09-10'), 'tt:index:20260910020536:2026-09-10');
+});
+
+test('the index says which stations have a board, and only those', () => {
+  const packed = packIndex(['upm', 'BSO', 'UPM', 'SOC']);
+  assert.equal(packed, 'BSO,SOC,UPM');
+  assert.equal(indexHas(packed, 'upm'), true);
+  assert.equal(indexHas(packed, 'SO'), false, 'a code is matched whole, not as part of another');
+  assert.equal(indexHas(packed, 'EUS'), false);
+  assert.equal(indexHas(null, 'UPM'), false);
+});
+
+test('a station with no board is only "no trains" when the index proves it', () => {
+  const meta = { serviceDates: ['2026-09-24', '2026-09-25'], keyed: 'snapshot' as const };
+  const index = packIndex(['UPM', 'BSO']);
+  assert.equal(judgeMissingBoard(meta, index, 'XYZ', '2026-09-24'), 'empty');
+  assert.equal(judgeMissingBoard(meta, index, 'UPM', '2026-09-24'), 'lost', 'listed, so a board was written');
+  assert.equal(judgeMissingBoard(meta, index, 'UPM', '2026-09-30'), 'uncovered');
+  assert.equal(judgeMissingBoard(meta, null, 'XYZ', '2026-09-24'), 'unproven', 'the index itself is gone');
+  assert.equal(
+    judgeMissingBoard({ serviceDates: ['2026-09-24'] }, index, 'XYZ', '2026-09-24'),
+    'unproven',
+    'a snapshot from before indexes cannot prove anything'
+  );
+});
+
+test('coverage names a needed day that is missing or only partly there', () => {
+  const meta = {
+    serviceDates: ['2026-09-24', '2026-09-25', '2026-09-26'],
+    departuresByDate: { '2026-09-24': 180000, '2026-09-25': 175000, '2026-09-26': 40000 },
+  };
+  assert.deepEqual(coverageProblems(meta, ['2026-09-24', '2026-09-25']), []);
+  assert.match(coverageProblems(meta, ['2026-09-26'])[0], /partial/);
+  assert.match(coverageProblems(meta, ['2026-09-27'])[0], /not covered/);
+  // A snapshot from before the counts can only be checked for the dates themselves.
+  assert.deepEqual(coverageProblems({ serviceDates: ['2026-09-24'] }, ['2026-09-24']), []);
 });

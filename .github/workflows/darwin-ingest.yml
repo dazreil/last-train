@@ -16,6 +16,11 @@ on:
     # shortly after, so this leaves a comfortable margin without waiting so long
     # that a failure has no room to be retried before the morning.
     - cron: '20 3 * * *'
+    # A second chance. GitHub starts scheduled jobs late when it is busy -- five hours
+    # late on 23 and 24 September 2026 -- and sometimes drops one. This run does nothing
+    # if today's file is already in (the first step below), so it costs a minute when the
+    # first run worked, and saves the morning when it did not.
+    - cron: '20 6 * * *'
   # So a failed night can be re-run by hand without waiting for tomorrow. The
   # publish is idempotent: the same file in means the same keys out.
   workflow_dispatch:
@@ -40,9 +45,28 @@ jobs:
     timeout-minutes: 60
 
     steps:
+      # Skip when the store already holds today's file, so the second trigger is cheap.
+      # A run by hand always publishes.
+      - name: Is today's file already in?
+        id: current
+        if: ${{ github.event_name == 'schedule' }}
+        run: |
+          set -uo pipefail
+          body=$(curl -sS --max-time 30 \
+            https://last-train-dazreils-projects.vercel.app/api/timetable-health || echo '{}')
+          today=$(TZ=Europe/London date +%Y%m%d)
+          node -e '
+            const h = JSON.parse(process.argv[1] || "{}");
+            const fresh = h.healthy === true && String(h.timetableId ?? "").startsWith(process.argv[2]);
+            console.log(fresh ? `Already current: ${h.timetableId}` : "Not current; publishing.");
+            require("fs").appendFileSync(process.env.GITHUB_OUTPUT, `skip=${fresh}\n`);
+          ' "$body" "$today"
+
       - uses: actions/checkout@v4
+        if: ${{ steps.current.outputs.skip != 'true' }}
 
       - uses: actions/setup-node@v4
+        if: ${{ steps.current.outputs.skip != 'true' }}
         with:
           # 24, not 22. The scripts import lib/timetablePacking.ts directly, so
           # the format has one definition rather than one per language -- and
@@ -52,12 +76,16 @@ jobs:
           cache: npm
 
       - run: npm ci
+        if: ${{ steps.current.outputs.skip != 'true' }}
 
       # Fails loudly rather than publishing a board built from a half-read file.
       - name: Check the parser still agrees with itself
+        if: ${{ steps.current.outputs.skip != 'true' }}
         run: npm test
 
       - name: Publish today's boards
+        id: publish
+        if: ${{ steps.current.outputs.skip != 'true' }}
         env:
           DARWIN_S3_BUCKET: ${{ secrets.DARWIN_S3_BUCKET }}
           DARWIN_S3_PREFIX: ${{ secrets.DARWIN_S3_PREFIX }}
@@ -74,19 +102,29 @@ jobs:
       # The job exiting zero is not proof of anything: a run that found nothing
       # new would also exit zero. The store's own age is the proof, so it is read
       # back from the deployment rather than inferred from this job.
+      #
+      # It must name the exact snapshot this run published: any healthy snapshot would
+      # also pass a run whose write went nowhere. A failure here fails the job, and a
+      # failed scheduled job emails the repository owner -- that is the alert.
       - name: Read the snapshot back from the deployment
-        if: ${{ !inputs.dryRun }}
+        if: ${{ !inputs.dryRun && steps.current.outputs.skip != 'true' }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           sleep 5
-          body=$(curl -fsS --max-time 30 \
+          # No -f: the route answers 503 when unhealthy, and its body says why.
+          body=$(curl -sS --max-time 30 \
             https://last-train-dazreils-projects.vercel.app/api/timetable-health)
           echo "$body"
           node -e '
             const h = JSON.parse(process.argv[1]);
+            const expected = process.argv[2];
+            if (h.timetableId !== expected) {
+              console.error(`Published ${expected}, but the store names ${h.timetableId ?? "nothing"}.`);
+              process.exit(1);
+            }
             if (!h.healthy) {
-              console.error(`Published, but the store reports unhealthy: ${h.reason ?? `${h.ageHours}h old`}`);
+              console.error(`Published, but the store reports unhealthy: ${(h.problems ?? [h.reason]).join(" ")}`);
               process.exit(1);
             }
             console.log(`OK: ${h.timetableId}, ${h.ageHours}h old, ${h.boardCount} boards, days ${h.serviceDates.join(" ")}`);
-          ' "$body"
+          ' "$body" "${{ steps.publish.outputs.timetable_id }}"

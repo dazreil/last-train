@@ -82,10 +82,93 @@ const FLAG_CONDITIONAL = 2;
  * timetable out of `lib/cache.ts`'s keyspace: the cache holds answers that may
  * be thrown away, and this is the store.
  */
-export const boardKey = (crs: string, serviceDate: string): string =>
-  `tt:board:${crs.toUpperCase()}:${serviceDate}`;
+export const boardKey = (crs: string, serviceDate: string, snapshotId?: string | null): string =>
+  snapshotId
+    ? `tt:board:${snapshotId}:${crs.toUpperCase()}:${serviceDate}`
+    : `tt:board:${crs.toUpperCase()}:${serviceDate}`;
 
-/** Where the snapshot's own description lives. One key, rewritten by each publish. */
+/**
+ * Which stations have a board in a snapshot, for one service day.
+ *
+ * **The difference between "no trains" and "lost".** A station with no departures gets no
+ * board, so without this a missing key could mean either — and read as "no trains" it made
+ * a partial publish, or a board that expired, look like a real empty day
+ * (`SERVER-AUDIT.md` finding 6). With it: a station listed here with no board is data
+ * lost; a station not listed, on a day the snapshot covers, truly has no trains.
+ *
+ * One key per day, a comma-joined list of CRS codes, about 10 KiB.
+ */
+export const indexKey = (snapshotId: string, serviceDate: string): string =>
+  `tt:index:${snapshotId}:${serviceDate}`;
+
+export const packIndex = (crsCodes: Iterable<string>): string =>
+  [...new Set([...crsCodes].map((crs) => crs.toUpperCase()))].sort().join(',');
+
+export const indexHas = (packed: string | null | undefined, crs: string): boolean =>
+  Boolean(packed) && `,${packed},`.includes(`,${crs.toUpperCase()},`);
+
+/**
+ * What is wrong with a snapshot's coverage of the days the app needs, if anything.
+ *
+ * A date being listed does not prove its whole day is there (`SERVER-AUDIT.md` finding 8),
+ * so each needed day is also counted: a day with under half the departures of the fullest
+ * day covered is reported as partial. Half, because a Sunday really does run far fewer
+ * trains than a weekday, and a partial file loses far more than that.
+ *
+ * Pure. An empty list means healthy coverage.
+ */
+export function coverageProblems(
+  meta: Pick<TimetableMeta, 'serviceDates' | 'departuresByDate'>,
+  needed: string[]
+): string[] {
+  const problems: string[] = [];
+  const counts = meta.departuresByDate;
+  const fullest = counts ? Math.max(0, ...Object.values(counts)) : 0;
+  for (const date of needed) {
+    if (!meta.serviceDates.includes(date)) {
+      problems.push(`${date} is not covered.`);
+    } else if (counts && (counts[date] ?? 0) < fullest / 2) {
+      problems.push(`${date} looks partial: ${counts[date] ?? 0} departures against ${fullest}.`);
+    }
+  }
+  return problems;
+}
+
+/**
+ * What a station with no board on a day means.
+ *
+ * - `empty`: the snapshot covers the day and its index does not list the station. It has
+ *   no trains, and that is a real answer.
+ * - `lost`: the index lists the station, so a board was written, and it is not there. The
+ *   store has lost data; never read that as no trains.
+ * - `uncovered`: the snapshot does not cover that day at all.
+ * - `unproven`: no index to ask — a snapshot from before indexes, or an index that has
+ *   gone. Cannot tell `empty` from `lost`, so it claims neither.
+ *
+ * Pure, so each case is tested without a store.
+ */
+export type MissingBoard = 'empty' | 'lost' | 'uncovered' | 'unproven';
+
+export function judgeMissingBoard(
+  meta: Pick<TimetableMeta, 'serviceDates' | 'keyed'>,
+  index: string | null | undefined,
+  crs: string,
+  serviceDate: string
+): MissingBoard {
+  if (!meta.serviceDates.includes(serviceDate)) return 'uncovered';
+  if (meta.keyed !== 'snapshot' || index == null) return 'unproven';
+  return indexHas(index, crs) ? 'lost' : 'empty';
+}
+
+/**
+ * Where the snapshot's own description lives: the pointer to the snapshot the app reads.
+ *
+ * **Switched in one write** (`SERVER-AUDIT.md` finding 2). Boards used to share one key per
+ * station and day, rewritten in place, so a request during a publish could read a new
+ * board under the old meta, and a publish that died half way left the two mixed. Boards
+ * are now written under their snapshot's id, checked, and only then does this key move to
+ * name them. A reader takes the id from here and reads exactly that snapshot.
+ */
 export const META_KEY = 'tt:meta';
 
 /** What the app needs to know about the snapshot it is reading. */
@@ -102,6 +185,13 @@ export interface TimetableMeta {
   departureCount: number;
   /** TOC code to operator name, so a board need not repeat it on every line. */
   operators: Record<string, string>;
+  /**
+   * `snapshot` when boards are keyed by `timetableId` and each day has an index. Absent
+   * on a snapshot written before that, whose boards sit under the old unkeyed names.
+   */
+  keyed?: 'snapshot';
+  /** Departures per service day, so a day that is only partly in the file shows up. */
+  departuresByDate?: Record<string, number>;
 }
 
 /** One departure line. Tabs and newlines are the only reserved characters. */

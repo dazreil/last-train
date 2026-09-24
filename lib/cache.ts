@@ -296,8 +296,11 @@ export async function sharedCacheHealth(): Promise<{
 
   const started = Date.now();
   try {
-    await redis.set('health:ping', { t: started }, { ex: 30 });
-    const seen = await redis.get<{ t: number }>('health:ping');
+    // A key of its own per check: two checks at once shared one key and could each read
+    // the other's write, or miss their own. (`SERVER-AUDIT.md` finding 8.)
+    const probe = `health:ping:${started}:${Math.random().toString(36).slice(2, 10)}`;
+    await redis.set(probe, { t: started }, { ex: 30 });
+    const seen = await redis.get<{ t: number }>(probe);
     return { configured: true, reachable: seen?.t === started, roundTripMs: Date.now() - started };
   } catch (error) {
     noteSharedFailure('health', error);

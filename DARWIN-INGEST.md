@@ -525,8 +525,21 @@ it, which also puts the format under `npm test`.
 
 ### What the writer gets right on purpose
 
-- **Meta is written last.** It names the snapshot the app reads. Written first, a
-  run that dies halfway advertises a complete snapshot over a half-written one.
+- **A snapshot is switched on in one write** (since 25 September 2026,
+  `SERVER-AUDIT.md` finding 2). Boards are keyed by the snapshot's id,
+  `tt:board:<timetableId>:<CRS>:<date>`, so a new snapshot is written beside the
+  one in use. The keys are counted back with `EXISTS`, and only then does
+  `tt:meta` move to name the new id. A reader takes the id from `tt:meta` and
+  reads exactly that snapshot. The old snapshot is set to expire in two hours.
+  Before this, boards were rewritten in place under `tt:board:<CRS>:<date>`, and a
+  request during a publish could mix two snapshots. A meta without
+  `keyed: 'snapshot'` is still read under the old names, so the change-over needs
+  no migration.
+- **Each day has an index**, `tt:index:<timetableId>:<date>`: the stations with a
+  board. A station not listed has no trains that day, which is a real answer. A
+  station listed with no board is lost data, and is never read as "no trains".
+- **Meta carries departures per day**, so a day only partly in the file shows up
+  in the health check.
 - **Every board expires after 72 hours.** Each day's run rewrites them, so a time
   to live costs nothing while the job is healthy, and empties the store within
   three days if it stops. A store that empties says so; one still serving
@@ -800,7 +813,18 @@ the same keys out. Four things it does deliberately:
   the writes were forty minutes from a home connection.
 - **It reads the snapshot back from the deployment afterwards, and fails if it
   is not healthy.** The job exiting zero proves nothing — a run that found
-  nothing new would exit zero too. The store's own age is the proof.
+  nothing new would exit zero too. The store's own age is the proof. Since 25
+  September 2026 it also fails unless the store names the exact snapshot this
+  run published.
+- **A second trigger at 06:20 UTC** (since 25 September 2026). GitHub started
+  the 03:20 run five hours late on 23 and 24 September. The later run first
+  asks the health route; if today's file is already in, it does nothing.
+
+`/api/timetable-health` answers **503 when unhealthy** (since 25 September 2026),
+checks that today — and tomorrow, once today's file is in — is covered and not
+partial, and reads one real board (Clapham Junction) back. `/api/cache-health`
+answers 503 when the cache is not reachable, and each check uses its own probe
+key.
 
 `scripts/darwin-publish.mjs` grew a `--bucket` mode so the job can run
 unattended, and the source resolution that three scripts had each grown a copy

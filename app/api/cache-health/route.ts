@@ -14,5 +14,9 @@ export const runtime = 'nodejs';
 
 export async function GET() {
   const health = await sharedCacheHealth();
-  return NextResponse.json(health, { headers: { 'cache-control': 'no-store' } });
+  // 503 when it is not working, so the status alone answers a monitor.
+  return NextResponse.json(health, {
+    status: health.configured && health.reachable ? 200 : 503,
+    headers: { 'cache-control': 'no-store' },
+  });
 }

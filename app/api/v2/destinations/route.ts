@@ -106,7 +106,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'date must be YYYY-MM-DD.' }, { status: 400 });
   }
 
-  const fromTimetable = await cachedTimetableList(from, date, params.get('refresh') === '1');
+  const { list: fromTimetable, stale } = await cachedTimetableList(
+    from,
+    date,
+    params.get('refresh') === '1'
+  );
   if (fromTimetable) {
     const destinations = everyWay
       ? fromTimetable
@@ -122,6 +126,8 @@ export async function GET(request: Request) {
       // everything it could have compared against.
       comparedWith: everyWay ? [...COMPASS_POINTS] : COMPASS_POINTS.filter((p) => p !== requested),
       source: 'timetable',
+      // Said, not hidden: an old snapshot is still the best list there is, but it is old.
+      ...(stale ? { stale: true } : {}),
       ...popularity(from.crs, destinations, everyWay ? null : (requested as Compass)),
     };
     return NextResponse.json(body, {
@@ -459,19 +465,22 @@ async function cachedTimetableList(
   from: { crs: string; name: string },
   date: IsoDate,
   refresh: boolean
-): ReturnType<typeof timetableList> {
+): Promise<{ list: Awaited<ReturnType<typeof timetableList>>; stale: boolean }> {
   const status = await timetableStatus();
   const id = status.configured && status.meta ? status.meta.timetableId : null;
-  if (!id) return timetableList(from, date);
+  // Read now, never cached with the list: a snapshot turns stale with age, not with a
+  // new id, so the same cached list can be fresh at noon and stale the next evening.
+  const stale = status.configured && status.meta ? status.stale : false;
+  if (!id) return { list: await timetableList(from, date), stale };
 
   const listKey = `dl:${from.crs}:${date}:${id}`;
   if (!refresh) {
     const hit = await getCached<Awaited<ReturnType<typeof timetableList>>>(listKey);
-    if (hit?.value) return hit.value;
+    if (hit?.value) return { list: hit.value, stale };
   }
   const list = await timetableList(from, date);
   if (list) await setCached(listKey, list, LIST_TTL_SECONDS);
-  return list;
+  return { list, stale };
 }
 
 async function timetableList(
@@ -480,9 +489,9 @@ async function timetableList(
 ): Promise<(Destination & { direction: Compass; trains: number })[] | null> {
   const stored = await timetableBoard(from.crs, date);
 
-  if (stored.status === 'missing') {
-    return stored.meta?.serviceDates.includes(date) ? [] : null;
-  }
+  // A proven empty day arrives as `ok` with no services, and lists nothing. A missing
+  // board is never read as "no trains": lost, uncovered or unprovable all go to the live
+  // path, which can answer for itself (`SERVER-AUDIT.md` finding 6).
   if (stored.status !== 'ok' && stored.status !== 'stale') return null;
 
   const origin = coordinateFor([from.name], [from.crs]);
