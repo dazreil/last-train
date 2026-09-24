@@ -257,11 +257,27 @@ export const getCachedLocations = <T>(serviceId: string): Promise<CacheHit<T> | 
 export const setCachedLocations = <T>(serviceId: string, value: T, ttlSeconds: number): Promise<void> =>
   patterns.set(LOCATIONS + serviceId, value, ttlSeconds);
 
-/** The rendered calling-points body `/api/v2/service` returns. */
-export const getCachedCalls = <T>(serviceId: string): Promise<CacheHit<T> | null> =>
-  patterns.get<T>(CALLS + serviceId);
-export const setCachedCalls = <T>(serviceId: string, value: T, ttlSeconds: number): Promise<void> =>
-  patterns.set(CALLS + serviceId, value, ttlSeconds);
+/**
+ * The rendered calling-points body `/api/v2/service` returns.
+ *
+ * **Keyed by boarding station as well, where there is one.** A Darwin board lists a train's
+ * stops from the station asked about onward, so the same train seen from Upminster and from
+ * Basildon has two different lists. Keyed by the id alone, whichever board was read last
+ * overwrote the other, and a sheet opened at Upminster could show a list starting at
+ * Basildon — with Upminster missing from it. (`SERVER-AUDIT.md` finding 4.) An RTT lookup
+ * is the whole train, the same from anywhere, and keeps the id alone.
+ */
+export const callsKey = (serviceId: string, boardingCrs?: string | null): string =>
+  boardingCrs ? `${CALLS}${serviceId}@${boardingCrs.toUpperCase()}` : CALLS + serviceId;
+
+export const getCachedCalls = <T>(serviceId: string, boardingCrs?: string | null): Promise<CacheHit<T> | null> =>
+  patterns.get<T>(callsKey(serviceId, boardingCrs));
+export const setCachedCalls = <T>(
+  serviceId: string,
+  value: T,
+  ttlSeconds: number,
+  boardingCrs?: string | null
+): Promise<void> => patterns.set(callsKey(serviceId, boardingCrs), value, ttlSeconds);
 
 /**
  * Whether the shared layer is configured and actually reachable, for a health check.

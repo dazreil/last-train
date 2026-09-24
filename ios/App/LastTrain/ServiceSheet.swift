@@ -292,7 +292,7 @@ struct ServiceSheet: View {
         defer { isLoading = false }
 
         do {
-            calls = try await client.calls(for: service.serviceId)
+            calls = try await client.calls(for: service.serviceId, from: station.crs)
         } catch {
             failure = (error as? BoardClientError)?.errorDescription ?? error.localizedDescription
         }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  callsKey,
   getCachedCalls,
   getCachedLocations,
   setCachedCalls,
@@ -49,4 +50,11 @@ test('both shapes coexist for one service', async () => {
 
   assert.deepEqual((await getCachedLocations<typeof locations>(id))?.value, locations);
   assert.deepEqual((await getCachedCalls<typeof calls>(id))?.value, calls);
+});
+
+test('a Darwin stop list is kept per boarding station, so one station cannot overwrite another', () => {
+  assert.equal(callsKey('ab12cd'), 'calls:ab12cd');
+  assert.equal(callsKey('ab12cd', 'upm'), 'calls:ab12cd@UPM');
+  assert.notEqual(callsKey('ab12cd', 'UPM'), callsKey('ab12cd', 'BSO'));
+  assert.equal(callsKey('ab12cd', null), 'calls:ab12cd');
 });

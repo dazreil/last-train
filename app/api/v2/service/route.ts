@@ -22,6 +22,7 @@ import { NextResponse } from 'next/server';
 import { serviceDetail } from '@/lib/rtt';
 import { formatLondonTime } from '@/lib/serviceDay';
 import { getCachedCalls, setCachedCalls } from '@/lib/cache';
+import { callsMaxAge } from '@/lib/freshness';
 import type { ServiceCall, ServiceCalls } from '@/lib/nationalContract';
 
 export const runtime = 'nodejs';
@@ -41,7 +42,11 @@ const describe = (list: { location?: { description?: string } }[] | undefined): 
     .join(' & ');
 
 export async function GET(request: Request) {
-  const id = (new URL(request.url).searchParams.get('id') ?? '').trim();
+  const params = new URL(request.url).searchParams;
+  const id = (params.get('id') ?? '').trim();
+  // The station the sheet was opened at. A Darwin train's stops are stored per boarding
+  // station, because the board lists them from there onward; see `callsKey`.
+  const from = (params.get('from') ?? '').trim().toUpperCase() || null;
 
   if (!id) {
     return NextResponse.json({ error: 'A service id is required.' }, { status: 400 });
@@ -51,10 +56,14 @@ export async function GET(request: Request) {
   // and its stops were cached by the board that listed it — so the sheet is served from
   // here with no request at all. A Last Train tap carries an RTT id, cached after its
   // first lookup below.
-  const cached = await getCachedCalls<ServiceCalls>(id);
+  // The boarding station's own list first, then the id alone, which is where an RTT
+  // train's whole route is kept.
+  const cached = (from ? await getCachedCalls<ServiceCalls>(id, from) : null) ?? (await getCachedCalls<ServiceCalls>(id));
   if (cached) {
     return NextResponse.json(cached.value, {
-      headers: { 'x-cache': 'HIT', 'cache-control': `public, max-age=${TTL_SECONDS}` },
+      // Minutes, not the twelve hours it is stored for: the stops carry platforms and
+      // cancellations, and the phone must not keep them past the next change.
+      headers: { 'x-cache': 'HIT', 'cache-control': `public, max-age=${callsMaxAge(TTL_SECONDS - cached.ageSeconds)}` },
     });
   }
 
@@ -110,6 +119,6 @@ export async function GET(request: Request) {
   await setCachedCalls(id, body, TTL_SECONDS);
 
   return NextResponse.json(body, {
-    headers: { 'x-cache': 'MISS', 'cache-control': `public, max-age=${TTL_SECONDS}` },
+    headers: { 'x-cache': 'MISS', 'cache-control': `public, max-age=${callsMaxAge(TTL_SECONDS)}` },
   });
 }

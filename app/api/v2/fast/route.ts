@@ -15,6 +15,7 @@
  * train. That is the whole cost of the mode.
  */
 
+import { fastFallbackTtl } from '@/lib/freshness';
 import { NextResponse } from 'next/server';
 
 import { locationLineUp, serviceDetail } from '@/lib/rtt';
@@ -376,7 +377,7 @@ export async function GET(request: Request) {
     */
     await Promise.all(
       priced.map(({ service }) =>
-        setCachedCalls(service.serviceId, toServiceCalls(service), DARWIN_CALLS_TTL)
+        setCachedCalls(service.serviceId, toServiceCalls(service), DARWIN_CALLS_TTL, from.crs)
       )
     );
 
@@ -437,7 +438,7 @@ export async function GET(request: Request) {
         services.push(priced);
         // The tap that opens this train reads its stops from here; the board already
         // fetched them, so the detail sheet costs no request of its own.
-        await setCachedCalls(service.serviceId, toServiceCalls(service), DARWIN_CALLS_TTL);
+        await setCachedCalls(service.serviceId, toServiceCalls(service), DARWIN_CALLS_TTL, from.crs);
       }
 
       if (services.length > 0) {
@@ -490,7 +491,10 @@ export async function GET(request: Request) {
       ? minIso(window.timeTo, addMinutesLondon(timeFrom, FALLBACK_WINDOW_MINUTES))
       : window.timeTo;
 
+  // Calling patterns do not change through the day and keep the day's TTL. The answer does
+  // not: today's window starts now and moves, so it is kept ten minutes (`lib/freshness.ts`).
   const ttl = ttlSecondsFor(date);
+  const answerTtl = fastFallbackTtl(date === today, ttl);
   const budget = date === today ? PATTERN_BUDGET : ROLL_BUDGET;
   const result = await priceWindow(from.crs, to.crs, timeFrom, timeTo, budget, ttl);
   if ('error' in result) {
@@ -541,7 +545,7 @@ export async function GET(request: Request) {
     await setCached(key, body, RATE_LIMITED_TTL);
     outcome = 'PARTIAL';
   } else {
-    await setCached(key, body, ttl);
+    await setCached(key, body, answerTtl);
     outcome = 'MISS';
   }
 

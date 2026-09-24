@@ -29,6 +29,8 @@
  * are free on a warm cache.
  */
 
+import { boardMaxAge } from '@/lib/freshness';
+import { chooseCandidates } from '@/lib/filteredLineUp';
 import {
   RttError,
   locationLineUp,
@@ -300,6 +302,9 @@ export async function GET(request: Request) {
   const diagnosticsOn = process.env.DEBUG_DIAGNOSTICS === '1';
   const key = answerKey(from.crs, direction, date, advanced, to?.crs ?? null);
   const ttl = ttlSecondsFor(date);
+  // Read by someone standing there now, so its live times matter: today's board, or the
+  // next day's stepped on to after the last train.
+  const readNow = date === today || advanced;
 
   if (!refresh) {
     const hit = await getCached<NationalBoard>(key);
@@ -310,7 +315,8 @@ export async function GET(request: Request) {
       return json(shown.body, {
         headers: {
           // A board carrying live times is only good for a minute.
-          'cache-control': `private, max-age=${shown.live ? 60 : Math.max(ttl - hit.ageSeconds, 0)}`,
+          // Two minutes at most for a board read now; see `lib/freshness.ts`.
+          'cache-control': `private, max-age=${boardMaxAge(shown.live, readNow, ttl - hit.ageSeconds)}`,
           'x-cache': 'HIT',
         },
       });
@@ -426,11 +432,18 @@ export async function GET(request: Request) {
         // Where the upstream filter answered — a chosen destination, or a waypoint
         // standing in for one — it *is* the classification and nothing is inferred.
         // Otherwise the destination bearing, as before.
-        candidates: directional
-          ? sortedDepartures(directional)
-          : classified
+        // A chosen destination is chosen by whether it was asked for: an empty filtered
+        // answer (RTT's 204, read as `null`) means nothing goes there, not "list the whole
+        // direction". A waypoint is only the route table's guess at a branch, so an empty
+        // answer to it still falls back to the bearing, as before.
+        candidates: chooseCandidates(
+          to != null || directional != null,
+          () => sortedDepartures(directional),
+          () =>
+            classified
               .filter((entry) => classify(origin, entry.destination) === direction)
-              .map((entry) => entry.departure),
+              .map((entry) => entry.departure)
+        ),
       };
     };
 
@@ -623,12 +636,13 @@ export async function GET(request: Request) {
     // Held only briefly when the last train is imminent: the schedule is most volatile
     // then, so a late cancellation or a phantom that slipped the Darwin check should clear
     // in a minute or two rather than sit for the hour.
-    await setCached(key, body, lastTrainSoon ? 120 : ttl);
+    const storedFor = lastTrainSoon ? 120 : ttl;
+    await setCached(key, body, storedFor);
 
     const shown = await withLive(body, from.crs, date === today);
     return json(shown.body, {
       headers: {
-        'cache-control': `private, max-age=${shown.live ? 60 : ttl}`,
+        'cache-control': `private, max-age=${boardMaxAge(shown.live, readNow, storedFor)}`,
         'x-cache': requestsSpent === 0 ? 'PARTIAL' : 'MISS',
         'x-ratelimit-remaining': JSON.stringify(rateLimitSnapshot()),
       },

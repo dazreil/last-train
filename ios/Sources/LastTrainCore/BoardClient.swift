@@ -358,14 +358,18 @@ extension BoardClient {
 
      One request, made only when somebody taps, and cached by the server under the
      service id. Nothing calls this on behalf of a board.
+
+     `from` is the station the sheet was opened at. A Darwin train's stops are stored per
+     boarding station, because its board lists them from there onward.
      */
-    public func calls(for serviceId: String) async throws -> ServiceCalls {
+    public func calls(for serviceId: String, from boardingCrs: String? = nil) async throws -> ServiceCalls {
         guard var components = URLComponents(
             url: baseURL.appendingPathComponent("api/v2/service"),
             resolvingAgainstBaseURL: false
         ) else { throw BoardClientError.unreachable }
 
         components.queryItems = [URLQueryItem(name: "id", value: serviceId)]
+            + (boardingCrs.map { [URLQueryItem(name: "from", value: $0)] } ?? [])
         guard let url = components.url else { throw BoardClientError.unreachable }
 
         var request = URLRequest(url: url)
