@@ -36,7 +36,9 @@ private enum PresentedSheet: Identifiable {
 struct BoardView: View {
     @State private var model = BoardModel()
     @State private var fast = FastModel()
-    @State private var mode: AppMode = .last
+    /// Remembered across launches, like the journey: an app closed in the background and
+    /// reopened comes back in the mode you left it in, not reset to Last Train.
+    @AppStorage("lastTrain.mode") private var mode: AppMode = .last
     @State private var presented: PresentedSheet?
     /// Whether a direction has been chosen for the station on screen. True on open — the
     /// remembered journey shows at once — and set false by a clear, so a freshly picked
@@ -494,6 +496,7 @@ struct BoardView: View {
             locateButton
             if model.station != nil, fast.destination != nil { swapButton }
             if model.station != nil { clearButton }
+            else if HomeJourney.current != nil { homeButton }
         }
     }
 
@@ -510,7 +513,7 @@ struct BoardView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressDim())
-        .accessibilityLabel("Clear journey")
+        .accessibilityLabel(clearGoesHome == nil ? "Clear journey" : "Go to home journey")
     }
 
     /// Turns the journey round: `EUS → MKC` becomes `MKC → EUS`. Only there once both
@@ -565,7 +568,41 @@ struct BoardView: View {
         model.station = end
     }
 
+    /// On the blank board, the way back to your home journey — the clear button has
+    /// nothing to clear there, so this takes its place.
+    private var homeButton: some View {
+        Button {
+            clearJourney()
+        } label: {
+            Image(systemName: "house")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(Theme.textDim)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressDim())
+        .accessibilityLabel("Go to home journey")
+    }
+
+    /// Where the clear button goes: home, unless you are already there.
+    private var clearGoesHome: HomeJourney? {
+        guard let home = HomeJourney.current else { return nil }
+        let atHome = directionChosen
+            && model.station?.crs == home.station.crs
+            && model.direction == home.direction
+        return atHome ? nil : home
+    }
+
     private func clearJourney() {
+        // With a home journey set, X goes home first; pressed again at home, it clears.
+        // Home is never applied on its own — only by this tap.
+        if let home = clearGoesHome {
+            model.clearNearby()
+            directionChosen = true
+            model.direction = home.direction
+            model.station = home.station
+            return
+        }
         guard let station = model.station else { return }
         fast.clearDestination(at: station, direction: model.direction)
         model.clearNearby()

@@ -3,11 +3,12 @@ import SwiftUI
 import LastTrainCore
 
 /**
- The journey the app opens on, when you have chosen one.
+ Your usual journey, one tap away.
 
- Without it the app opens wherever it was left, which is right for someone who checks one
- journey and wrong the morning after checking a friend's. With it, every launch lands on
- your own last train home, whatever you looked at in between.
+ The app always opens where you left it. Home is where the clear button takes you: press ✕
+ anywhere else and you are back on your own last train home; press it again at home and
+ the journey clears. It used to be applied at every launch, which jumped the board away
+ from a train you were following whenever iOS had closed the app in the background.
 
  A station **and** a direction, because the board is the pair: a station alone would open
  on whichever direction was last used there, which is the problem this exists to remove.
@@ -84,9 +85,9 @@ struct SettingsView: View {
     private var homeSection: some View {
         Section {
             HStack {
-                Text("Opens on")
+                Text("Home")
                 Spacer(minLength: 12)
-                Text(home?.label ?? "Where you left it")
+                Text(home?.label ?? "Not set")
                     .foregroundStyle(home == nil ? Theme.textFaint : Theme.textDim)
                     .multilineTextAlignment(.trailing)
             }
@@ -114,8 +115,8 @@ struct SettingsView: View {
             header("Home")
         } footer: {
             Text(home == nil
-                 ? "Set a home and the app always opens on it. To choose one, open that station and direction on the board first."
-                 : "The app opens here every time. The widget keeps its own setting.")
+                 ? "The app opens where you left it. Set a home and the ✕ button takes you back to it. To choose one, open that station and direction on the board first."
+                 : "The app opens where you left it. Press ✕ to come back here; press it again here to clear. The widget keeps its own setting.")
                 .foregroundStyle(Theme.textFaint)
         }
     }

@@ -110,17 +110,12 @@ final class BoardModel {
 
     init(client: BoardClient = BoardClient(baseURL: AppConfig.apiBaseURL)) {
         self.client = client
-        // A home journey, when one is set, wins over wherever the app was left: it is the
-        // board you open this for. Stored back as the shared selection so a widget that
-        // follows the app follows it here too.
-        if let home = HomeJourney.current {
-            self.direction = home.direction
-            self.station = home.station
-            SharedSelection.store(station: home.station, direction: home.direction)
-        } else {
-            self.direction = SharedSelection.direction
-            self.station = SharedSelection.station
-        }
+        // Always where you left it. The home journey used to win at every launch, and iOS
+        // relaunches an app it has closed in the background — so the board jumped away
+        // from a train you were following. Home is reached by the clear button now, and
+        // nothing moves without a tap.
+        self.direction = SharedSelection.direction
+        self.station = SharedSelection.station
     }
 
     /**

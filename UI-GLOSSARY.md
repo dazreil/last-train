@@ -12,7 +12,8 @@ Read top of the screen to bottom. **What you see → `the name`.**
 | Each station code (WCF, UPM) | `codeButton` |
 | The arrow that finds your nearest station | `locateButton` |
 | The ⇄ that turns the journey round | `swapButton` |
-| The **×** clear button | `clearButton` |
+| The **×** button: goes to your home journey, or clears if you are already there | `clearButton` |
+| The house on the blank board, back to your home journey | `homeButton` |
 | The "WEST / EAST / SOUTH" row | `directionPicker` |
 | The "which way?" prompt after you clear (Last Train) | `directionPrompt` |
 
