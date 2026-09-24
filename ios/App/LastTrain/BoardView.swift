@@ -497,8 +497,12 @@ struct BoardView: View {
         let avail = available.isEmpty
             ? [selected]
             : Compass.allCases.filter { available.contains($0) }
-        let availableOrdered = [selected] + avail.filter { $0 != selected }
-        let ordered = availableOrdered + Compass.allCases.filter { !avail.contains($0) }
+        // The chosen direction leads only when this station has it. A station picked while
+        // the old direction does not run from it (Fenchurch Street, with west still chosen)
+        // put that direction in twice — once leading, once as a held gap — and five words,
+        // at a larger text size, were wider than the screen and pushed the whole app wide.
+        let lead = avail.contains(selected) ? [selected] : []
+        let ordered = lead + avail.filter { $0 != selected } + Compass.allCases.filter { !avail.contains($0) }
 
         return HStack(spacing: 20) {
             ForEach(ordered, id: \.self) { direction in
