@@ -40,7 +40,7 @@ struct ServiceRow: View {
                             HStack(alignment: .firstTextBaseline, spacing: 8) {
                                 destination
                                 Spacer(minLength: 8)
-                                chevron
+                                infoMark
                             }
                         }
                     } else {
@@ -48,7 +48,7 @@ struct ServiceRow: View {
                             time
                             destination
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                            chevron
+                            infoMark
                         }
                     }
                 }
@@ -77,9 +77,11 @@ struct ServiceRow: View {
         .overlay(alignment: .bottom) { CathodeRule(colour: colour.opacity(0.42)) }
     }
 
-    private var chevron: some View {
-        Image(systemName: "chevron.right")
-            .font(.caption.weight(.bold))
+    /// The way into the calling points. An information mark rather than a chevron: the
+    /// row opens a sheet about this train, it does not navigate anywhere.
+    private var infoMark: some View {
+        Image(systemName: "info.circle")
+            .font(.body.weight(.semibold))
             .foregroundStyle(colour)
     }
 

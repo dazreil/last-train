@@ -11,6 +11,7 @@ Read top of the screen to bottom. **What you see → `the name`.**
 | The "WCF → UPM" line itself | `journeyBar` |
 | Each station code (WCF, UPM) | `codeButton` |
 | The arrow that finds your nearest station | `locateButton` |
+| The ⇄ that turns the journey round | `swapButton` |
 | The **×** clear button | `clearButton` |
 | The "WEST / EAST / SOUTH" row | `directionPicker` |
 | The "which way?" prompt after you clear (Last Train) | `directionPrompt` |
@@ -29,7 +30,7 @@ Read top of the screen to bottom. **What you see → `the name`.**
 | A Fast Train line | `FastRow` |
 | The big glowing clock number | `CathodeNumber` |
 | The "Follow / Following" button | `FollowPill` |
-| The `›` that opens train details | `chevron` |
+| The ⓘ that opens train details | `infoMark` |
 
 ## Section titles
 LAST TRAIN, EARLIER TRAINS, FASTEST TRAIN, LATER TRAINS, FIRST BACK → `sectionHeading`

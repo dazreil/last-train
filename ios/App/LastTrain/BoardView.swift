@@ -49,6 +49,8 @@ struct BoardView: View {
     @State private var isRefreshing = false
     /// Bumped on each hold-to-refresh, to fire the haptic.
     @State private var refreshRequests = 0
+    /// True while a reversed journey's direction is being looked up.
+    @State private var isSwapping = false
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -456,6 +458,7 @@ struct BoardView: View {
             // which is exactly when it used to hide. Clear only appears once there is a
             // journey to clear.
             locateButton
+            if model.station != nil, fast.destination != nil { swapButton }
             if model.station != nil { clearButton }
         }
     }
@@ -474,6 +477,58 @@ struct BoardView: View {
         }
         .buttonStyle(PressDim())
         .accessibilityLabel("Clear journey")
+    }
+
+    /// Turns the journey round: `EUS → MKC` becomes `MKC → EUS`. Only there once both
+    /// ends are set, since there is nothing to turn round before that.
+    private var swapButton: some View {
+        Button {
+            Task { await swapJourney() }
+        } label: {
+            Group {
+                if isSwapping { ProgressView().tint(Theme.textDim) }
+                else { Image(systemName: "arrow.left.arrow.right") }
+            }
+            .font(.body.weight(.semibold))
+            .foregroundStyle(Theme.textDim)
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressDim())
+        .disabled(isSwapping)
+        .accessibilityLabel("Reverse journey")
+    }
+
+    /**
+     The way back, as its own journey.
+
+     The direction is **asked for, not assumed to be the opposite one**. A destination's
+     direction has to be the board's own rule, or the reversed board opens empty — and on a
+     line that turns, like the Tilbury loop, the way back is not always the mirror of the
+     way out. So the unfiltered list from the far end is read, and the old start's
+     direction taken from it. Only if that fails does the opposite stand in.
+
+     Filed before the station and direction change, for the reason `adoptEnd` gives:
+     changing either re-reads what is filed, and would otherwise find nothing.
+     */
+    private func swapJourney() async {
+        guard !isSwapping, let start = model.station, let end = fast.destination else { return }
+        isSwapping = true
+        defer { isSwapping = false }
+
+        let client = BoardClient(baseURL: AppConfig.apiBaseURL)
+        let list = try? await client.destinations(
+            from: end.crs,
+            direction: nil,
+            date: model.requestedDate
+        )
+        let heading = list?.destinations.first(where: { $0.crs == start.crs })?.direction
+        let direction = heading ?? model.direction.opposite
+
+        fast.choose(start, at: end, direction: direction)
+        directionChosen = true
+        model.direction = direction
+        model.station = end
     }
 
     private func clearJourney() {
@@ -574,7 +629,9 @@ struct BoardView: View {
                 .monospacedDigit()
                 .foregroundStyle(crs == nil ? Theme.textDim : Theme.text)
                 .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
+                // Shrinks rather than holding its width, so two codes and three buttons
+                // still fit the bar at large text instead of widening the page.
+                .minimumScaleFactor(0.6)
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressDim())

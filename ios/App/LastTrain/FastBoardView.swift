@@ -237,8 +237,8 @@ struct FastRow: View {
                     DestinationName(name: service.destination)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
+                    Image(systemName: "info.circle")
+                        .font(.body.weight(.semibold))
                         .foregroundStyle(colour)
                 }
                 .contentShape(Rectangle())
