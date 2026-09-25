@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  How an archive leaves this machine for TestFlight and the App Store:
+    xcodebuild -exportArchive -archivePath <archive> -exportOptionsPlist ExportOptions.plist \
+      -exportPath <dir> -allowProvisioningUpdates
+  `destination: upload` sends it straight to App Store Connect with the Apple ID signed in
+  to Xcode. Raise CURRENT_PROJECT_VERSION in project.yml first; a build number is used once.
+-->
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>app-store-connect</string>
+	<key>destination</key>
+	<string>upload</string>
+	<key>teamID</key>
+	<string>6G9H3H7HTP</string>
+	<key>signingStyle</key>
+	<string>automatic</string>
+	<key>uploadSymbols</key>
+	<true/>
+	<key>manageAppVersionAndBuildNumber</key>
+	<false/>
+</dict>
+</plist>

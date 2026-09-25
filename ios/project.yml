@@ -25,6 +25,22 @@ options:
   createIntermediateGroups: true
   generateEmptyDirectories: true
 
+# Signing, for every target. The paid Apple Developer Program team since 25 September 2026;
+# before that it was the free Personal Team, which cannot hold an App Group, so phone
+# builds were signed with `App/Resources/PersonalTeam.entitlements` (none) and the widget
+# could not read the app's selection on a real phone. Automatic signing registers the
+# App IDs and the App Group itself, on the first build with -allowProvisioningUpdates.
+#
+# The version and build number live here too, once for both targets: an app and its
+# extension must carry the same ones, or the upload is refused. Raise
+# CURRENT_PROJECT_VERSION for every upload to App Store Connect.
+settings:
+  base:
+    DEVELOPMENT_TEAM: 6G9H3H7HTP
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
 packages:
   LastTrainCore:
     # The domain logic, already complete and tested: service day, compass direction,
@@ -128,8 +144,6 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dazreil.lasttrain
-        MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "6.0"
         # iPhone only.
         TARGETED_DEVICE_FAMILY: "1"
@@ -180,8 +194,6 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dazreil.lasttrain.widget
-        MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "6.0"
         TARGETED_DEVICE_FAMILY: "1"
         ENABLE_USER_SCRIPT_SANDBOXING: YES
