@@ -135,7 +135,6 @@ struct BoardProvider: AppIntentTimelineProvider {
         // Read once, for this board's own station and direction. A pin made elsewhere
         // does not apply here and `pinnedHeadcode` returns nil for it.
         let pinned = SharedSelection.pinnedHeadcode(for: station.crs, direction: direction)
-        let firstBackOnly = configuration.show == .firstBack
 
         let entries = moments.map { moment in
             BoardEntry(
@@ -145,9 +144,7 @@ struct BoardProvider: AppIntentTimelineProvider {
                 // The handover is free: the pinned train leads while it is still on
                 // `remaining`, and the entry timed a second past its departure computes
                 // the ordinary answer instead. No extra request, no second timeline.
-                glance: firstBackOnly
-                    ? Glance.firstBack(board: board, now: moment)
-                    : Glance.of(board: board, now: moment, pinned: pinned),
+                glance: Glance.of(board: board, now: moment, pinned: pinned),
                 failure: nil
             )
         }

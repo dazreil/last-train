@@ -128,22 +128,6 @@ public struct Glance: Sendable, Equatable {
         return Glance(label: .firstBack, departure: leader, remaining: remaining)
     }
 
-    /**
-     The first train back, and only that: the next service day's first departure.
-
-     For a widget set to show it, so a pair in StandBy can read "last train" on one side
-     and "first back" on the other. Nil when the board holds no first train still to come.
-     Blue, never red: it is not the last train.
-     */
-    public static func firstBack(board: DepartureBoard, now: Date = Date()) -> Glance? {
-        let remaining = board.services.filter { service in
-            guard let instant = ServiceDay.instant(from: service.liveDepInstant) else { return false }
-            return instant > now
-        }
-        guard let first = remaining.first(where: { $0.role == .first }) else { return nil }
-        return Glance(label: .firstBack, departure: first, remaining: remaining)
-    }
-
     // MARK: - Timeline
 
     /**

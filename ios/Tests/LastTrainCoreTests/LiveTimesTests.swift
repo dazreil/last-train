@@ -99,7 +99,7 @@ struct LiveTimesTests {
         #expect(late.journeyMinutes == 30)
     }
 
-    /// The same line on the widget, the Live Activity and StandBy.
+    /// The same line on the widget and the Live Activity.
     @Test("the status line: late, on time, cancelled, or nothing without a live time")
     func statusLine() {
         #expect(LiveStatus.text(hasLiveTime: true, minutesLate: 4, cancelled: false) == "4 min late")
@@ -118,22 +118,6 @@ struct LiveTimesTests {
         ])
         #expect(LiveStatus.of(board.services[0]) == "On time")
         #expect(LiveStatus.of(board.services[1]) == nil)
-    }
-
-    @Test("a widget set to first back shows the first train of the next day, all evening")
-    func firstBackGlance() {
-        let board = liveBoard([
-            row("23:51", "2026-08-05T22:51:00.000Z"),
-            row("00:27", "2026-08-05T23:27:00.000Z"),
-            row("05:00", "2026-08-06T04:00:00.000Z", role: "first"),
-        ])
-        let evening = utcInstant("2026-08-05T20:00:00Z")
-        let glance = Glance.firstBack(board: board, now: evening)
-        #expect(glance?.departure.dep == "05:00")
-        #expect(glance?.label == .firstBack)
-        #expect(glance?.isLastTrain == false)
-        // Once it has gone there is nothing to show.
-        #expect(Glance.firstBack(board: board, now: utcInstant("2026-08-06T04:30:00Z")) == nil)
     }
 
     @Test("the last page is filled to a full page, and never past one")

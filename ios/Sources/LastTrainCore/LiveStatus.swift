@@ -5,8 +5,8 @@ import Foundation
  "Cancelled" — or nothing.
 
  **Nothing when there is no live time.** A train more than two hours out has only its
- timetable, and "On time" would be a claim no source made. The widget, the Live Activity
- and StandBy all show this same line, so it is decided once, here.
+ timetable, and "On time" would be a claim no source made. The widget and the Live
+ Activity show this same line, so it is decided once, here.
 
  Pure, so it is tested without a device.
  */

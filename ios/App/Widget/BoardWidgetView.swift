@@ -122,10 +122,7 @@ struct BoardWidgetView: View {
     /**
      The departure card: what it is and the platform, the time, where it goes, how long you
      have and whether it is running to time. The same parts in the same order as the Live
-     Activity and StandBy, so the three read as one thing.
-
-     In StandBy iOS draws this larger and without its background, on black. Nothing here
-     depends on the background being there.
+     Activity on the lock screen, so the two read as one thing.
      */
     private var small: some View {
         VStack(alignment: .leading, spacing: 0) {

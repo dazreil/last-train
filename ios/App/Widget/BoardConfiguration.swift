@@ -32,33 +32,12 @@ struct BoardConfiguration: WidgetConfigurationIntent {
     @Parameter(title: "Direction")
     var direction: DirectionChoice?
 
-    /**
-     Which answer to lead with. Blank is the widget as it always was: the last train, then
-     the first one back once it has gone. "First train back" shows only that, so two
-     widgets side by side in StandBy can read last train on one side, first back on the
-     other.
-     */
-    @Parameter(title: "Show")
-    var show: ShowChoice?
-
     /// What to actually show, once the blanks are filled from the app's last selection.
     var resolved: (station: Station, direction: Compass)? {
         guard let target = station.flatMap({ Stations.find($0.id) }) ?? SharedSelection.station
         else { return nil }
         return (target, direction?.compass ?? SharedSelection.direction)
     }
-}
-
-/// What the widget leads with.
-enum ShowChoice: String, AppEnum {
-    case lastTrain, firstBack
-
-    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Show")
-
-    static let caseDisplayRepresentations: [ShowChoice: DisplayRepresentation] = [
-        .lastTrain: "Last train, then first back",
-        .firstBack: "First train back",
-    ]
 }
 
 /// The four points, as something the widget editor can offer.

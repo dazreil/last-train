@@ -282,7 +282,7 @@ extension View {
 /**
  The platform, as a small outlined tag: "PLAT 1", or "P1" where room is short.
 
- On the widget, the Live Activity and StandBy alike, in the card's own colour, top right,
+ On the widget and the Live Activity alike, in the card's own colour, top right,
  opposite the label that says what the train is. Nothing when the platform is not known:
  an empty tag would read as a platform called nothing.
  */
