@@ -178,52 +178,90 @@ struct BoardWidgetView: View {
         .foregroundStyle(Theme.paper)
     }
 
-    /// "3 hr, 12 min · On time". The countdown ticks on the device; the status is as fresh
-    /// as the board the timeline was built from, and absent when there is no live time.
+    /**
+     "in 1 hr, 3 min · On time", as one piece of text.
+
+     One `Text`, not a row of them: a relative date in a widget takes all the width it is
+     offered, so as two views the status was pushed to the far edge of the card. The
+     countdown ticks on the device; the status is as fresh as the timeline's board, and
+     absent when there is no live time.
+     */
     private func statusLine(_ departure: BoardDeparture) -> some View {
-        HStack(spacing: 0) {
-            if let instant = departure.instant {
-                Text(instant, style: .relative)
-            }
-            if let status = LiveStatus.of(departure) {
-                Text(departure.instant == nil ? status : " · \(status)")
-                    // News is bright, as on the app's rows; "On time" stays quiet.
-                    .foregroundStyle((departure.minutesLate ?? 0) > 0 || departure.cancelled ? Theme.paper : Theme.paper.opacity(0.78))
-            }
+        var line = Text("")
+        if let instant = departure.instant {
+            line = Text("in ") + Text(instant, style: .relative)
         }
-        .font(Theme.Font.meta)
-        .foregroundStyle(Theme.paper.opacity(0.78))
-        .lineLimit(1)
-        .minimumScaleFactor(0.7)
+        if let status = LiveStatus.of(departure) {
+            // News is bright, as on the app's rows; "On time" stays quiet.
+            let isNews = (departure.minutesLate ?? 0) > 0 || departure.cancelled || departure.delayed
+            let piece = Text(departure.instant == nil ? status : " · \(status)")
+                .foregroundColor(isNews ? Theme.paper : Theme.paper.opacity(0.78))
+            line = line + piece
+        }
+        return line
+            .font(Theme.Font.meta)
+            .foregroundStyle(Theme.paper.opacity(0.78))
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// The card, with the trains around it — the app's board, at a quarter of the size.
+    /**
+     The card, and beside it the two times worth knowing: the next train, when it is not
+     the one on the card, and the first train back. Times only — every train on a board
+     goes the same way, so their names only repeated the card's — and without am/pm, which
+     broke the times onto two lines on a 12-hour phone.
+     */
     private var medium: some View {
         HStack(alignment: .top, spacing: 14) {
             small
 
-            if case .answer(let glance) = state, glance.remaining.count > 1 {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Still to come").labelStyle(Theme.paper.opacity(0.7))
-
-                    ForEach(glance.remaining.prefix(3)) { service in
-                        HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            // The LED face, as on the card: a list of times should look
-                            // like the board they came from.
-                            Text(ServiceDay.formatClock(service.liveDep).spoken)
-                                .font(.custom("WPOCRA-Regular", size: 15))
-                                .foregroundStyle(service.id == glance.departure.id ? blockColour : Theme.serviceBlueLit)
-                            Text(service.destination.withoutLondonPrefix)
-                                .font(Theme.Font.meta)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.7)
-                        }
+            if case .answer(let glance) = state, !sideTimes(glance).isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(sideTimes(glance), id: \.label) { item in
+                        Text(item.label).labelStyle(Theme.paper.opacity(0.7))
+                        Text(ServiceDay.formatClock(item.service.liveDep).time)
+                            .font(.custom("WPOCRA-Regular", size: 24))
+                            .foregroundStyle(Theme.serviceBlueLit)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .padding(.bottom, 8)
                     }
                 }
-                .foregroundStyle(Theme.paper)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+    }
+
+    private struct SideTime {
+        let label: String
+        let service: BoardDeparture
+    }
+
+    /**
+     At most two, and never the train already on the card.
+
+     - **Next train**: the soonest still to come, when the card is showing a later one —
+       the last train at 23:44 while the 21:04 has yet to leave.
+     - **First back**: the next service day's first train, while the card is on tonight's.
+       Once the card itself shows the first train back, **after it** names the one that
+       follows, so the space still answers "and if I miss it?".
+     */
+    private func sideTimes(_ glance: Glance) -> [SideTime] {
+        var items: [SideTime] = []
+        let headline = glance.departure.id
+        if let next = glance.remaining.first, next.id != headline {
+            items.append(SideTime(label: "Next train", service: next))
+        }
+        let isFirstBack = glance.label == .firstBack || glance.label == .firstOut
+        if !isFirstBack, let back = glance.remaining.first(where: { $0.role == .first }), back.id != headline {
+            items.append(SideTime(label: "First back", service: back))
+        } else if isFirstBack,
+                  let index = glance.remaining.firstIndex(where: { $0.id == headline }),
+                  index + 1 < glance.remaining.count {
+            items.append(SideTime(label: "After it", service: glance.remaining[index + 1]))
+        }
+        return Array(items.prefix(2))
     }
 
     // MARK: - Reading the entry
@@ -256,8 +294,10 @@ struct BoardWidgetView: View {
     private var caption: String {
         guard let station = entry.station else { return "Last Train" }
         // Uppercased here rather than left to `labelStyle`, which only the home screen
-        // layouts apply -- the lock screen was rendering "Upminster · east".
-        return "\(station.name.withoutLondonPrefix) · \(entry.direction.rawValue.uppercased())"
+        // layouts apply.
+        // The station alone. The direction was a second word for what the card already
+        // says by where the train is going, and it made the line wrap on a long name.
+        return station.name.withoutLondonPrefix.uppercased()
     }
 
     private func words(for label: Glance.Label) -> String {

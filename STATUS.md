@@ -436,6 +436,11 @@ target is 17.
 Done 9 August 2026, on a **free personal team** (`6G9H3H7HTP`). Each failure below
 reported something other than its cause, so this is the order they surface in.
 
+**Since 25 September 2026 the team is paid** (the Apple Developer Program, same team ID),
+and blocker 4 below is gone: `project.yml` signs both targets with the team and the real
+App Group, so a phone build needs no overrides, the widget follows the app on a phone,
+and a build no longer expires after 7 days. Blockers 1–3 still apply to a new phone.
+
 1. **`security find-identity` shows 0 identities, and that is normal.** Signing in to
    Xcode does not create a development certificate — the first device build does. Do not
    go hunting for a missing certificate.
@@ -446,7 +451,7 @@ reported something other than its cause, so this is the order they surface in.
 3. **`devicectl`'s identifier is not `xcodebuild`'s.** `devicectl list devices` prints a
    CoreDevice UUID; `-destination id=` wants the hardware UDID. Get the right one from
    `xcodebuild -showdestinations`, never by copying the one you can already see.
-4. **A free team cannot provision an App Group.** This is the real wall, and it is the
+4. **(Free team only; fixed by the paid team.) A free team cannot provision an App Group.** This was the real wall, and it is the
    last to appear because a profile has to exist before it can mismatch: *"Provisioning
    profile … doesn't match the entitlements file's value for the
    com.apple.security.application-groups entitlement"*. Overriding
@@ -461,27 +466,19 @@ Then trust the certificate **on the phone**: Settings ▸ General ▸ VPN & Devi
 ```bash
 cd ios
 xcodebuild -project LastTrain.xcodeproj -scheme LastTrain -configuration Release \
-  -destination "id=$(xcodebuild -project LastTrain.xcodeproj -scheme LastTrain \
-    -showdestinations 2>/dev/null | grep 'platform:iOS, arch' | \
-    sed -E 's/.*id:([^,]+).*/\1/')" \
-  -allowProvisioningUpdates DEVELOPMENT_TEAM=6G9H3H7HTP CODE_SIGN_STYLE=Automatic \
-  CODE_SIGN_ENTITLEMENTS='App/Resources/PersonalTeam.entitlements' build
+  -destination 'generic/platform=iOS' -allowProvisioningUpdates build
 
 xcrun devicectl device install app --device <hardware-udid> \
   ~/Library/Developer/Xcode/DerivedData/LastTrain-*/Build/Products/Release-iphoneos/LastTrain.app
 ```
 
 **Release, so the phone talks to the deployment** rather than a dev server it cannot
-reach. **A free team signs for 7 days**; after that the app stops launching until it is
-rebuilt and reinstalled.
-
-The widget works on device without the App Group, as expected: it cannot read which
-station the app was last on, so it starts blank instead of following the app, and
-behaves normally once a station is picked in Edit Widget.
+reach. The team, signing and App Group all come from `project.yml`; the file
+`PersonalTeam.entitlements` that stood in for them on the free team is deleted.
 
 #### The same thing from Xcode, without the terminal
 
-Five one-time changes, and then the Run button does it. Each one replaces a flag in the
+Two one-time steps, and then the Run button does it. Each one replaces a flag in the
 command above, so the reasons are the same ones written up under the four blockers.
 
 1. Open `ios/LastTrain.xcodeproj`. Plug the phone in, unlock it, and pick it in the
@@ -489,17 +486,11 @@ command above, so the reasons are the same ones written up under the four blocke
 2. **Product ▸ Scheme ▸ Edit Scheme ▸ Run ▸ Info ▸ Build Configuration → `Release`.**
    `project.yml` deliberately sets Run to Debug for the simulator, and Debug points at
    `localhost:3000`, which a phone cannot reach.
-3. Select the **LastTrain** project in the navigator, then the **LastTrain** target ▸
-   *Signing & Capabilities* ▸ Team → the personal team. Repeat on the
-   **LastTrainWidget** target. Both get signed, so both need it.
-4. On those same two targets, *Build Settings* ▸ search `Code Signing Entitlements` →
-   set it to `App/Resources/PersonalTeam.entitlements`. **This is the step that matters**
-   — it is the App Group wall in blocker 4, and without it the build fails on a
-   provisioning-profile mismatch that names an entitlement rather than the free team.
-5. Press ⌘R. First run only: trust the certificate on the phone, as above.
+3. Press ⌘R. The team and the App Group come from `project.yml` since the paid team;
+   the old steps that set the personal team and an empty entitlements file are gone.
 
-**These settings do not survive `xcodegen generate`.** The `.xcodeproj` is generated and
-gitignored — `project.yml` is the source of truth — so regenerating resets all five and
+**The scheme setting does not survive `xcodegen generate`.** The `.xcodeproj` is generated and
+gitignored — `project.yml` is the source of truth — so regenerating resets it and
 the symptom is a build that suddenly cannot sign, or an app that says it cannot reach the
 server. Regeneration is only needed when files are added or removed, so in practice this
 is set once and forgotten. The terminal recipe above needs none of it, which is why it is
