@@ -1,80 +1,36 @@
 import type { Metadata, Viewport } from 'next';
-import { Geist_Mono, Inter_Tight } from 'next/font/google';
-import RegisterServiceWorker from './components/RegisterServiceWorker';
+import { Doto, Nunito } from 'next/font/google';
 import './globals.css';
 
 /*
- * Rail Alphabet 2 is not licensable, so these stand in honestly rather than
- * approximating it badly.
+ * The site: a home page, the privacy policy and support, which the App Store asks for by
+ * address. The board itself lives in the iOS app; the web board this layout used to
+ * carry was removed on 25 September 2026.
  *
- * Both are self-hosted by next/font -- no request to Google at runtime -- and cut
- * to single weights and the latin subset. Font payload is not a vanity concern
- * here: the app exists to open in two seconds on a platform with one bar of
- * signal, and `display: swap` means the times render in a system face rather than
- * waiting on a download.
- *
- * Geist Mono rather than Martian Mono, which the design names first but allows
- * falling back from "if it reads too wide at large sizes". It does: Martian's
- * advance is 0.66em, so a 44px time eats 145px of a 375pt screen and forces every
- * station name onto two lines, which lifts the last-train block off the bottom of
- * the screen.
+ * Doto stands in for the app's LED face and is used for times only. Both fonts are
+ * self-hosted by next/font, so a page makes no request to Google.
  */
-const mono = Geist_Mono({
-  subsets: ['latin'],
-  weight: ['700'],
-  display: 'swap',
-  variable: '--font-mono',
-});
-
-const sans = Inter_Tight({
-  subsets: ['latin'],
-  weight: ['600', '700'],
-  display: 'swap',
-  variable: '--font-sans',
-});
+const led = Doto({ subsets: ['latin'], weight: ['900'], display: 'swap', variable: '--font-led' });
+const sans = Nunito({ subsets: ['latin'], weight: ['500', '600', '700', '800'], display: 'swap', variable: '--font-sans' });
 
 export const metadata: Metadata = {
-  title: 'Last Train',
-  description: 'First and last direct train between two stations.',
+  title: { default: 'Last Train', template: '%s · Last Train' },
+  description: 'Know your last train home, and the fastest one there. An iPhone app for trains in Great Britain.',
   applicationName: 'Last Train',
-  appleWebApp: {
-    capable: true,
-    title: 'Last Train',
-    /*
-     * Not black-translucent, for two reasons.
-     *
-     * It pulls the web view up under the status bar, which is what buried the
-     * masthead beneath the notch on the home-screen app -- the safe-area padding
-     * now handles that, but this removes the cause rather than compensating for it.
-     *
-     * And it forces white status-bar glyphs regardless of theme, which are
-     * illegible on the light background. `default` lets iOS choose them against
-     * the theme colour below, which is declared per colour scheme.
-     */
-    statusBarStyle: 'default',
-  },
-  // Personal tool; nothing here should be indexed.
-  robots: { index: false, follow: false },
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  // Installed as a home-screen app, so it should feel like one.
-  viewportFit: 'cover',
-  themeColor: [
-    { media: '(prefers-color-scheme: dark)', color: '#0b0d10' },
-    { media: '(prefers-color-scheme: light)', color: '#f4f6f8' },
-  ],
+  // Dark only, like the app.
+  colorScheme: 'dark',
+  themeColor: '#07090f',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en-GB" className={`${mono.variable} ${sans.variable}`}>
-      <body>
-        {children}
-        <RegisterServiceWorker />
-      </body>
+    <html lang="en-GB" className={`${led.variable} ${sans.variable}`}>
+      <body>{children}</body>
     </html>
   );
 }

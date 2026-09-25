@@ -12,7 +12,6 @@
     "spike": "node scripts/spike.mjs",
     "national": "node scripts/national.mjs",
     "national:data": "node scripts/generate-national.mjs",
-    "stations": "node scripts/generate-stations.mjs",
     "test": "TZ=UTC node --conditions=react-server --test lib/*.test.ts",
     "national:adjacency": "node scripts/generate-adjacency.mjs --all --budget 900",
     "darwin:probe": "node scripts/darwin-probe.mjs",
