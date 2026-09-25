@@ -16,6 +16,7 @@
  */
 
 import { fastFallbackTtl } from '@/lib/freshness';
+import { refreshAllowed } from '@/lib/limits';
 import { NextResponse } from 'next/server';
 
 import { locationLineUp, serviceDetail } from '@/lib/rtt';
@@ -37,6 +38,7 @@ import {
   getCachedLocations,
   setCached,
   setCachedCalls,
+  sharedRedis,
   setCachedLocations,
   ttlSecondsFor,
 } from '@/lib/cache';
@@ -278,7 +280,11 @@ export async function GET(request: Request) {
    on the deployment, where Upminster to Southend answered `later=1` with the live board
    and no `source` field at all.
   */
-  if (params.get('refresh') !== '1' && !wantsLater) {
+  // Honoured a few times a minute per caller, then answered from the cache; see `lib/limits.ts`.
+  const refresh =
+    params.get('refresh') === '1' && (await refreshAllowed(sharedRedis(), request.headers));
+
+  if (!refresh && !wantsLater) {
     const cached = await getCached<FastBoard>(key);
     if (cached) {
       return NextResponse.json(cached.value, { headers: { 'x-cache': 'HIT' } });
@@ -299,7 +305,7 @@ export async function GET(request: Request) {
   */
   if (wantsLater && date === today) {
     const laterKey = `${key}:later`;
-    if (params.get('refresh') !== '1') {
+    if (!refresh) {
       const cached = await getCached<FastBoard>(laterKey);
       if (cached) {
         return NextResponse.json(cached.value, { headers: { 'x-cache': 'HIT', 'x-window': 'later' } });
@@ -434,14 +440,17 @@ export async function GET(request: Request) {
       });
       const normalized = normalize(board);
       const services: FastService[] = [];
+      const stored: Promise<void>[] = [];
       for (const service of normalized) {
         const priced = toFastService(service, to.crs);
         if (!priced) continue;
         services.push(priced);
         // The tap that opens this train reads its stops from here; the board already
-        // fetched them, so the detail sheet costs no request of its own.
-        await setCachedCalls(service.serviceId, toServiceCalls(service), DARWIN_CALLS_TTL, from.crs);
+        // fetched them, so the detail sheet costs no request of its own. Started together
+        // and awaited once, not one round trip per train in turn (`SERVER-AUDIT.md` finding 7).
+        stored.push(setCachedCalls(service.serviceId, toServiceCalls(service), DARWIN_CALLS_TTL, from.crs));
       }
+      await Promise.all(stored);
 
       if (services.length > 0) {
         const body: FastBoard = {

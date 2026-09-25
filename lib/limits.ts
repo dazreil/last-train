@@ -51,8 +51,27 @@ export const CALLER_WINDOWS: readonly Window[] = [
  * August was 122 requests in a week, so neither is near anything real.
  */
 export const UPSTREAM_WINDOWS: readonly Window[] = [
+  /*
+   The minute, shared by every instance (`SERVER-AUDIT.md` finding 5). The token bucket in
+   `lib/rtt.ts` paces one process; several warm instances each held their own 40 and could
+   together ask RTT for more than its 40 a minute. 36 leaves room for the generators and
+   for testing. A fixed window can pass two full minutes' worth either side of its edge;
+   RTT's own 429 and the one retry in `lib/rtt.ts` cover that rare case.
+  */
+  { name: 'm', seconds: 60, max: 36 },
   { name: 'h', seconds: 3600, max: 400 },
   { name: 'd', seconds: 86400, max: 3000 },
+];
+
+/**
+ * `refresh=1` per caller. A refresh skips the stored answer and rebuilds it, so a script
+ * calling with it on every request could turn the cache off for itself. Past these, the
+ * request is still answered — from the cache, as if the refresh had not been asked for.
+ * A person pulling down to refresh does it a few times a minute at most.
+ */
+export const REFRESH_WINDOWS: readonly Window[] = [
+  { name: 'm', seconds: 60, max: 6 },
+  { name: 'h', seconds: 3600, max: 60 },
 ];
 
 /** The key a request is counted under, for one window at one moment. */
@@ -67,7 +86,14 @@ export function secondsUntilReset(window: Window, nowMillis: number): number {
   return Math.max(1, Math.ceil(window.seconds - elapsed));
 }
 
-export type Verdict = { allowed: true } | { allowed: false; retryAfterSeconds: number };
+/**
+ * `unmeasured` when the count could not be made — Redis slow or down. The request is still
+ * allowed; a caller that must not run blind, like RTT spend, checks the flag and falls back
+ * to a budget of its own (see `createLocalBudget`).
+ */
+export type Verdict =
+  | { allowed: true; unmeasured?: true }
+  | { allowed: false; retryAfterSeconds: number };
 
 /**
  * Given each window's count *including this request*, may it go?
@@ -131,14 +157,14 @@ export async function count(
       }),
     ]);
   } catch {
-    return { allowed: true };
+    return { allowed: true, unmeasured: true };
   } finally {
     clearTimeout(timer);
   }
 
   // INCR results sit at the even positions, EXPIRE results at the odd.
   const counts = windows.map((_, i) => Number(results[i * 2]));
-  if (counts.some((n) => !Number.isFinite(n))) return { allowed: true };
+  if (counts.some((n) => !Number.isFinite(n))) return { allowed: true, unmeasured: true };
   return judge(windows, counts, nowMillis);
 }
 
@@ -153,4 +179,49 @@ export function callerAddress(headers: Headers): string | null {
   if (!address) return null;
   if (address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1') return null;
   return address;
+}
+
+/**
+ * A small budget one process keeps for itself, for when the shared count cannot be made.
+ *
+ * **Why not simply refuse.** With Redis down there is no cache either, so refusing every
+ * RTT request would turn a short Redis blip into a blank board for everyone. **Why not
+ * simply allow**, as before (`SERVER-AUDIT.md` finding 5): with no shared count, nothing
+ * stops many instances spending the week's quota between them. So each process may spend
+ * a little on its own — enough to keep a board working through a blip, too little for a
+ * long outage to cost anything that matters.
+ *
+ * A fixed window, with the clock passed in so it can be tested.
+ */
+export function createLocalBudget(options: { max: number; seconds: number; now?: () => number }) {
+  const now = options.now ?? Date.now;
+  let windowIndex = -1;
+  let used = 0;
+  return {
+    take(): Verdict {
+      const t = now();
+      const index = Math.floor(t / 1000 / options.seconds);
+      if (index !== windowIndex) {
+        windowIndex = index;
+        used = 0;
+      }
+      if (used >= options.max) {
+        return { allowed: false, retryAfterSeconds: secondsUntilReset({ name: 'local', ...options }, t) };
+      }
+      used += 1;
+      return { allowed: true };
+    },
+  };
+}
+
+/**
+ * Whether this caller's `refresh=1` is honoured. Past `REFRESH_WINDOWS` it is not, and the
+ * request is answered from the cache instead — never refused, because a refresh that
+ * fails is worse than one that is a minute old. A caller with no address (local
+ * development) is never limited.
+ */
+export async function refreshAllowed(counter: Counter | null, headers: Headers): Promise<boolean> {
+  const address = callerAddress(headers);
+  if (!address) return true;
+  return (await count(counter, `refresh:${address}`, REFRESH_WINDOWS)).allowed;
 }

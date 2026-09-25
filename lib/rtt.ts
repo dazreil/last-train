@@ -15,7 +15,7 @@
 import 'server-only';
 
 import { sharedRedis } from './cache.ts';
-import { UPSTREAM_WINDOWS, count } from './limits.ts';
+import { UPSTREAM_WINDOWS, count, createLocalBudget } from './limits.ts';
 import { createTokenBucket } from './pacing.ts';
 
 const BASE_URL = 'https://data.rtt.io';
@@ -137,8 +137,17 @@ async function takeToken(): Promise<void> {
  * Cached boards never reach here, so past the ceiling the app still answers for every
  * station someone has already looked at. Only a cold lookup is refused.
  */
+/**
+ * What one process may spend while the shared count cannot be made. See
+ * `createLocalBudget`: sixty an hour keeps a board working through a Redis blip, and a
+ * long outage across a few instances still costs a fraction of a day's allowance.
+ */
+const localSpend = createLocalBudget({ max: 60, seconds: 3600 });
+
 async function withinSpendCeiling(): Promise<void> {
-  const verdict = await count(sharedRedis(), 'rtt-spend', UPSTREAM_WINDOWS);
+  const shared = await count(sharedRedis(), 'rtt-spend', UPSTREAM_WINDOWS);
+  // No shared count to go by: this process's own small budget decides instead of nothing.
+  const verdict = shared.allowed && shared.unmeasured ? localSpend.take() : shared;
   if (verdict.allowed) return;
 
   console.warn(`[rtt] spend ceiling reached; refusing for ${verdict.retryAfterSeconds}s`);
@@ -157,6 +166,16 @@ interface CachedToken {
 }
 
 let cachedAccessToken: CachedToken | null = null;
+
+/**
+ * The exchange in progress, shared (`SERVER-AUDIT.md` finding 7). Ten cold requests at
+ * once each found no token and each started an exchange; now the first starts it and the
+ * other nine wait on the same one.
+ */
+let exchanging: Promise<string> | null = null;
+
+/** Long enough for a slow day, short enough to fail inside the app's own patience. */
+const EXCHANGE_TIMEOUT_MS = 8_000;
 
 /**
  * A long-life access token is used as-is. A refresh token is exchanged for a
@@ -178,18 +197,37 @@ async function getBearerToken(): Promise<string> {
     return cachedAccessToken.value;
   }
 
+  exchanging ??= exchangeRefreshToken(refresh).finally(() => {
+    exchanging = null;
+  });
+  return exchanging;
+}
+
+async function exchangeRefreshToken(refresh: string): Promise<string> {
   // The exchange is a request against the same allowance, and a cold instance always makes
   // one. Counting it is the difference between the bucket being right and being nearly right.
   await takeToken();
 
-  const res = await fetch(`${BASE_URL}/api/get_access_token`, {
-    headers: {
-      Authorization: `Bearer ${refresh}`,
-      Version: API_VERSION,
-      Accept: 'application/json',
-    },
-    cache: 'no-store',
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}/api/get_access_token`, {
+      headers: {
+        Authorization: `Bearer ${refresh}`,
+        Version: API_VERSION,
+        Accept: 'application/json',
+      },
+      cache: 'no-store',
+      // It had no deadline, and it runs before the request's own 12-second one starts, so
+      // a hung exchange could stall a lookup for as long as the platform allowed.
+      signal: AbortSignal.timeout(EXCHANGE_TIMEOUT_MS),
+    });
+  } catch (cause) {
+    const timedOut = cause instanceof Error && cause.name === 'TimeoutError';
+    throw new RttError(
+      timedOut ? 'Realtime Trains did not respond in time.' : 'Could not reach Realtime Trains.',
+      504
+    );
+  }
 
   if (!res.ok) {
     // Deliberately does not echo the response body, which can quote the token.
@@ -241,12 +279,32 @@ type QueryValue = string | number | boolean | undefined | null;
  * found". That is a real answer, not an error -- treating it as one would break
  * the rule that a blank result can be trusted.
  */
+/**
+ * Requests in flight, by URL (`SERVER-AUDIT.md` finding 5). Two callers asking the same
+ * thing at the same moment — two people opening one station's board as a cache entry
+ * expires — share one upstream request instead of spending two. Gone the moment it
+ * settles, so nothing here is a cache: freshness is still `lib/cache.ts`'s business.
+ *
+ * Callers receive the same parsed object, so none may change what it is given.
+ */
+const inFlight = new Map<string, Promise<unknown>>();
+
 async function request<T>(path: string, params: Record<string, QueryValue> = {}): Promise<T | null> {
   const url = new URL(path, BASE_URL);
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
   }
 
+  const key = url.toString();
+  const running = inFlight.get(key);
+  if (running) return running as Promise<T | null>;
+
+  const started = requestOnce<T>(url).finally(() => inFlight.delete(key));
+  inFlight.set(key, started);
+  return started;
+}
+
+async function requestOnce<T>(url: URL): Promise<T | null> {
   try {
     return await send<T>(url);
   } catch (cause) {

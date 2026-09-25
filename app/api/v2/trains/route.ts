@@ -30,6 +30,7 @@
  */
 
 import { boardMaxAge } from '@/lib/freshness';
+import { refreshAllowed } from '@/lib/limits';
 import { chooseCandidates } from '@/lib/filteredLineUp';
 import {
   RttError,
@@ -64,6 +65,7 @@ import {
   setCachedLineUp,
   getCachedLocations,
   setCachedLocations,
+  sharedRedis,
   ttlSecondsFor,
 } from '@/lib/cache';
 import type { Diagnostics, NationalBoard, NationalService } from '@/lib/nationalContract';
@@ -246,6 +248,9 @@ async function confirmedAgainstDarwin(
   });
 }
 
+/** How old a line-up must be before a refresh fetches it again. See `loadDay`. */
+const LINEUP_REFRESH_FLOOR_SECONDS = 10 * 60;
+
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
 
@@ -266,7 +271,9 @@ export async function GET(request: Request) {
     return badRequest('Date is outside the range the timetable covers.');
   }
 
-  const refresh = params.get('refresh') === '1';
+  // Honoured a few times a minute per caller, then answered from the cache; see `lib/limits.ts`.
+  const refresh =
+    params.get('refresh') === '1' && (await refreshAllowed(sharedRedis(), request.headers));
 
   /**
    * Where you are going, when the caller knows.
@@ -370,9 +377,13 @@ export async function GET(request: Request) {
       let lineUp: LocationLineUpResponse | null = null;
       let fromCache = false;
 
-      if (!refresh) {
+      {
         const cached = await getCachedLineUp<LocationLineUpResponse | null>(rawKey);
-        if (cached) {
+        // A refresh rebuilds the answer and reads live times again, but a line-up fetched in
+        // the last few minutes is kept: fetching it again spends the RTT allowance for what
+        // is almost certainly the same timetable (`SERVER-AUDIT.md` finding 5). Late running
+        // and cancellations come from Darwin, which a refresh does read again.
+        if (cached && (!refresh || cached.ageSeconds < LINEUP_REFRESH_FLOOR_SECONDS)) {
           lineUp = cached.value;
           fromCache = true;
         }
@@ -395,11 +406,9 @@ export async function GET(request: Request) {
       let directional: LocationLineUpResponse | null = null;
       if (filterTo) {
         const filteredKey = `${rawKey}:${filterTo}`;
-        const cachedFiltered = refresh
-          ? null
-          : await getCachedLineUp<LocationLineUpResponse | null>(filteredKey);
+        const cachedFiltered = await getCachedLineUp<LocationLineUpResponse | null>(filteredKey);
 
-        if (cachedFiltered) {
+        if (cachedFiltered && (!refresh || cachedFiltered.ageSeconds < LINEUP_REFRESH_FLOOR_SECONDS)) {
           directional = cachedFiltered.value;
         } else {
           directional = await locationLineUp({
