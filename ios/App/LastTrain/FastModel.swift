@@ -284,10 +284,21 @@ final class FastModel {
                     limit: Self.perPage * Self.maximumPages
                 )
                 laterNotice = late.notice
+                let beyond = FastBoard.upcoming(late.beyond)
                 if !lateRanked.isEmpty {
-                    ranked = lateRanked
+                    // The later window is now on screen, topped up to a full page by the
+                    // trains after it.
+                    let need = FastBoard.pageFill(count: max(lateRanked.count - 1, 0), perPage: Self.perPage)
+                        + (lateRanked.count == 1 ? Self.perPage : 0)
+                    let existing = Set(lateRanked.map(\.serviceId))
+                    ranked = lateRanked + beyond.filter { !existing.contains($0.serviceId) }.prefix(need)
                     boardTruncated = late.truncated
-                    // The later window is now on screen; nothing beyond four hours to page to.
+                    laterLoaded = true
+                    laterExhausted = true
+                } else if late.notice == nil, !beyond.isEmpty {
+                    // Nothing for four hours, but there are still trains tonight: those are
+                    // today's answer, ahead of rolling on to tomorrow's first.
+                    ranked = Array(beyond)
                     laterLoaded = true
                     laterExhausted = true
                 } else if late.notice != nil {
@@ -516,6 +527,7 @@ final class FastModel {
             )
             laterNotice = board.notice
             laterLoaded = true
+            defer { fillLastPage(from: board.beyond) }
             if late.isEmpty {
                 /*
                  Exhausted only when the window actually answered.
@@ -539,6 +551,23 @@ final class FastModel {
             // Not a board failure: leave the first two hours as they are, and let a later
             // page turn retry rather than marking the window exhausted.
         }
+    }
+
+    /**
+     Top the last page up with the trains after four hours, so the board ends on a full
+     page — unless the service day runs out first, when the server sends fewer or none.
+
+     Only as many as the page is short (`FastBoard.pageFill`), appended after everything
+     else: they leave later than every train already shown. A board with nothing but its
+     leading train gets a whole page, since the page under it is empty.
+     */
+    private func fillLastPage(from beyond: [FastService]) {
+        guard !services.isEmpty, !beyond.isEmpty else { return }
+        let need = rest.isEmpty ? visiblePerPage : FastBoard.pageFill(count: rest.count, perPage: visiblePerPage)
+        guard need > 0 else { return }
+        let existing = Set(services.map(\.serviceId))
+        let extra = FastBoard.upcoming(beyond).filter { !existing.contains($0.serviceId) }.prefix(need)
+        services = Array((services + extra).prefix(Self.perPage * Self.maximumPages))
     }
 
     /// Back to the next three from now.

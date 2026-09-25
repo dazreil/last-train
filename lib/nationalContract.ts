@@ -192,6 +192,8 @@ export interface FastService {
   isDelayed?: boolean;
   /** From Darwin's live board, so no `expectedDeparture` means on time, not unknown. */
   isLive?: boolean;
+  /** Past the four-hour window: shown to fill the last page, not yet followable. */
+  beyondHorizon?: boolean;
 }
 
 /** Every direct train from A to B in the window, with arrivals worked out. */
@@ -202,6 +204,11 @@ export interface FastBoard {
   date: string;
   /** In departure order. The client ranks by arrival. */
   services: FastService[];
+  /**
+   * The later window only: the next few trains after it, up to the end of the service
+   * day, for the app to fill its last page with. Absent everywhere else.
+   */
+  beyond?: FastService[];
   /** How many trains call at the destination in the window, before any budget. */
   candidates: number;
   /**

@@ -54,6 +54,8 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
     public let isDelayed: Bool
     /// From Darwin's live board: no `expectedDeparture` then means on time, not unknown.
     public let isLive: Bool
+    /// Past the four-hour window: shown to fill the last page, and not yet followable.
+    public let beyondHorizon: Bool
 
     public var id: String { serviceId }
 
@@ -92,7 +94,8 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         expectedDepartsAt: Date? = nil,
         expectedArrivesAt: Date? = nil,
         isDelayed: Bool = false,
-        isLive: Bool = false
+        isLive: Bool = false,
+        beyondHorizon: Bool = false
     ) {
         self.serviceId = serviceId
         self.headcode = headcode
@@ -111,6 +114,7 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         self.expectedArrivesAt = expectedArrivesAt
         self.isDelayed = isDelayed
         self.isLive = isLive
+        self.beyondHorizon = beyondHorizon
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -118,7 +122,7 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         case departure, departureInstant, arrival, arrivalInstant, platform
         case isScheduled
         case expectedDeparture, expectedDepartureInstant, expectedArrival, expectedArrivalInstant
-        case isDelayed, isLive
+        case isDelayed, isLive, beyondHorizon
     }
 
     /**
@@ -151,6 +155,7 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
             .flatMap(ServiceDay.instant(from:))
         isDelayed = try container.decodeIfPresent(Bool.self, forKey: .isDelayed) ?? false
         isLive = try container.decodeIfPresent(Bool.self, forKey: .isLive) ?? false
+        beyondHorizon = try container.decodeIfPresent(Bool.self, forKey: .beyondHorizon) ?? false
 
         let departureInstant = try container.decode(String.self, forKey: .departureInstant)
         let arrivalInstant = try container.decode(String.self, forKey: .arrivalInstant)
@@ -199,6 +204,11 @@ public struct FastBoardResponse: Decodable, Sendable, Equatable {
     public let notice: String?
     /// `live` for a Darwin or RTT board, `timetable` for scheduled times past two hours.
     public let source: String?
+    /**
+     The later window only: the next few trains after four hours, up to the end of the
+     service day, to fill the last page with. Empty everywhere else. See `pageFill`.
+     */
+    public let beyond: [FastService]
 
     public init(
         from: BoardStation,
@@ -208,7 +218,8 @@ public struct FastBoardResponse: Decodable, Sendable, Equatable {
         candidates: Int,
         truncated: Bool,
         notice: String? = nil,
-        source: String? = nil
+        source: String? = nil,
+        beyond: [FastService] = []
     ) {
         self.from = from
         self.to = to
@@ -218,10 +229,11 @@ public struct FastBoardResponse: Decodable, Sendable, Equatable {
         self.truncated = truncated
         self.notice = notice
         self.source = source
+        self.beyond = beyond
     }
 
     private enum CodingKeys: String, CodingKey {
-        case from, to, date, services, candidates, truncated, notice, source
+        case from, to, date, services, candidates, truncated, notice, source, beyond
     }
 
     public init(from decoder: Decoder) throws {
@@ -235,6 +247,7 @@ public struct FastBoardResponse: Decodable, Sendable, Equatable {
         // Both optional, so a deployment that predates them still decodes.
         notice = try container.decodeIfPresent(String.self, forKey: .notice)
         source = try container.decodeIfPresent(String.self, forKey: .source)
+        beyond = try container.decodeIfPresent([FastService].self, forKey: .beyond) ?? []
     }
 }
 
@@ -242,6 +255,19 @@ public enum FastBoard {
 
     /// How many trains the mode shows. §11 fixed this at four.
     public static let shown = 4
+
+    /**
+     How many more trains it takes to fill the last page.
+
+     Four hours rarely ends on a page boundary: seven trains on pages of three leave the
+     third page with one. The trains after four hours fill it — as many as it is short,
+     and no more, so the board ends on a full page rather than growing another.
+     */
+    public static func pageFill(count: Int, perPage: Int) -> Int {
+        guard count > 0, perPage > 0 else { return 0 }
+        let onLast = count % perPage
+        return onLast == 0 ? 0 : perPage - onLast
+    }
 
     /**
      Build one entry from a train's calling pattern.

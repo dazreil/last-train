@@ -160,6 +160,9 @@ const ROLL_BUDGET = 6;
  * `LATER_TTL` stays short because the window slides with the clock, not because the data
  * does.
  */
+/** At most this many trains past four hours, enough to fill the last page of three. */
+const BEYOND_FILL = 3;
+
 const LATER_TTL = 90;
 
 const describe = (list: { location?: { description?: string } }[] | undefined): string =>
@@ -372,6 +375,25 @@ export async function GET(request: Request) {
     const services = priced.map(({ fast }) => ({ ...fast, isScheduled: true }));
 
     /*
+     The next few past four hours, to fill the last page.
+
+     The app shows trains three to a page, and a window that ends at four hours usually
+     leaves the last page short. The stored board holds the whole service day, so the next
+     trains after the window cost nothing to add. The app takes only as many as the last
+     page needs; they stop at the end of the service day, so a board with nothing further
+     tonight stays short, as it should. They cannot be followed yet — a countdown is
+     offered within four hours — and they are marked so the app knows.
+    */
+    const beyond = stored.services
+      .filter((service) => {
+        const departure = service.stops[0]?.timeInstant;
+        return Boolean(departure && departure >= laterTo && departure < bounds.timeTo);
+      })
+      .map((service) => ({ service, fast: toFastService(service, to.crs) }))
+      .filter((pair): pair is { service: NormalizedService; fast: FastService } => pair.fast !== null)
+      .slice(0, BEYOND_FILL);
+
+    /*
      Leave each train's stops where the detail sheet will look for them.
 
      A timetable train's id is Darwin's run identifier, which nothing upstream can be
@@ -384,7 +406,7 @@ export async function GET(request: Request) {
      round trip each, in series, would add seconds to the page turn that loads them.
     */
     await Promise.all(
-      priced.map(({ service }) =>
+      [...priced, ...beyond].map(({ service }) =>
         setCachedCalls(service.serviceId, toServiceCalls(service), DARWIN_CALLS_TTL, from.crs)
       )
     );
@@ -398,6 +420,7 @@ export async function GET(request: Request) {
     const body: FastBoard = {
       ...shell,
       services,
+      beyond: beyond.map(({ fast }) => ({ ...fast, isScheduled: true, beyondHorizon: true })),
       candidates: services.length,
       truncated: false,
       notice,

@@ -135,4 +135,13 @@ struct LiveTimesTests {
         // Once it has gone there is nothing to show.
         #expect(Glance.firstBack(board: board, now: utcInstant("2026-08-06T04:30:00Z")) == nil)
     }
+
+    @Test("the last page is filled to a full page, and never past one")
+    func pageFill() {
+        #expect(FastBoard.pageFill(count: 7, perPage: 3) == 2)
+        #expect(FastBoard.pageFill(count: 8, perPage: 3) == 1)
+        #expect(FastBoard.pageFill(count: 9, perPage: 3) == 0)
+        #expect(FastBoard.pageFill(count: 1, perPage: 2) == 1)
+        #expect(FastBoard.pageFill(count: 0, perPage: 3) == 0)
+    }
 }
