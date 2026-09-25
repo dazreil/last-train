@@ -38,6 +38,13 @@ test('on time changes nothing', () => {
   const [out] = applyLive([service('23:19', '2026-09-24T22:19:00.000Z')], [row('23:19', 'On time')], NOW);
   assert.equal(out.expectedDep, undefined);
   assert.equal(out.isDelayed, undefined);
+  // Checked, though: this is what lets the app say "On time" rather than nothing.
+  assert.equal(out.isLive, true);
+});
+
+test('a train the live board does not list is not marked live', () => {
+  const [out] = applyLive([service('23:19', '2026-09-24T22:19:00.000Z')], [row('23:49', 'On time')], NOW);
+  assert.equal(out.isLive, undefined);
 });
 
 test('delayed with no estimate says so', () => {

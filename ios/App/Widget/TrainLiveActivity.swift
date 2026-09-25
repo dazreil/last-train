@@ -83,38 +83,31 @@ struct TrainLiveActivity: Widget {
         }
     }
 
+    /**
+     The lock screen, and StandBy.
+
+     One view, two layouts. On the lock screen it is the departure card at its smallest:
+     what it is and the platform, the time and the countdown, where it goes and whether it
+     is on time. In StandBy — the phone charging on its side — iOS gives it the whole
+     screen, and the countdown becomes the clock (iOS 18 says which it is being asked for;
+     iOS 17 always gets the lock-screen card).
+     */
+    @ViewBuilder
     private func lockScreen(_ context: ActivityViewContext<TrainActivity>) -> some View {
-        ZStack {
-            CathodeGauze(tint: activityColour(context), density: 10)
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(context.attributes.isLastTrain ? "LAST TRAIN" : "FAST TRAIN")
-                        .font(.caption2.weight(.bold))
-                        .tracking(Theme.tracking)
-                        .foregroundStyle(activityColour(context))
-                    CathodeNumber(
-                        text: (context.state.departureText ?? context.attributes.departureText),
-                        colour: activityColour(context),
-                        scale: .row
-                    )
-                    // The countdown sits under the departure now, in the same LED face so the
-                    // two numbers read as one instrument. Kept paper-white, not the blue glow,
-                    // so it still leads: it is the figure you act on.
-                    countdown(to: context.state.departure)
-                        .font(.custom("WPOCRA-Regular", size: 30))
-                        .foregroundStyle(Theme.paper)
-                }
-                Spacer(minLength: 0)
-                Text(caption(context))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.textDim)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .multilineTextAlignment(.trailing)
-                    .padding(.top, 6)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+        if #available(iOS 18.0, *) {
+            ActivityCard(context: context, colour: activityColour(context), label: label(context))
+        } else {
+            lockScreenCard(context)
         }
+    }
+
+    private func label(_ context: ActivityViewContext<TrainActivity>) -> String {
+        // Never "last train" unless it is one: a followed train is yours, and usually not.
+        context.attributes.isLastTrain ? "LAST TRAIN" : "YOUR TRAIN"
+    }
+
+    fileprivate func lockScreenCard(_ context: ActivityViewContext<TrainActivity>) -> some View {
+        ActivityCardLayout.compact(context: context, colour: activityColour(context), label: label(context))
     }
 
     private func activityColour(_ context: ActivityViewContext<TrainActivity>) -> Color {
@@ -168,5 +161,124 @@ struct TrainLiveActivity: Widget {
         Text(timerInterval: Date.now...departure, countsDown: true, showsHours: showsHours)
             .monospacedDigit()
             .multilineTextAlignment(.trailing)
+    }
+}
+
+/**
+ The departure card in a Live Activity: compact on the lock screen, the clock in StandBy.
+
+ The parts, in the order the widget uses: label and platform, the time and the countdown,
+ where it goes and whether it is running to time.
+ */
+@available(iOS 18.0, *)
+private struct ActivityCard: View {
+    let context: ActivityViewContext<TrainActivity>
+    let colour: Color
+    let label: String
+
+    @Environment(\.isActivityFullscreen) private var isFullscreen
+
+    var body: some View {
+        if isFullscreen {
+            ActivityCardLayout.standBy(context: context, colour: colour, label: label)
+        } else {
+            ActivityCardLayout.compact(context: context, colour: colour, label: label)
+        }
+    }
+}
+
+/// The two layouts, apart from the view that chooses, so iOS 17 can use the compact one.
+private enum ActivityCardLayout {
+
+    private static func departureText(_ context: ActivityViewContext<TrainActivity>) -> String {
+        context.state.departureText ?? context.attributes.departureText
+    }
+
+    /// Bright when it is news, quiet when it is "On time".
+    private static func statusColour(_ status: String) -> Color {
+        status == "On time" ? Theme.textDim : Theme.paper
+    }
+
+    static func compact(context: ActivityViewContext<TrainActivity>, colour: Color, label: String) -> some View {
+        ZStack {
+            CathodeGauze(tint: colour, density: 10)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(label)
+                        .font(.caption2.weight(.bold))
+                        .tracking(Theme.tracking)
+                        .foregroundStyle(colour)
+                    Spacer(minLength: 0)
+                    PlatformChip(platform: context.state.platform, colour: colour)
+                }
+                HStack(alignment: .lastTextBaseline) {
+                    CathodeNumber(text: departureText(context), colour: colour, scale: .row)
+                    Spacer(minLength: 8)
+                    // The figure you act on, in the same LED face, kept paper-white so it
+                    // leads over the glow of the time beside it.
+                    Text(timerInterval: Date.now...context.state.departure, countsDown: true)
+                        .monospacedDigit()
+                        .multilineTextAlignment(.trailing)
+                        .font(.custom("WPOCRA-Regular", size: 30))
+                        .foregroundStyle(Theme.paper)
+                }
+                HStack(alignment: .firstTextBaseline) {
+                    (Text(context.attributes.destination).foregroundStyle(Theme.paper)
+                        + Text(" · from \(context.attributes.stationName)").foregroundStyle(Theme.textDim))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                    Spacer(minLength: 6)
+                    if let status = context.state.status {
+                        Text(status).foregroundStyle(statusColour(status))
+                    }
+                }
+                .font(.caption.weight(.semibold))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+        }
+    }
+
+    /**
+     StandBy: the phone on its side, charging, across a room. The countdown is the clock,
+     because it is the number you act on; the time sits under it to check it against.
+     Black behind, as StandBy draws it, and nothing that needs a background to be read —
+     at night iOS turns all of this dim red, so the label carries the meaning, not colour.
+     */
+    @available(iOS 18.0, *)
+    static func standBy(context: ActivityViewContext<TrainActivity>, colour: Color, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(label)
+                    .font(.headline.weight(.heavy))
+                    .tracking(Theme.tracking * 1.5)
+                    .foregroundStyle(colour)
+                Spacer(minLength: 0)
+                PlatformChip(platform: context.state.platform, colour: colour)
+                    .scaleEffect(1.4, anchor: .trailing)
+            }
+            Text(
+                .dateRange(endingAt: context.state.departure),
+                format: Date.ComponentsFormatStyle(style: .narrow, fields: [.hour, .minute])
+            )
+            .font(.custom("WPOCRA-Regular", size: 120))
+            .minimumScaleFactor(0.4)
+            .lineLimit(1)
+            .foregroundStyle(colour)
+            .shadow(color: colour.opacity(0.6), radius: 12)
+            (Text("\(departureText(context)) to \(context.attributes.destination)").foregroundStyle(Theme.paper)
+                + Text(" · from \(context.attributes.stationName)").foregroundStyle(Theme.textDim))
+                .font(.title3.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            if let status = context.state.status {
+                Text(status)
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(statusColour(status))
+            }
+        }
+        .padding(.horizontal, 28)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .background(Color.black)
     }
 }

@@ -325,7 +325,8 @@ final class FastModel {
                     serviceId: followed.serviceId,
                     departure: followed.liveDepartsAt,
                     departureText: followed.liveDeparture,
-                    platform: followed.platform
+                    platform: followed.platform,
+                    status: LiveStatus.of(followed)
                 )
             }
         } catch is CancellationError {

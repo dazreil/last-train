@@ -444,7 +444,8 @@ export async function GET(request: Request) {
       for (const service of normalized) {
         const priced = toFastService(service, to.crs);
         if (!priced) continue;
-        services.push(priced);
+        // Darwin's live board: a train with no expected time here is on time, not unknown.
+        services.push({ ...priced, isLive: true });
         // The tap that opens this train reads its stops from here; the board already
         // fetched them, so the detail sheet costs no request of its own. Started together
         // and awaited once, not one round trip per train in turn (`SERVER-AUDIT.md` finding 7).

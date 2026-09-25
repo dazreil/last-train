@@ -52,6 +52,8 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
     public let expectedArrivesAt: Date?
     /// Running late with no estimate yet.
     public let isDelayed: Bool
+    /// From Darwin's live board: no `expectedDeparture` then means on time, not unknown.
+    public let isLive: Bool
 
     public var id: String { serviceId }
 
@@ -89,7 +91,8 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         expectedArrival: String? = nil,
         expectedDepartsAt: Date? = nil,
         expectedArrivesAt: Date? = nil,
-        isDelayed: Bool = false
+        isDelayed: Bool = false,
+        isLive: Bool = false
     ) {
         self.serviceId = serviceId
         self.headcode = headcode
@@ -107,6 +110,7 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         self.expectedDepartsAt = expectedDepartsAt
         self.expectedArrivesAt = expectedArrivesAt
         self.isDelayed = isDelayed
+        self.isLive = isLive
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -114,7 +118,7 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         case departure, departureInstant, arrival, arrivalInstant, platform
         case isScheduled
         case expectedDeparture, expectedDepartureInstant, expectedArrival, expectedArrivalInstant
-        case isDelayed
+        case isDelayed, isLive
     }
 
     /**
@@ -146,6 +150,7 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         expectedArrivesAt = try container.decodeIfPresent(String.self, forKey: .expectedArrivalInstant)
             .flatMap(ServiceDay.instant(from:))
         isDelayed = try container.decodeIfPresent(Bool.self, forKey: .isDelayed) ?? false
+        isLive = try container.decodeIfPresent(Bool.self, forKey: .isLive) ?? false
 
         let departureInstant = try container.decode(String.self, forKey: .departureInstant)
         let arrivalInstant = try container.decode(String.self, forKey: .arrivalInstant)

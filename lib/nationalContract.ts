@@ -41,6 +41,11 @@ export interface NationalService {
   isDelayed?: boolean;
   /** Cancelled on the live board. Kept in the list, shown struck through. */
   isCancelled?: boolean;
+  /**
+   * The live board was read for this train and matched it. Only this tells "on time"
+   * from "not known", because `expectedDep` is sent only when the times differ.
+   */
+  isLive?: boolean;
 }
 
 export interface SystemStatusView {
@@ -185,6 +190,8 @@ export interface FastService {
   expectedArrivalInstant?: string | null;
   /** Running late with no estimate yet. */
   isDelayed?: boolean;
+  /** From Darwin's live board, so no `expectedDeparture` means on time, not unknown. */
+  isLive?: boolean;
 }
 
 /** Every direct train from A to B in the window, with arrivals worked out. */

@@ -41,6 +41,9 @@ public struct BoardDeparture: Decodable, Sendable, Identifiable, Equatable {
     public let expectedDepInstant: String?
     public let isDelayed: Bool?
     public let isCancelled: Bool?
+    /// The live board was read and matched this train, so no `expectedDep` means on time
+    /// rather than not known. Absent from an older deployment.
+    public let isLive: Bool?
 
     /// When it will really leave, as far as anyone knows: the estimate, else the timetable.
     public var liveDep: String { expectedDep ?? dep }

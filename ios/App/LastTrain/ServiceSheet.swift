@@ -48,6 +48,14 @@ struct ServiceSheet: View {
             .navigationTitle("Service detail")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    // The share sheet, so the person picks who gets it and sends it
+                    // themselves. Nothing is sent by the app.
+                    ShareLink(item: shareText) {
+                        Label("Share ETA", systemImage: "square.and.arrow.up")
+                    }
+                    .accessibilityHint("Sends which train you are getting, and when it arrives")
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
@@ -135,6 +143,32 @@ struct ServiceSheet: View {
         let arrivalTime = arrivalCall.time.map { ServiceDay.formatClock($0).spoken } ?? ""
         return "\(minutes) min to \(name), arriving \(arrivalTime)"
             .trimmingCharacters(in: .whitespaces)
+    }
+
+    /**
+     "I'm getting the 23:52 from Fenchurch Street to Shoeburyness. It gets to Upminster at
+     00:31." See `ShareETA` for the wording and for how late running moves the arrival.
+
+     Works before the stops have loaded — it is then just the train — and gains the
+     arrival once they have, when a destination is set and this train reaches it.
+     */
+    private var shareText: String {
+        let here = calls?.calls.firstIndex(where: { $0.crs == station.crs })
+        let scheduled = here.flatMap { calls?.calls[$0].time }
+        var arrival: ShareETA.Arrival?
+        if let destinationCrs, let calls, let here,
+           let call = calls.calls[(here + 1)...].first(where: { $0.crs == destinationCrs }),
+           let time = call.time {
+            arrival = .init(station: call.name.withoutLondonPrefix, scheduled: time)
+        }
+        return ShareETA.message(
+            departure: service.dep,
+            scheduledDeparture: scheduled,
+            from: station.name.withoutLondonPrefix,
+            towards: service.destination.withoutLondonPrefix,
+            arrival: arrival,
+            clock: { ServiceDay.formatClock($0).spoken }
+        )
     }
 
     /**

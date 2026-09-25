@@ -278,3 +278,31 @@ extension View {
         }
     }
 }
+
+/**
+ The platform, as a small outlined tag: "PLAT 1", or "P1" where room is short.
+
+ On the widget, the Live Activity and StandBy alike, in the card's own colour, top right,
+ opposite the label that says what the train is. Nothing when the platform is not known:
+ an empty tag would read as a platform called nothing.
+ */
+struct PlatformChip: View {
+    let platform: String?
+    let colour: Color
+    var short = false
+
+    var body: some View {
+        if let platform, !platform.isEmpty {
+            Text(short ? "P\(platform)" : "PLAT \(platform)")
+                .font(.caption2.weight(.heavy))
+                .tracking(1)
+                .foregroundStyle(colour)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1)
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(colour, lineWidth: 1))
+                .lineLimit(1)
+                .fixedSize()
+                .accessibilityLabel("Platform \(platform)")
+        }
+    }
+}

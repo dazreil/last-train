@@ -34,6 +34,9 @@ struct TrainActivity: ActivityAttributes {
          prefer it. Optional so an activity from an earlier build still decodes.
          */
         var departureText: String? = nil
+        /// "On time", "4 min late" — `LiveStatus`, as the widget shows it. Nil with no live
+        /// time. Optional so an activity from an earlier build still decodes.
+        var status: String? = nil
     }
 
     let stationName: String
@@ -114,6 +117,7 @@ enum TrainActivityController {
             departure: departure,
             departureText: service.liveDep,
             platform: service.platform,
+            status: LiveStatus.of(service),
             stationName: stationName,
             destination: service.destination.withoutLondonPrefix,
             direction: direction,
@@ -141,6 +145,7 @@ enum TrainActivityController {
             // Fast rows carry a platform too; the Island caption used to drop it because
             // this passed nil. A Last Train follow kept it, so the two now match.
             platform: service.platform,
+            status: LiveStatus.of(service),
             stationName: stationName,
             destination: destinationName,
             direction: direction,
@@ -153,6 +158,7 @@ enum TrainActivityController {
         departure: Date,
         departureText: String,
         platform: String?,
+        status: String?,
         stationName: String,
         destination: String,
         direction: Compass,
@@ -176,7 +182,8 @@ enum TrainActivityController {
         )
         let state = TrainActivity.ContentState(
             departure: departure,
-            platform: platform
+            platform: platform,
+            status: status
         )
 
         // Ordered in one async operation. The old implementation launched stop and request
@@ -201,16 +208,18 @@ enum TrainActivityController {
      Called whenever the app reloads a board that holds the followed train. Does nothing
      unless the time has actually changed, so an on-time train costs no update.
      */
-    static func update(serviceId: String, departure: Date, departureText: String, platform: String?) async {
+    static func update(serviceId: String, departure: Date, departureText: String, platform: String?, status: String?) async {
         for activity in Activity<TrainActivity>.activities
         where activity.attributes.serviceId == serviceId {
             let current = activity.content.state
             let shownText = current.departureText ?? activity.attributes.departureText
-            guard current.departure != departure || shownText != departureText else { continue }
+            guard current.departure != departure || shownText != departureText || current.status != status
+            else { continue }
             let state = TrainActivity.ContentState(
                 departure: departure,
                 platform: platform ?? current.platform,
-                departureText: departureText
+                departureText: departureText,
+                status: status
             )
             await activity.update(ActivityContent(state: state, staleDate: departure))
         }

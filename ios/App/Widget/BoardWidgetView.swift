@@ -119,24 +119,35 @@ struct BoardWidgetView: View {
 
     // MARK: - Home screen
 
+    /**
+     The departure card: what it is and the platform, the time, where it goes, how long you
+     have and whether it is running to time. The same parts in the same order as the Live
+     Activity and StandBy, so the three read as one thing.
+
+     In StandBy iOS draws this larger and without its background, on black. Nothing here
+     depends on the background being there.
+     */
     private var small: some View {
         VStack(alignment: .leading, spacing: 0) {
             switch state {
             case .answer(let glance):
-                Text(words(for: glance.label)).labelStyle(blockColour)
+                HStack(alignment: .center, spacing: 6) {
+                    Text(words(for: glance.label)).labelStyle(blockColour)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    Spacer(minLength: 0)
+                    PlatformChip(platform: glance.departure.platform, colour: blockColour, short: true)
+                }
 
                 CathodeNumber(text: glance.departure.liveDep, colour: blockColour, scale: .row)
+                    .padding(.top, 2)
 
                 Text(glance.departure.destination.withoutLondonPrefix)
                     .font(Theme.Font.destination)
                     .fixedSize(horizontal: false, vertical: true)
 
-                if let instant = glance.departure.instant {
-                    Text(instant, style: .relative)
-                        .font(Theme.Font.meta)
-                        .foregroundStyle(Theme.paper.opacity(0.78))
-                        .padding(.top, 2)
-                }
+                statusLine(glance.departure)
+                    .padding(.top, 2)
 
             case .exhausted:
                 Text("Nothing left").font(Theme.Font.heading)
@@ -156,40 +167,55 @@ struct BoardWidgetView: View {
             }
 
             /*
-             No `Spacer` here, deliberately.
-
-             Pinning the caption to the bottom left a hole between the countdown and it,
-             while the caption itself ran out of width and wrapped -- putting "· WEST" on
-             a line of its own, so the one gap that meant something (station, then
-             direction) was the one that had none. Flowing from the top instead gives one
-             rhythm down the block, and any slack collects at the bottom where it reads as
-             margin rather than as a missing line.
+             No `Spacer` above the caption, deliberately: pinned to the bottom it left a hole
+             under the countdown while the caption ran out of width and wrapped. Flowing from
+             the top gives one rhythm, and any slack collects at the bottom as margin.
              */
             Text(caption)
                 .labelStyle(Theme.paper.opacity(0.7))
-                // One line, shrunk if it must be. A wrapped caption is two half-labels.
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-                .padding(.top, 10)
+                .padding(.top, 8)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .foregroundStyle(Theme.paper)
     }
 
-    /// The answer, with what is left behind it — the app's board, at a quarter of the size.
+    /// "3 hr, 12 min · On time". The countdown ticks on the device; the status is as fresh
+    /// as the board the timeline was built from, and absent when there is no live time.
+    private func statusLine(_ departure: BoardDeparture) -> some View {
+        HStack(spacing: 0) {
+            if let instant = departure.instant {
+                Text(instant, style: .relative)
+            }
+            if let status = LiveStatus.of(departure) {
+                Text(departure.instant == nil ? status : " · \(status)")
+                    // News is bright, as on the app's rows; "On time" stays quiet.
+                    .foregroundStyle((departure.minutesLate ?? 0) > 0 || departure.cancelled ? Theme.paper : Theme.paper.opacity(0.78))
+            }
+        }
+        .font(Theme.Font.meta)
+        .foregroundStyle(Theme.paper.opacity(0.78))
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
+    }
+
+    /// The card, with the trains around it — the app's board, at a quarter of the size.
     private var medium: some View {
         HStack(alignment: .top, spacing: 14) {
             small
 
             if case .answer(let glance) = state, glance.remaining.count > 1 {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 5) {
                     Text("Still to come").labelStyle(Theme.paper.opacity(0.7))
 
                     ForEach(glance.remaining.prefix(3)) { service in
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            // The LED face, as on the card: a list of times should look
+                            // like the board they came from.
                             Text(ServiceDay.formatClock(service.liveDep).spoken)
-                                .font(Theme.Font.meta.monospacedDigit())
-                                .fontWeight(service.id == glance.departure.id ? .bold : .regular)
+                                .font(.custom("WPOCRA-Regular", size: 15))
+                                .foregroundStyle(service.id == glance.departure.id ? blockColour : Theme.serviceBlueLit)
                             Text(service.destination.withoutLondonPrefix)
                                 .font(Theme.Font.meta)
                                 .lineLimit(1)

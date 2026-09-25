@@ -60,18 +60,20 @@ export function applyLive(
     }
     if (matches.length !== 1) return service;
     const row = matches[0];
+    // Matched, so whatever follows is the live board's word — including "on time".
+    const checked = { ...service, isLive: true };
 
-    if (row.isCancelled) return { ...service, isCancelled: true };
+    if (row.isCancelled) return { ...checked, isCancelled: true };
     const etd = row.etd?.trim() ?? '';
-    if (etd === 'Delayed') return { ...service, isDelayed: true };
+    if (etd === 'Delayed') return { ...checked, isDelayed: true };
 
     const expected = minutesOf(etd);
     const scheduled = minutesOf(service.dep);
-    if (expected === null || scheduled === null || expected === scheduled) return service;
+    if (expected === null || scheduled === null || expected === scheduled) return checked;
 
     // The shortest way round the clock: 00:05 against 23:55 is ten late, not a day early.
     const shift = ((expected - scheduled + 1440 + 720) % 1440) - 720;
     const instant = new Date(Date.parse(service.depInstant) + shift * 60_000).toISOString();
-    return { ...service, expectedDep: etd, expectedDepInstant: instant };
+    return { ...checked, expectedDep: etd, expectedDepInstant: instant };
   });
 }
