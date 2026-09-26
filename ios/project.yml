@@ -106,6 +106,10 @@ targets:
       path: App/LastTrain/Info.plist
       properties:
         CFBundleDisplayName: Last Train
+        # From the build settings above. Left out, XcodeGen writes a fixed 1 and 1.0, and
+        # raising CURRENT_PROJECT_VERSION changes nothing in the uploaded app.
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
         UIAppFonts:
           - WPOCRA-Regular.ttf
         # Where a widget tap lands. `BoardModel.open` refuses anything it cannot
@@ -179,6 +183,10 @@ targets:
       path: App/Widget/Info.plist
       properties:
         CFBundleDisplayName: Last Train
+        # From the build settings above. Left out, XcodeGen writes a fixed 1 and 1.0, and
+        # raising CURRENT_PROJECT_VERSION changes nothing in the uploaded app.
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
         UIAppFonts:
           - WPOCRA-Regular.ttf
         NSExtension:
