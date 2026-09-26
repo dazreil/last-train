@@ -39,7 +39,7 @@ settings:
     DEVELOPMENT_TEAM: 6G9H3H7HTP
     CODE_SIGN_STYLE: Automatic
     MARKETING_VERSION: "1.0"
-    CURRENT_PROJECT_VERSION: "1"
+    CURRENT_PROJECT_VERSION: "2"
 
 packages:
   LastTrainCore:

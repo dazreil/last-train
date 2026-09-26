@@ -55,7 +55,7 @@ LAST TRAIN, EARLIER TRAINS, FASTEST TRAIN, LATER TRAINS, FIRST BACK → `section
 | What you see | Name |
 | --- | --- |
 | "Choose a direction or a destination" / "Choose a destination" (Fast) | `emptyPrompt` → `StepHint` |
-| "Pick a station or tap the arrow", on the blank board | `stepHint` → `StepHint` |
+| "Tap Where? or the arrow to pick a station", on the blank board | `stepHint` → `StepHint` |
 | "Nothing westbound" and other notices | `notice` |
 | The recent journeys on the blank board | `recentJourneysList` |
 | "Couldn't refresh" banner over the dimmed old board | `staleNotice` |

@@ -106,7 +106,7 @@ struct BoardView: View {
                             }
                         }
                     } else {
-                        stepHint("Pick a station or tap the arrow") {
+                        stepHint("Tap Where? or the arrow to pick a station") {
                             model.clearNearby()
                             presented = .start
                         }
@@ -1006,7 +1006,8 @@ struct BoardView: View {
 
             if model.station != nil { directionPicker }
 
-            if mode == .last || fast.canPage { dayControl }
+            // No day to step through before there is a station: the pager belongs to a board.
+            if (mode == .last && model.station != nil) || fast.canPage { dayControl }
 
             if let locateError = model.locateError {
                 SettingsLink(enabled: LocationFinder.isDenied) {
@@ -1432,7 +1433,7 @@ struct BoardView: View {
 
     /**
      The one line under the bar before a journey is set, the same in both modes:
-     "Pick a station or tap the arrow", then "Choose a direction or a destination", then,
+     "Tap Where? or the arrow to pick a station", then "Choose a direction or a destination", then,
      in Fast Train, "Choose a destination". No heading above it — the bar already asks
      "Where?", and a heading only said the same thing again. A tap does the step it names.
      */

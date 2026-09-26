@@ -206,7 +206,7 @@ A journey is a start and a destination; `UPM → BSO` and `BSO → UPM` are two.
 the phone (`JourneyStore`, ranked by `LastTrainCore.RecentJourneys`, tested), twenty
 kept and five shown.
 
-- **On the blank board**, under "Pick a station or tap the arrow": the five most recent, one tap
+- **On the blank board**, under "Tap Where? or the arrow to pick a station": the five most recent, one tap
   each to reopen the board with both ends and the direction.
 - **Hold either station code**: the same list, leaving out the journey on screen. The
   codes were the one part of the bar without a hold.
