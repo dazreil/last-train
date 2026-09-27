@@ -194,6 +194,8 @@ export interface FastService {
   isLive?: boolean;
   /** Past the four-hour window: shown to fill the last page, not yet followable. */
   beyondHorizon?: boolean;
+  /** Cancelled on the live board. Sent only when the app asks (`cancelled=1`); see BUG-003. */
+  isCancelled?: boolean;
 }
 
 /** Every direct train from A to B in the window, with arrivals worked out. */

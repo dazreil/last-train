@@ -435,6 +435,9 @@ extension BoardClient {
         if let date { query.append(URLQueryItem(name: "date", value: date)) }
         // The two-to-four-hour window, fetched only when the board is paged into it.
         if later { query.append(URLQueryItem(name: "later", value: "1")) }
+        // This build knows the cancelled mark, so it asks for cancelled trains, marked
+        // (BUG-003). An older build does not ask, and never sees them.
+        query.append(URLQueryItem(name: "cancelled", value: "1"))
         if refresh { query.append(URLQueryItem(name: "refresh", value: "1")) }
         components.queryItems = query
 

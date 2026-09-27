@@ -39,9 +39,15 @@ struct TrainLiveActivity: Widget {
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    countdown(to: context.state.departure)
-                        .font(.system(.title2, design: .monospaced).weight(.bold))
-                        .foregroundStyle(Theme.paper)
+                    if context.state.isCancelled == true {
+                        Text("Cancelled")
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(Theme.paper)
+                    } else {
+                        countdown(to: context.state.departure)
+                            .font(.system(.title2, design: .monospaced).weight(.bold))
+                            .foregroundStyle(Theme.paper)
+                    }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack(spacing: 6) {
@@ -64,6 +70,13 @@ struct TrainLiveActivity: Widget {
                     .font(.caption.weight(.bold))
                     .foregroundStyle(activityColour(context))
             } compactTrailing: {
+                // Cancelled: a cross where the minutes were, in white, never red (BUG-003).
+                if context.state.isCancelled == true {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Theme.paper)
+                        .accessibilityLabel("Cancelled")
+                } else {
                 minuteCountdown(to: context.isStale ? .distantPast : context.state.departure)
                     .font(.system(.caption, design: .monospaced).weight(.bold))
                     .foregroundStyle(Theme.paper)
@@ -73,11 +86,19 @@ struct TrainLiveActivity: Widget {
                     // can show (four hours ahead at most), so the slot is sized to that.
                     .minimumScaleFactor(0.7)
                     .frame(maxWidth: 42, alignment: .trailing)
+                }
             } minimal: {
-                minuteCountdown(to: context.isStale ? .distantPast : context.state.departure)
-                    .font(.system(.caption2, design: .monospaced).weight(.bold))
-                    .foregroundStyle(activityColour(context))
-                    .lineLimit(1)
+                if context.state.isCancelled == true {
+                    Image(systemName: "xmark")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(Theme.paper)
+                        .accessibilityLabel("Cancelled")
+                } else {
+                    minuteCountdown(to: context.isStale ? .distantPast : context.state.departure)
+                        .font(.system(.caption2, design: .monospaced).weight(.bold))
+                        .foregroundStyle(activityColour(context))
+                        .lineLimit(1)
+                }
             }
             .widgetURL(URL(string: "lasttrain://board"))
         }
@@ -182,12 +203,20 @@ private enum ActivityCardLayout {
                     CathodeNumber(text: departureText(context), colour: colour, scale: .row)
                     Spacer(minLength: 8)
                     // The figure you act on, in the same LED face, kept paper-white so it
-                    // leads over the glow of the time beside it.
-                    Text(timerInterval: Date.now...context.state.departure, countsDown: true)
-                        .monospacedDigit()
-                        .multilineTextAlignment(.trailing)
-                        .font(.custom("WPOCRA-Regular", size: 30))
-                        .foregroundStyle(Theme.paper)
+                    // leads over the glow of the time beside it. Cancelled: said in words
+                    // where the countdown was, never red (BUG-003).
+                    if context.state.isCancelled == true {
+                        Text("CANCELLED")
+                            .font(.headline.weight(.heavy))
+                            .tracking(Theme.tracking)
+                            .foregroundStyle(Theme.paper)
+                    } else {
+                        Text(timerInterval: Date.now...context.state.departure, countsDown: true)
+                            .monospacedDigit()
+                            .multilineTextAlignment(.trailing)
+                            .font(.custom("WPOCRA-Regular", size: 30))
+                            .foregroundStyle(Theme.paper)
+                    }
                 }
                 HStack(alignment: .firstTextBaseline) {
                     (Text(context.attributes.destination).foregroundStyle(Theme.paper)

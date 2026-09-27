@@ -31,7 +31,7 @@
 
 import { boardMaxAge } from '@/lib/freshness';
 import { refreshAllowed } from '@/lib/limits';
-import { chooseCandidates } from '@/lib/filteredLineUp';
+import { placeTrain } from '@/lib/directionRule';
 import {
   RttError,
   locationLineUp,
@@ -210,7 +210,13 @@ const platformOf = (departure: Departure): string | null =>
 async function confirmedAgainstDarwin(
   originCrs: string,
   waypoint: string | undefined,
-  candidates: Departure[]
+  candidates: Departure[],
+  /**
+   * Which departures the filter can vouch for. A train placed by its bearing never calls at
+   * the waypoint, so Darwin's board filtered to that waypoint cannot list it, and checking it
+   * would drop a real train as a phantom (BUG-001). Those are left exactly as RTT gave them.
+   */
+  checkable: (candidate: Departure) => boolean = () => true
 ): Promise<Departure[]> {
   if (!waypoint) return candidates;
 
@@ -221,7 +227,9 @@ async function confirmedAgainstDarwin(
     return delta >= -60_000 && delta <= horizonMs;
   };
 
-  if (!candidates.some((candidate) => inWindow(candidate.depInstant))) return candidates;
+  if (!candidates.some((candidate) => checkable(candidate) && inWindow(candidate.depInstant))) {
+    return candidates;
+  }
 
   let listed: Set<string>;
   try {
@@ -243,7 +251,7 @@ async function confirmedAgainstDarwin(
   }
 
   return candidates.filter((candidate) => {
-    if (!inWindow(candidate.depInstant)) return true;
+    if (!checkable(candidate) || !inWindow(candidate.depInstant)) return true;
     return listed.has(formatLondonTime(candidate.depInstant));
   });
 }
@@ -350,14 +358,8 @@ export async function GET(request: Request) {
      */
     const waypoint = waypointFor(from.crs, direction);
 
-    /**
-     * What the upstream line-up is filtered to, if anything.
-     *
-     * A chosen destination outranks an inferred waypoint. The waypoint exists only to
-     * tell two branches apart when all we know is a bearing; a destination tells them
-     * apart exactly, and narrows the board to the trains that get you there as well.
-     */
-    const filterTo = to?.crs ?? waypoint;
+    /** Every direction's waypoint here, in compass order, for `placeTrain`. */
+    const waypoints = COMPASS_POINTS.map((point) => [point, waypointFor(from.crs, point)] as const);
 
     /**
      * One service day: the whole line-up, then every boardable departure classified
@@ -396,30 +398,40 @@ export async function GET(request: Request) {
       }
 
       /**
-       * The services actually going this way.
+       * An RTT line-up filtered to the trains that call at one station, cached for the day.
        *
-       * A second query, and the only one in this route that is direction-specific — so
-       * it costs a request per direction looked at, where the unfiltered line-up above
-       * is shared by all four and by the web app. Paid only where a waypoint exists,
-       * which is to say only where the cheap answer was wrong.
+       * Used for a chosen destination, and for each of this station's waypoints. A request
+       * each, shared by every direction asked about here and by tomorrow's first-train board.
        */
-      let directional: LocationLineUpResponse | null = null;
-      if (filterTo) {
-        const filteredKey = `${rawKey}:${filterTo}`;
+      const filteredLineUp = async (filter: string): Promise<LocationLineUpResponse | null> => {
+        const filteredKey = `${rawKey}:${filter}`;
         const cachedFiltered = await getCachedLineUp<LocationLineUpResponse | null>(filteredKey);
-
         if (cachedFiltered && (!refresh || cachedFiltered.ageSeconds < LINEUP_REFRESH_FLOOR_SECONDS)) {
-          directional = cachedFiltered.value;
-        } else {
-          directional = await locationLineUp({
-            code: from.crs,
-            filterTo,
-            ...serviceDayWindow(forDate),
-          });
-          requestsSpent += 1;
-          await setCachedLineUp(filteredKey, directional, ttlSecondsFor(forDate));
+          return cachedFiltered.value;
+        }
+        const filtered = await locationLineUp({ code: from.crs, filterTo: filter, ...serviceDayWindow(forDate) });
+        requestsSpent += 1;
+        await setCachedLineUp(filteredKey, filtered, ttlSecondsFor(forDate));
+        return filtered;
+      };
+
+      /**
+       * The trains that call at each of this station's waypoints, by id.
+       *
+       * Every waypoint, not only this direction's: a train that calls at another direction's
+       * waypoint belongs there, and without that set it would be placed here by its bearing.
+       * Not needed when a destination is chosen, because the destination filter is exact.
+       */
+      const viaWaypoint = new Map<string, Set<string>>();
+      if (!to) {
+        for (const [, point] of waypoints) {
+          if (!point || viaWaypoint.has(point)) continue;
+          viaWaypoint.set(point, new Set(sortedDepartures(await filteredLineUp(point)).map((d) => d.id)));
         }
       }
+
+      /** A chosen destination: exactly the trains that reach it. An empty answer is none. */
+      const toDestination = to ? await filteredLineUp(to.crs) : null;
 
       const boardable = sortedDepartures(lineUp);
 
@@ -438,21 +450,23 @@ export async function GET(request: Request) {
         fromCache,
         boardable,
         classified,
-        // Where the upstream filter answered — a chosen destination, or a waypoint
-        // standing in for one — it *is* the classification and nothing is inferred.
-        // Otherwise the destination bearing, as before.
-        // A chosen destination is chosen by whether it was asked for: an empty filtered
-        // answer (RTT's 204, read as `null`) means nothing goes there, not "list the whole
-        // direction". A waypoint is only the route table's guess at a branch, so an empty
-        // answer to it still falls back to the bearing, as before.
-        candidates: chooseCandidates(
-          to != null || directional != null,
-          () => sortedDepartures(directional),
-          () =>
-            classified
-              .filter((entry) => classify(origin, entry.destination) === direction)
-              .map((entry) => entry.departure)
-        ),
+        /** Ids of the trains that call at this direction's waypoint, for the Darwin check. */
+        placedByWaypoint: waypoint ? (viaWaypoint.get(waypoint) ?? new Set<string>()) : new Set<string>(),
+        // A chosen destination is exact, and an empty answer means nothing goes there.
+        // Otherwise every train is placed by the one rule the destination list uses too:
+        // its waypoint if it calls at one, else its bearing, and never dropped (BUG-001).
+        candidates: to
+          ? sortedDepartures(toDestination)
+          : classified
+              .filter(
+                (entry) =>
+                  placeTrain(
+                    (crs) => viaWaypoint.get(crs)?.has(entry.departure.id) ?? false,
+                    waypoints,
+                    classify(origin, entry.destination)
+                  ) === direction
+              )
+              .map((entry) => entry.departure),
       };
     };
 
@@ -469,7 +483,11 @@ export async function GET(request: Request) {
       toInstantMillis(lastDepInstant) - Date.now() <= 2 * 60 * 60 * 1000;
 
     if (lastTrainSoon) {
-      day.candidates = await confirmedAgainstDarwin(from.crs, filterTo, day.candidates);
+      day.candidates = to
+        ? await confirmedAgainstDarwin(from.crs, to.crs, day.candidates)
+        : await confirmedAgainstDarwin(from.crs, waypoint, day.candidates, (d) =>
+            day.placedByWaypoint.has(d.id)
+          );
     }
 
     const mode = boardMode({

@@ -37,7 +37,7 @@ public enum LiveStatus {
         text(
             hasLiveTime: service.isLive || service.expectedDeparture != nil,
             minutesLate: service.minutesLate,
-            cancelled: false,
+            cancelled: service.isCancelled,
             delayed: service.isDelayed
         )
     }

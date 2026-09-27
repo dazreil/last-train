@@ -46,9 +46,10 @@ import { timetableBoard, timetableStatus } from '@/lib/timetable';
 import type { NormalizedService } from '@/lib/darwin';
 import { coordinateFor, findStationByCrs } from '@/lib/nationalStations';
 import { waypointFor } from '@/lib/adjacency';
+import { placeTrain } from '@/lib/directionRule';
 import { getCached, getCachedLocations, setCached, setCachedLocations, ttlSecondsFor } from '@/lib/cache';
 import type { Destination, DestinationList } from '@/lib/nationalContract';
-import type { ServiceLocation } from '@/lib/rtt';
+import type { LocationLineUpObject, ServiceLocation } from '@/lib/rtt';
 
 export const runtime = 'nodejs';
 
@@ -168,27 +169,22 @@ export async function GET(request: Request) {
   */
   if (date === today) {
     try {
-      const waypoint = waypointFor(from.crs, direction);
-      const board = await departureBoard(
-        from.crs,
-        waypoint ? { filterCrs: waypoint, filterType: 'to', numRows: 40 } : { numRows: 40 }
-      );
-      let reachable = normalize(board);
-
-      if (!waypoint) {
-        const origin = coordinateFor([from.name], [from.crs]);
-        if (!origin) {
-          return NextResponse.json(
-            { error: 'That station has no position to work from.' },
-            { status: 422 }
-          );
-        }
-        reachable = reachable.filter((service) => {
-          const terminus = service.stops[service.stops.length - 1];
-          const to = coordinateFor([service.destinationName], terminus?.crs ? [terminus.crs] : []);
-          return classify(origin, to) === direction;
-        });
+      // The whole board, sorted by the one direction rule (`placeTrain`), not filtered to
+      // the waypoint: a train that misses every waypoint goes by its bearing (BUG-001).
+      const waypoints = COMPASS_POINTS.map((point) => [point, waypointFor(from.crs, point)] as const);
+      const origin = coordinateFor([from.name], [from.crs]);
+      if (!origin && !waypoints.some(([, waypoint]) => waypoint)) {
+        return NextResponse.json({ error: 'That station has no position to work from.' }, { status: 422 });
       }
+      const board = await departureBoard(from.crs, { numRows: 80 });
+      const reachable = normalize(board).filter((service) => {
+        const onward = new Set(service.stops.slice(1).map((stop) => stop.crs));
+        const terminus = service.stops[service.stops.length - 1];
+        const bearing = origin
+          ? classify(origin, coordinateFor([service.destinationName], terminus?.crs ? [terminus.crs] : []))
+          : null;
+        return placeTrain((crs) => onward.has(crs), waypoints, bearing) === direction;
+      });
 
       const best = new Map<string, number>();
       for (const service of reachable) {
@@ -226,16 +222,16 @@ export async function GET(request: Request) {
       : window.timeTo;
 
   let lineUp;
+  let viaWaypoint;
   try {
-    // The waypoint picks out this direction exactly, the same way the board does. Without
-    // one the whole day comes back and the bearing rule sorts it, which is the older and
-    // less reliable answer -- see §13.
-    lineUp = await locationLineUp({
-      code: from.crs,
-      ...(waypoint ? { filterTo: waypoint } : {}),
-      timeFrom,
-      timeTo,
-    });
+    // The whole window, sorted by bearing below; and where this direction has a waypoint,
+    // the trains that call at it too, whatever their bearing. After pricing, each train's
+    // calls decide with the same rule as the board (`placeTrain`), so a train that misses
+    // every waypoint is kept by its bearing rather than dropped (BUG-001).
+    lineUp = await locationLineUp({ code: from.crs, timeFrom, timeTo });
+    viaWaypoint = waypoint
+      ? await locationLineUp({ code: from.crs, filterTo: waypoint, timeFrom, timeTo })
+      : null;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not look that up.';
     return NextResponse.json({ error: message }, { status: 502 });
@@ -249,19 +245,29 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'That station has no position to work from.' }, { status: 422 });
   }
 
-  let services = (lineUp?.services ?? []).filter(
-    (service) => service.temporalData?.displayAs !== 'PASS'
-  );
-
-  if (!waypoint) {
-    services = services.filter((service) => {
-      const to = coordinateFor(
-        (service.destination ?? []).map((d) => d.location?.description ?? ''),
-        (service.destination ?? []).flatMap((d) => d.location?.shortCodes ?? [])
-      );
-      return classify(origin!, to) === direction;
-    });
-  }
+  const bearingOf = (service: LocationLineUpObject) =>
+    origin
+      ? classify(
+          origin,
+          coordinateFor(
+            (service.destination ?? []).map((d) => d.location?.description ?? ''),
+            (service.destination ?? []).flatMap((d) => d.location?.shortCodes ?? [])
+          )
+        )
+      : null;
+  const bearings = new Map<string, Compass | null>();
+  const seen = new Set<string>();
+  const services = [...(viaWaypoint?.services ?? []), ...(lineUp?.services ?? [])].filter((service) => {
+    if (service.temporalData?.displayAs === 'PASS') return false;
+    const id = service.scheduleMetadata?.uniqueIdentity;
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    const bearing = bearingOf(service);
+    bearings.set(id, bearing);
+    const callsHere = (viaWaypoint?.services ?? []).some((s) => s.scheduleMetadata?.uniqueIdentity === id);
+    return callsHere || bearing === direction;
+  });
+  const allWaypoints = COMPASS_POINTS.map((point) => [point, waypointFor(from.crs, point)] as const);
 
   const ttl = ttlSecondsFor(date);
   const priced = services.slice(0, PATTERN_BUDGET);
@@ -289,6 +295,10 @@ export async function GET(request: Request) {
     }
 
     if (!locations) continue;
+    // The board's rule on this train's real calls: one that calls at another direction's
+    // waypoint belongs there, not here.
+    const calls = new Set(locations.flatMap((l) => l.location?.shortCodes ?? []));
+    if (placeTrain((crs) => calls.has(crs), allWaypoints, bearings.get(id) ?? null) !== direction) continue;
     collect(from.crs, locations, best);
   }
 
@@ -498,26 +508,17 @@ async function timetableList(
   const waypoints = COMPASS_POINTS.map((point) => [point, waypointFor(from.crs, point)] as const);
 
   /**
-   * The board's own rule, restated for a timetable train.
-   *
-   * Where a direction has a waypoint, that direction's board is the trains that call at it —
-   * so a train that does is that way, and nothing else is. Where it has none, the board sorts
-   * by the bearing to where the train ends. One subtlety makes the two agree: a train whose
-   * bearing points at a direction that *does* have a waypoint, but which misses it, is on no
-   * board at all. It is left out here too, because a destination offered under a direction
-   * whose board does not carry the train is exactly the bug this list exists to prevent.
+   * The board's own rule, the same function: `placeTrain` in `lib/directionRule.ts`. A
+   * train that calls at a direction's waypoint is that way; one that calls at none goes by
+   * the bearing to where it ends; none is dropped (BUG-001).
    */
   const directionOf = (service: NormalizedService): Compass | null => {
     const onward = new Set(service.stops.slice(1).map((stop) => stop.crs));
-    for (const [point, waypoint] of waypoints) {
-      if (waypoint && onward.has(waypoint)) return point;
-    }
-    if (!origin) return null;
     const terminus = service.stops[service.stops.length - 1];
-    const to = coordinateFor([service.destinationName], terminus?.crs ? [terminus.crs] : []);
-    const bearing = classify(origin, to);
-    if (!bearing || waypointFor(from.crs, bearing)) return null;
-    return bearing;
+    const bearing = origin
+      ? classify(origin, coordinateFor([service.destinationName], terminus?.crs ? [terminus.crs] : []))
+      : null;
+    return placeTrain((crs) => onward.has(crs), waypoints, bearing);
   };
 
   return directDestinations(

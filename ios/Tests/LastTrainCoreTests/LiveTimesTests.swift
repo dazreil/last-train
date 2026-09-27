@@ -128,4 +128,19 @@ struct LiveTimesTests {
         #expect(FastBoard.pageFill(count: 1, perPage: 2) == 1)
         #expect(FastBoard.pageFill(count: 0, perPage: 3) == 0)
     }
+
+    /// BUG-003: a cancelled train is kept only so a followed one can be found.
+    @Test("a cancelled fast train is never ranked or caught, and says Cancelled")
+    func cancelledFastTrain() {
+        func at(_ hhmm: String) -> Date { utcInstant("2026-08-05T\(hhmm):00Z") }
+        let cancelled = FastService(
+            serviceId: "c", headcode: nil, toc: "CC", destination: "Shoeburyness",
+            departure: "19:00", arrival: "19:30", departsAt: at("19:00"), arrivesAt: at("19:30"),
+            isLive: true, isCancelled: true
+        )
+        let running = fast("19:05", "19:40")
+        let now = utcInstant("2026-08-05T18:50:00Z")
+        #expect(FastBoard.upcoming([cancelled, running], now: now).map(\.serviceId) == ["19:05"])
+        #expect(LiveStatus.of(cancelled) == "Cancelled")
+    }
 }

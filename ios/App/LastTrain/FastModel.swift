@@ -339,6 +339,15 @@ final class FastModel {
                     platform: followed.platform,
                     status: LiveStatus.of(followed)
                 )
+            } else if let activityServiceId,
+                      let gone = board.services.first(where: { $0.serviceId == activityServiceId && $0.isCancelled }) {
+                // The followed train was cancelled (BUG-003). Say so where the countdown was,
+                // then end it: a countdown to a train that is not coming is the one thing
+                // this app must never show.
+                await TrainActivityController.cancel(serviceId: activityServiceId)
+                self.activityServiceId = nil
+                activityChanges += 1
+                activityMessage = "The \(ServiceDay.formatClock(gone.departure).spoken) has been cancelled."
             }
         } catch is CancellationError {
             // Somewhere else is already asking a better question. Leaving what is on

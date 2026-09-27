@@ -267,7 +267,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'date must be YYYY-MM-DD.' }, { status: 400 });
   }
 
-  const key = answerKey(from.crs, to.crs, date);
+  /**
+   * Cancelled trains, marked, when the app asks for them (BUG-003). Only builds that know the
+   * mark ask: an older build would show a cancelled train as one to catch. Its own cache key,
+   * so the two answers never mix.
+   */
+  const withCancelled = params.get('cancelled') === '1';
+  const key = answerKey(from.crs, to.crs, date) + (withCancelled ? ':c' : '');
   const wantsLater = params.get('later') === '1';
 
   /*
@@ -461,10 +467,18 @@ export async function GET(request: Request) {
         filterType: 'to',
         numRows: 25,
       });
-      const normalized = normalize(board);
+      const normalized = normalize(board, { keepCancelled: withCancelled });
       const services: FastService[] = [];
       const stored: Promise<void>[] = [];
       for (const service of normalized) {
+        if (service.isCancelled) {
+          // Priced from its timetable, which a cancelled train still has, so the app can
+          // match it to the one being followed. Never ranked or caught: it is marked.
+          const timetabled = { ...service, stops: service.stops.map((stop) => ({ ...stop, isCancelled: false })) };
+          const cancelled = toFastService(timetabled, to.crs);
+          if (cancelled) services.push({ ...cancelled, isLive: true, isCancelled: true });
+          continue;
+        }
         const priced = toFastService(service, to.crs);
         if (!priced) continue;
         // Darwin's live board: a train with no expected time here is on time, not unknown.
@@ -476,7 +490,8 @@ export async function GET(request: Request) {
       }
       await Promise.all(stored);
 
-      if (services.length > 0) {
+      // A board of nothing but cancelled trains has no answer in it; the RTT path looks further.
+      if (services.some((service) => !service.isCancelled)) {
         const body: FastBoard = {
           from: { crs: from.crs, name: from.name, locality: from.locality },
           to: { crs: to.crs, name: to.name, locality: to.locality },

@@ -56,6 +56,12 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
     public let isLive: Bool
     /// Past the four-hour window: shown to fill the last page, and not yet followable.
     public let beyondHorizon: Bool
+    /**
+     Cancelled on the live board. Sent only because the app asks (`cancelled=1`), so a
+     followed train that is cancelled can be found and shown as cancelled (BUG-003). Never
+     ranked or offered: `upcoming` leaves it out.
+     */
+    public let isCancelled: Bool
 
     public var id: String { serviceId }
 
@@ -95,7 +101,8 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         expectedArrivesAt: Date? = nil,
         isDelayed: Bool = false,
         isLive: Bool = false,
-        beyondHorizon: Bool = false
+        beyondHorizon: Bool = false,
+        isCancelled: Bool = false
     ) {
         self.serviceId = serviceId
         self.headcode = headcode
@@ -115,6 +122,7 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         self.isDelayed = isDelayed
         self.isLive = isLive
         self.beyondHorizon = beyondHorizon
+        self.isCancelled = isCancelled
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -122,7 +130,7 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         case departure, departureInstant, arrival, arrivalInstant, platform
         case isScheduled
         case expectedDeparture, expectedDepartureInstant, expectedArrival, expectedArrivalInstant
-        case isDelayed, isLive, beyondHorizon
+        case isDelayed, isLive, beyondHorizon, isCancelled
     }
 
     /**
@@ -156,6 +164,7 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         isDelayed = try container.decodeIfPresent(Bool.self, forKey: .isDelayed) ?? false
         isLive = try container.decodeIfPresent(Bool.self, forKey: .isLive) ?? false
         beyondHorizon = try container.decodeIfPresent(Bool.self, forKey: .beyondHorizon) ?? false
+        isCancelled = try container.decodeIfPresent(Bool.self, forKey: .isCancelled) ?? false
 
         let departureInstant = try container.decode(String.self, forKey: .departureInstant)
         let arrivalInstant = try container.decode(String.self, forKey: .arrivalInstant)
@@ -337,7 +346,8 @@ public enum FastBoard {
         // page: same time, same operator, same platform, same journey. Two genuinely
         // different trains sharing a departure minute have different ids and both stay.
         var seen = Set<String>()
-        let unique = services.filter { seen.insert($0.serviceId).inserted }
+        // A cancelled train is never the fastest, or any rank at all (BUG-003).
+        let unique = services.filter { !$0.isCancelled && seen.insert($0.serviceId).inserted }
 
         return unique
             .sorted { left, right in
@@ -357,8 +367,9 @@ public enum FastBoard {
      now. A train that has left cannot be ranked into first place.
      */
     public static func upcoming(_ services: [FastService], now: Date = Date()) -> [FastService] {
-        // A train past its timetabled time but running late has not left yet.
-        services.filter { $0.liveDepartsAt > now }
+        // A train past its timetabled time but running late has not left yet. A cancelled
+        // one is never going to: it is kept on the answer only to be found, not caught.
+        services.filter { !$0.isCancelled && $0.liveDepartsAt > now }
     }
 }
 

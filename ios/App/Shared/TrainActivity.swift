@@ -37,6 +37,9 @@ struct TrainActivity: ActivityAttributes {
         /// "On time", "4 min late" — `LiveStatus`, as the widget shows it. Nil with no live
         /// time. Optional so an activity from an earlier build still decodes.
         var status: String? = nil
+        /// Cancelled: the views show that in words where the countdown was (BUG-003).
+        /// Optional so an activity from an earlier build still decodes.
+        var isCancelled: Bool? = nil
     }
 
     let stationName: String
@@ -222,6 +225,25 @@ enum TrainActivityController {
                 status: status
             )
             await activity.update(ActivityContent(state: state, staleDate: departure))
+        }
+    }
+
+    /**
+     The followed train was cancelled: show "Cancelled" where the countdown was, then end.
+
+     Left on screen for ten minutes, so the news is seen rather than the activity simply
+     vanishing, and never longer: nothing about a cancelled train is worth a countdown.
+     */
+    static func cancel(serviceId: String) async {
+        for activity in Activity<TrainActivity>.activities
+        where activity.attributes.serviceId == serviceId {
+            var state = activity.content.state
+            state.status = "Cancelled"
+            state.isCancelled = true
+            await activity.end(
+                ActivityContent(state: state, staleDate: nil),
+                dismissalPolicy: .after(.now.addingTimeInterval(10 * 60))
+            )
         }
     }
 

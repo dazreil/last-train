@@ -303,7 +303,15 @@ export function expectedOf(
  * gap from the board's own clock to the first departure, so a train just past midnight on
  * a board generated just before it is dated tomorrow without a special case.
  */
-export function normalize(board: DarwinBoard): NormalizedService[] {
+export function normalize(
+  board: DarwinBoard,
+  /**
+   * Keep cancelled trains, marked `isCancelled`. Only Fast Train asks, so that a followed
+   * train that is cancelled can still be found and shown as cancelled (BUG-003); every
+   * other caller wants them gone.
+   */
+  options: { keepCancelled?: boolean } = {}
+): NormalizedService[] {
   const anchor = anchorOf(board.generatedAt);
   const services: NormalizedService[] = [];
 
@@ -312,7 +320,7 @@ export function normalize(board: DarwinBoard): NormalizedService[] {
     // Buses and ferries are not Fast Train's answer, and a cancelled train is not a
     // journey. Both drop out here rather than in each route.
     if (service.serviceType && service.serviceType !== 'train') continue;
-    if (service.isCancelled) continue;
+    if (service.isCancelled && !options.keepCancelled) continue;
 
     const board0 = service.subsequentCallingPoints?.[0]?.callingPoint ?? [];
     // Boarding point first, then everything the train calls at after it.

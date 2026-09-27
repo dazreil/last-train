@@ -1006,8 +1006,9 @@ struct BoardView: View {
 
             if model.station != nil { directionPicker }
 
-            // No day to step through before there is a station: the pager belongs to a board.
-            if (mode == .last && model.station != nil) || fast.canPage { dayControl }
+            // No day to step through before there is a board: a station, and a direction or a
+            // destination chosen (BUG-002). Fast Train's pager is its own rule, unchanged.
+            if (mode == .last && model.station != nil && directionChosen) || fast.canPage { dayControl }
 
             if let locateError = model.locateError {
                 SettingsLink(enabled: LocationFinder.isDenied) {

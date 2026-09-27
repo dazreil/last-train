@@ -52,3 +52,16 @@ test('a late train across midnight gets tomorrow for its estimate', () => {
   assert.equal(late.stops[0].expectedInstant, '2026-09-25T00:05:00');
   assert.equal(late.stops[1].expectedInstant, '2026-09-25T00:30:00');
 });
+
+/** BUG-003: a followed train that is cancelled must still be findable, marked. */
+test('cancelled trains are dropped, unless Fast Train asks to keep them, marked', () => {
+  const cancelled = { ...service('21:47', 'Cancelled', '22:10', 'Cancelled'), isCancelled: true };
+  const running = service('21:52', 'On time', '22:15', 'On time');
+  assert.deepEqual(
+    normalize(board([cancelled, running])).map((s) => s.serviceId),
+    ['s21:52'],
+    'every other caller still sees only trains that run'
+  );
+  const kept = normalize(board([cancelled, running]), { keepCancelled: true });
+  assert.deepEqual(kept.map((s) => [s.serviceId, s.isCancelled]), [['s21:47', true], ['s21:52', false]]);
+});
