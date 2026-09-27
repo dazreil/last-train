@@ -20,6 +20,8 @@
     "darwin:publish": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/darwin-publish.mjs"
   },
   "dependencies": {
+    "@fontsource/doto": "^5.3.0",
+    "@fontsource/nunito": "^5.3.0",
     "@upstash/redis": "^1.38.4",
     "next": "16.3.6",
     "react": "19.2.4",

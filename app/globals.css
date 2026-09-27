@@ -12,6 +12,8 @@
   --red: #ff3b55;
   --red-glow: rgba(255, 59, 85, 0.6);
   --rule: rgba(61, 107, 255, 0.3);
+  --font-led: 'Doto';
+  --font-sans: 'Nunito';
   color-scheme: dark;
 }
 

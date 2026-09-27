@@ -1,5 +1,12 @@
 import type { Metadata, Viewport } from 'next';
-import { Doto, Nunito } from 'next/font/google';
+// Latin subsets only, bundled with the site from npm. Loaded through `next/font/google`
+// the build fetched them from Google, and on 27 September 2026 that fetch failed and took
+// a server fix down with it. Nothing here needs the network to build.
+import '@fontsource/doto/latin-900.css';
+import '@fontsource/nunito/latin-500.css';
+import '@fontsource/nunito/latin-600.css';
+import '@fontsource/nunito/latin-700.css';
+import '@fontsource/nunito/latin-800.css';
 import './globals.css';
 
 /*
@@ -7,11 +14,9 @@ import './globals.css';
  * address. The board itself lives in the iOS app; the web board this layout used to
  * carry was removed on 25 September 2026.
  *
- * Doto stands in for the app's LED face and is used for times only. Both fonts are
- * self-hosted by next/font, so a page makes no request to Google.
+ * Doto stands in for the app's LED face and is used for times only. Both fonts are served
+ * from this site, so a page makes no request to Google.
  */
-const led = Doto({ subsets: ['latin'], weight: ['900'], display: 'swap', variable: '--font-led' });
-const sans = Nunito({ subsets: ['latin'], weight: ['500', '600', '700', '800'], display: 'swap', variable: '--font-sans' });
 
 export const metadata: Metadata = {
   title: { default: 'Last Train', template: '%s · Last Train' },
@@ -29,7 +34,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en-GB" className={`${led.variable} ${sans.variable}`}>
+    <html lang="en-GB">
       <body>{children}</body>
     </html>
   );
