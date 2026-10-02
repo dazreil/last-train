@@ -226,11 +226,12 @@ struct LiveNote {
         }
     }
 
+    /// No `due` here: a Fast Train row also carries `Arr`, and with `due` too the line cut
+    /// the arrival off. The row's big time is already the live departure.
     init(_ service: FastService) {
         if service.isDelayed {
             alert = "Delayed"
         } else if let late = service.minutesLate {
-            due = "due \(ServiceDay.formatClock(service.departure).spoken)"
             alert = "\(late) min late"
         }
     }

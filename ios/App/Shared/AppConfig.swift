@@ -45,6 +45,8 @@ enum SharedSelection {
         /// When the pinned train leaves. The token alone recurs every day it runs, so this
         /// is what says the one you followed has gone.
         static let pinUntil = "lastTrain.pin.until"
+        /// The service day the pin was made on, `2026-09-28`. See `pinnedHeadcode`.
+        static let pinDate = "lastTrain.pin.date"
         static let widgetFailures = "lastTrain.widget.failures"
         /// Scope (`CRS:direction`) to destination CRS, one entry per pair.
         static let destinations = "lastTrain.fast.destinations"
@@ -95,8 +97,17 @@ enum SharedSelection {
      pin made tonight would mean nothing tomorrow, while `2D88` is the same train every
      day it runs.
      */
-    static func pinnedHeadcode(for crs: String, direction: Compass) -> String? {
+    /**
+     The followed train for this station and direction, on this service day.
+
+     A pin token is a headcode and a time, `2D88|23:51`, which recurs every day the train
+     runs, so it is kept with the service day it was made on and matches that day only
+     (BUG-004). Without it, stepping to Wednesday found Wednesday's 23:51 and showed it as
+     followed. A pin from an older build has no day and matches as before.
+     */
+    static func pinnedHeadcode(for crs: String, direction: Compass, date: String? = nil) -> String? {
         guard defaults.string(forKey: Key.pinScope) == scope(crs, direction) else { return nil }
+        if let date, let pinned = defaults.string(forKey: Key.pinDate), pinned != date { return nil }
         let headcode = defaults.string(forKey: Key.pinHeadcode)
         return (headcode?.isEmpty ?? true) ? nil : headcode
     }
@@ -175,16 +186,18 @@ enum SharedSelection {
         defaults.removeObject(forKey: Key.destinationScope)
     }
 
-    static func setPin(_ headcode: String?, crs: String, direction: Compass, until: Date? = nil) {
+    static func setPin(_ headcode: String?, crs: String, direction: Compass, until: Date? = nil, date: String? = nil) {
         guard let headcode, !headcode.isEmpty else {
             defaults.removeObject(forKey: Key.pinHeadcode)
             defaults.removeObject(forKey: Key.pinScope)
             defaults.removeObject(forKey: Key.pinUntil)
+            defaults.removeObject(forKey: Key.pinDate)
             return
         }
         defaults.set(headcode, forKey: Key.pinHeadcode)
         defaults.set(scope(crs, direction), forKey: Key.pinScope)
         defaults.set(until, forKey: Key.pinUntil)
+        defaults.set(date, forKey: Key.pinDate)
     }
 
     /// Move a followed train's expiry to its new expected time. No pin, no change.
@@ -208,6 +221,7 @@ enum SharedSelection {
         defaults.removeObject(forKey: Key.pinHeadcode)
         defaults.removeObject(forKey: Key.pinScope)
         defaults.removeObject(forKey: Key.pinUntil)
+        defaults.removeObject(forKey: Key.pinDate)
         return true
     }
 }

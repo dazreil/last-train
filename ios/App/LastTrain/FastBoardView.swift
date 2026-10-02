@@ -297,8 +297,11 @@ struct FastRow: View {
     /// being read as a promise.
     /// Journey, platform and the scheduled caveat always show; the operator follows and
     /// gives way. See `RowDetail`.
+    /// `Arr 5:19 · plat 1`. The arrival is what Fast Train ranks by, so it is what the row
+    /// shows: with only the journey time, a train that leaves first and is listed last read
+    /// as a bug (BUG-005). The live expected arrival, in the board's own clock format.
     private var essentials: [String] {
-        var parts = ["\(service.journeyMinutes) min"]
+        var parts = ["Arr \(ServiceDay.formatClock(service.liveArrival).spoken)"]
         if let platform = service.platform { parts.append("plat \(platform)") }
         if service.isScheduled { parts.append("scheduled") }
         return parts

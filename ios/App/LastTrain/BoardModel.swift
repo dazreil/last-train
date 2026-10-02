@@ -303,7 +303,9 @@ final class BoardModel {
         // shared defaults, which observation cannot see.
         _ = pinRevision
         guard let station else { return nil }
-        return SharedSelection.pinnedHeadcode(for: station.crs, direction: direction)
+        // Matched on the board's own service day, so a pin made tonight never follows the
+        // same train onto another day's board (BUG-004).
+        return SharedSelection.pinnedHeadcode(for: station.crs, direction: direction, date: board?.date)
     }
 
     /**
@@ -348,7 +350,8 @@ final class BoardModel {
             following ? service.pinToken : nil,
             crs: station.crs,
             direction: direction,
-            until: following ? ServiceDay.instant(from: service.liveDepInstant) : nil
+            until: following ? ServiceDay.instant(from: service.liveDepInstant) : nil,
+            date: following ? board?.date : nil
         )
         WidgetCenter.shared.reloadAllTimelines()
     }

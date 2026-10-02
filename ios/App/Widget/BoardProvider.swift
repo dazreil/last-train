@@ -134,7 +134,7 @@ struct BoardProvider: AppIntentTimelineProvider {
 
         // Read once, for this board's own station and direction. A pin made elsewhere
         // does not apply here and `pinnedHeadcode` returns nil for it.
-        let pinned = SharedSelection.pinnedHeadcode(for: station.crs, direction: direction)
+        let pinned = SharedSelection.pinnedHeadcode(for: station.crs, direction: direction, date: board.date)
 
         let entries = moments.map { moment in
             BoardEntry(

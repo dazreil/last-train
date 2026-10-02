@@ -43,6 +43,12 @@ struct TrainLiveActivity: Widget {
                         Text("Cancelled")
                             .font(.title3.weight(.bold))
                             .foregroundStyle(Theme.paper)
+                    } else if context.isStale {
+                        // Past its departure with nothing newer from the app. Words, not a
+                        // frozen 0:00, and no claim that it has gone (BUG-007).
+                        Text("Open to refresh")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Theme.textDim)
                     } else {
                         countdown(to: context.state.departure)
                             .font(.system(.title2, design: .monospaced).weight(.bold))
@@ -76,16 +82,20 @@ struct TrainLiveActivity: Widget {
                         .font(.caption.weight(.bold))
                         .foregroundStyle(Theme.paper)
                         .accessibilityLabel("Cancelled")
+                } else if context.isStale {
+                    Image(systemName: "ellipsis")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Theme.textDim)
+                        .accessibilityLabel("Open to refresh")
                 } else {
-                minuteCountdown(to: context.isStale ? .distantPast : context.state.departure)
-                    .font(.system(.caption, design: .monospaced).weight(.bold))
-                    .foregroundStyle(Theme.paper)
-                    .lineLimit(1)
-                    // The system reserves room for the longest value a live date can take,
-                    // and the island grows to it. `1h 59m` is the longest a followed train
-                    // can show (four hours ahead at most), so the slot is sized to that.
-                    .minimumScaleFactor(0.7)
-                    .frame(maxWidth: 42, alignment: .trailing)
+                    // The system's own ticking timer, the same one as the expanded island, so
+                    // the two can never disagree (BUG-006: the hours-and-minutes range drifted
+                    // minutes behind in the notch). Never width-capped: a capped timer was
+                    // mangled into a plausible wrong time before; the system sizes the slot.
+                    countdown(to: context.state.departure)
+                        .font(.system(.caption, design: .monospaced).weight(.bold))
+                        .foregroundStyle(Theme.paper)
+                        .lineLimit(1)
                 }
             } minimal: {
                 if context.state.isCancelled == true {
@@ -93,11 +103,17 @@ struct TrainLiveActivity: Widget {
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(Theme.paper)
                         .accessibilityLabel("Cancelled")
+                } else if context.isStale {
+                    Image(systemName: "tram.fill")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(Theme.textDim)
+                        .accessibilityLabel("Open to refresh")
                 } else {
-                    minuteCountdown(to: context.isStale ? .distantPast : context.state.departure)
+                    countdown(to: context.state.departure, showsHours: false)
                         .font(.system(.caption2, design: .monospaced).weight(.bold))
                         .foregroundStyle(activityColour(context))
                         .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                 }
             }
             .widgetURL(URL(string: "lasttrain://board"))
@@ -129,44 +145,12 @@ struct TrainLiveActivity: Widget {
         return parts.joined(separator: " · ")
     }
 
-    /**
-     Counts itself down, on the device, from now to the departure.
-
-     **Never width-capped.** A `.frame(maxWidth:)` on the compact slot looked like sensible
-     defence against the timer gaining a digit as it crosses an hour, and instead mangled
-     it: a train 2h50m out rendered as `23:02` on the island — a plausible-looking time that
-     was not any time at all, which is the worst way for a clock to be wrong. The system
-     sizes these slots; let it.
-     */
-    /**
-     Hours and minutes, no seconds, for the small island.
-
-     Seconds are what made the compact countdown wide, and to the minute is all a glance
-     needs. iOS 18's live duration counts itself down on the device like the full timer;
-     iOS 17 has no such source and keeps the full countdown.
-     */
-    @ViewBuilder
-    private func minuteCountdown(to departure: Date) -> some View {
-        if departure <= Date.now {
-            // Gone. A live range cannot run backwards, so this is drawn, not counted.
-            Text("0m").monospacedDigit()
-        } else if #available(iOS 18.0, *) {
-            // `26m`, `1h 5m`, counted on the device. A range from now to the departure, in
-            // the narrow style: the minute timer read "16 minutes", as wide as what it
-            // replaced, and a duration offset counts the other way and read "-26m".
-            Text(
-                .dateRange(endingAt: departure),
-                format: Date.ComponentsFormatStyle(style: .narrow, fields: [.hour, .minute])
-            )
-            .monospacedDigit()
-        } else {
-            countdown(to: departure, showsHours: false)
-                .minimumScaleFactor(0.6)
-        }
-    }
-
+    /// Counts down on the device. Guarded: `Date.now...departure` traps when the departure
+    /// has passed, and that takes the whole widget extension down (BUG-007), so a past
+    /// departure is drawn as a zero-length timer instead.
     private func countdown(to departure: Date, showsHours: Bool = true) -> some View {
-        Text(timerInterval: Date.now...departure, countsDown: true, showsHours: showsHours)
+        let now = Date.now
+        return Text(timerInterval: now...max(departure, now), countsDown: true, showsHours: showsHours)
             .monospacedDigit()
             .multilineTextAlignment(.trailing)
     }
@@ -210,8 +194,13 @@ private enum ActivityCardLayout {
                             .font(.headline.weight(.heavy))
                             .tracking(Theme.tracking)
                             .foregroundStyle(Theme.paper)
+                    } else if context.isStale {
+                        Text("Open to refresh")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.textDim)
                     } else {
-                        Text(timerInterval: Date.now...context.state.departure, countsDown: true)
+                        // Guarded like `countdown(to:)`: a past departure traps (BUG-007).
+                        Text(timerInterval: Date.now...max(context.state.departure, Date.now), countsDown: true)
                             .monospacedDigit()
                             .multilineTextAlignment(.trailing)
                             .font(.custom("WPOCRA-Regular", size: 30))
