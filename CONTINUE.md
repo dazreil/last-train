@@ -27,19 +27,18 @@ Please don't re-derive these, they're settled and written down:
 - Direct services only. Nothing ever suggests a change of train.
 
 Node is at `/opt/homebrew/bin/node` and may not be on PATH. The repo lives at
-`~/Last Train`; the old copy in `~/Documents` is a stale backup.
+`~/Developer/Last Train`. Copies in `~/Last Train` or `~/Documents` are stale.
 
 **Work on `main`. Every push to `main` deploys the API to production**, which the iOS
 app talks to, so a server change reaches the phone without rebuilding anything.
 
-**Where it stands, 24 September 2026:** the app is built and runs on device — Last
+**Where it stands, 21 October 2026:** the app is built and runs on device — Last
 Train, Fast Train to four hours, the widget, the Live Activity, and the destination
-picker with a Popular section. RTT Team is paid for. The credit line is in the app. The
-API is rate limited (`lib/limits.ts`). The Darwin timetable ingest is live and has been
-run by hand; an unattended nightly run is still to be confirmed.
+picker with a Popular section. Build 3 (App Store name **LTFT**) is with App Review, and
+stays there until the app is ready; later fixes are committed but not uploaded. Bugs live
+in the user's bug-log Claude Doc and plans in the roadmap Claude Doc; keep both current.
 
-**The next task is App Store submission** — `IOS.md` §9 step 7, after confirming the
-information flow end to end. The list is under *Next* in `STATUS.md`.
+**What is next** is under *Next* in `STATUS.md`.
 
 Two traps worth keeping in view, both in `STATUS.md`: Xcode's Run button builds Debug and
 Debug points at `localhost:3000`, so run `npm run dev` or switch the scheme to Release.

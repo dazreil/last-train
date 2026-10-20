@@ -8,8 +8,8 @@ across that whole period and are still true unless marked otherwise.
 ## Where things stand
 
 **The product is the iOS app.** The Next.js project is now its API: it holds the RTT
-token, reads the Darwin timetable store, and serves `/api/v2/*`. The old web page at
-`/` and `/api/trains` still work but nobody designs for them.
+token, reads the Darwin timetable store, and serves `/api/v2/*`. The site itself is
+three pages: home, privacy and support. The old web board and `/api/trains` are gone.
 
 What the app does, all built and run on device:
 
@@ -22,6 +22,8 @@ What the app does, all built and run on device:
 - **The widget** — lock screen and home screen, leading with the last train and holding
   it still all evening. **Live Activity** — follow a train and it counts down on the
   lock screen and the Dynamic Island.
+- **Replacement buses** — marked from every source (RTT, the live board, the timetable).
+  The row, the widget and the Live Activity say "bus" where the platform goes.
 - **The destination picker** — with no direction chosen, every direct station grouped by
   direction, and tapping one sets the direction. A *Popular* section at the top from the
   ORR origin–destination matrix, credited on screen.
@@ -47,7 +49,7 @@ submission.
 | Live API | `https://last-train-dazreils-projects.vercel.app` |
 | Stack | Next.js 16 on Vercel, TypeScript; SwiftUI app in `ios/` |
 | Data | RTT next-gen API (**Team tier**, paid), Darwin LDBWS, Darwin timetable files |
-| Tests | `npm test` 178, `swift test` 130, all passing, both under `TZ=UTC` |
+| Tests | `npm test` 188, `swift test` 163, all passing, both under `TZ=UTC` |
 
 **`last-train.vercel.app` is not this app.** That subdomain belongs to an unrelated
 Singapore MRT tracker. Use the full alias above.
@@ -59,19 +61,21 @@ Singapore MRT tracker. Use the full alias above.
 ```bash
 npm run dev          # dev server
 npm run dev:lan      # dev server reachable from a phone on the same Wi-Fi
-npm test             # 178 tests, TZ=UTC (that is deliberate, see Traps)
+npm test             # 188 tests, TZ=UTC (that is deliberate, see Traps)
 npm run typecheck
 npm run build
-npm run spike        # throwaway API probe; needs .env.local
+npm run spike        # API probe; re-run before raising the RTT API version
 npm run national     # IOS.md §9 step 2 probe; 5 requests, then cached
 npm run national:data # regenerate data/national.json; 0 requests on a warm cache
-npm run stations     # regenerate data/stations.json + data/geo.json
+npm run national:adjacency # regenerate data/adjacency.json
+npm run darwin:probe # measure Darwin timetable files; see DARWIN-INGEST.md
+npm run darwin:publish # the nightly timetable publish, by hand
 ```
 
 The native app is a separate toolchain.
 
 ```bash
-cd ios && TZ=UTC swift test   # 130 tests
+cd ios && TZ=UTC swift test   # 163 tests
 cd ios && TZ=UTC LASTTRAIN_EXHAUSTIVE=1 swift test   # full nearest coverage, ~55s
 ```
 
@@ -266,8 +270,8 @@ coordinates. If they disagree, the counts on screen stop matching the list benea
 them. Their test suites are deliberately parallel, on the same fixtures, so a drift
 shows up as a failing test rather than as a train under the wrong button.
 
-`lib/direction.ts` is the *old* longitude comparison and still serves `/api/trains`.
-It is not the same rule and is not meant to be; it goes when the web app does.
+Both suites also read one shared file of cases, `data/compass-cases.json`. Add a case
+there and both implementations are checked against it.
 
 ### The nearest-station grid is easy to make subtly wrong
 
@@ -601,14 +605,17 @@ Two rules from `DESIGN.md` are load-bearing and easy to break by accident:
 
 - **Take a separate RTT development key.** Team allows five. Until then, testing and the
   generators spend production's quota, and now also production's spend ceiling.
-- **Resize the free-tier budgets.** `DETAIL_BUDGET` in `app/api/trains/route.ts` is the
-  old web route and can wait for that route to go. `PATTERN_BUDGET` in
-  `app/api/v2/destinations` prices only the RTT fallback now, since the lists come from
-  the timetable store.
+- **Resize the free-tier budget.** `PATTERN_BUDGET` in `lib/limits.ts` is shared by Fast
+  Train and the destination list's RTT fallback. The lists now come from the timetable
+  store, so the fallback rarely spends it.
 - **Move Last Train off RTT** — `DARWIN-INGEST.md` stage 6. Last Train's whole-day board
   is now the app's main RTT cost. Moving it to the timetable store, with LDBWS inside the
   near window, cuts the running cost towards £0 and shrinks the quota anyone can drain.
 - **Last Fast Train**, the unadvertised third mode in `IOS.md` §11. Not built.
+- **London Underground, inside the app — parked 26 September 2026.** No region lock;
+  Tube stations tagged and ranked nearer first. The plan and the testing it needs are in
+  `TUBE-ROADMAP.md`. After that, London buses from the same TfL API, then other bus
+  regions from the Bus Open Data Service, and an Android app after launch.
 
 ### Open questions carried forward
 
