@@ -214,3 +214,31 @@ test('an empty line-up offers no directions rather than all of them', () => {
   assert.equal(result.total, 0);
   assert.equal(result.unclassified, 0);
 });
+
+// ------------------------------------------------- shared with the Swift suite
+
+test('every case in data/compass-cases.json, which the Swift suite also reads', async () => {
+  const { readFile } = await import('node:fs/promises');
+  type Point = { lat: number; lon: number };
+  const shared = JSON.parse(
+    await readFile(new URL('../data/compass-cases.json', import.meta.url), 'utf8')
+  ) as {
+    stations: Record<string, Point>;
+    classify: { from: string; to: string | null; expect: string | null }[];
+    bearings: { from: string; to: string; degrees: number }[];
+    sectors: { degrees: number; expect: string }[];
+  };
+  const at = (code: string) => shared.stations[code];
+
+  for (const c of shared.classify) {
+    const to = c.to === null ? null : at(c.to);
+    assert.equal(classify(at(c.from), to), c.expect, `${c.from} to ${c.to}`);
+  }
+  for (const c of shared.bearings) {
+    const actual = bearingDegrees(at(c.from), at(c.to));
+    assert.ok(Math.abs(actual - c.degrees) < 0.1, `${c.from} to ${c.to}: ${actual}`);
+  }
+  for (const c of shared.sectors) {
+    assert.equal(compassOf(c.degrees), c.expect, `${c.degrees} degrees`);
+  }
+});

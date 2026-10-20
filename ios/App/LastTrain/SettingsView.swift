@@ -20,17 +20,13 @@ struct HomeStation: Equatable {
     let station: Station
 
     private static let key = "lastTrain.home.station"
-    /// Written by the old journey form. Removed on the next store.
-    private static let legacyDirectionKey = "lastTrain.home.direction"
 
     static var current: HomeStation? {
         UserDefaults.standard.string(forKey: key).flatMap(Stations.find).map(HomeStation.init)
     }
 
     static func store(_ home: HomeStation?) {
-        let defaults = UserDefaults.standard
-        defaults.set(home?.station.crs, forKey: key)
-        defaults.removeObject(forKey: legacyDirectionKey)
+        UserDefaults.standard.set(home?.station.crs, forKey: key)
     }
 
     var label: String { station.name.withoutLondonPrefix }

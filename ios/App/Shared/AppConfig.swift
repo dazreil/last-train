@@ -50,9 +50,6 @@ enum SharedSelection {
         static let widgetFailures = "lastTrain.widget.failures"
         /// Scope (`CRS:direction`) to destination CRS, one entry per pair.
         static let destinations = "lastTrain.fast.destinations"
-        /// The single slot the map replaced. Read once, then carried over and cleared.
-        static let destination = "lastTrain.fast.destination"
-        static let destinationScope = "lastTrain.fast.scope"
     }
 
     /**
@@ -127,10 +124,6 @@ enum SharedSelection {
         var map = destinationsByScope()
         map[scope(crs, direction)] = station?.crs
         defaults.set(map, forKey: Key.destinations)
-        // Carried into the map by the read above, so the slot it came from must go —
-        // otherwise clearing a destination that originated there would not clear it.
-        defaults.removeObject(forKey: Key.destination)
-        defaults.removeObject(forKey: Key.destinationScope)
     }
 
     /**
@@ -147,15 +140,7 @@ enum SharedSelection {
      used, written only when you choose.
      */
     private static func destinationsByScope() -> [String: String] {
-        var map = defaults.dictionary(forKey: Key.destinations) as? [String: String] ?? [:]
-        // One-time carry-over from the single slot, so upgrading does not forget where
-        // you were last going.
-        if let legacyScope = defaults.string(forKey: Key.destinationScope),
-           let legacyCrs = defaults.string(forKey: Key.destination),
-           map[legacyScope] == nil {
-            map[legacyScope] = legacyCrs
-        }
-        return map
+        defaults.dictionary(forKey: Key.destinations) as? [String: String] ?? [:]
     }
 
     /**
@@ -177,14 +162,13 @@ enum SharedSelection {
         defaults.removeObject(forKey: Key.widgetFailures)
     }
 
-    /// Pass `nil` to unpin. Only one train is pinned at a time, deliberately: a widget
-    /// showing a choice between two trains is not a glance.
     /// Forget every remembered destination, for Reset in Settings.
     static func clearAllDestinations() {
         defaults.removeObject(forKey: Key.destinations)
-        defaults.removeObject(forKey: Key.destination)
-        defaults.removeObject(forKey: Key.destinationScope)
     }
+
+    /// Pass `nil` to unpin. Only one train is pinned at a time, deliberately: a widget
+    /// showing a choice between two trains is not a glance.
 
     static func setPin(_ headcode: String?, crs: String, direction: Compass, until: Date? = nil, date: String? = nil) {
         guard let headcode, !headcode.isEmpty else {
