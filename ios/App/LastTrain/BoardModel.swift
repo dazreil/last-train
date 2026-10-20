@@ -125,19 +125,21 @@ final class BoardModel {
      `lasttrain://board?from=UPM&direction=east`, written by the widget itself, so the
      tap lands on the same board rather than on whatever the app happened to be left on.
      Ignored unless both halves parse — a URL from outside the app is not to be trusted
-     into a network request.
+     into a network request. True when the link was taken.
      */
-    func open(_ url: URL) {
+    @discardableResult
+    func open(_ url: URL) -> Bool {
         guard url.scheme == AppConfig.urlScheme,
               let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let crs = components.queryItems?.first(where: { $0.name == "from" })?.value,
               let target = Stations.find(crs),
               let raw = components.queryItems?.first(where: { $0.name == "direction" })?.value,
               let heading = Compass(rawValue: raw)
-        else { return }
+        else { return false }
 
         direction = heading
         station = target
+        return true
     }
 
     /**
