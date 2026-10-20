@@ -556,6 +556,9 @@ as `systemMedium` — so the harness has to build each family's view directly.
 | `UI-GLOSSARY.md` | Plain names for each piece of the iOS screen, and the code name that matches it. |
 | `HOLD-MENUS.md` | Hold menus on the journey bar buttons, the station usage record, and Reset in Settings. Built 24 September 2026. |
 | `README.md` | How to run it, how the API is laid out, and deployment. |
+| `SERVER-AUDIT.md` | The server audit of 24 September 2026. Every finding is fixed; code comments cite its finding numbers. |
+| `APP-STORE.md` | The store listing, the App Review reply and the video steps. |
+| `TUBE-ROADMAP.md` | The parked plan for the London Underground. |
 
 The original brief (`PROJECT.md`) and the UI design brief were supplied as
 attachments and are **not in the repo** — they are in `~/Downloads/`.
@@ -611,6 +614,15 @@ Two rules from `DESIGN.md` are load-bearing and easy to break by accident:
 - **Move Last Train off RTT** — `DARWIN-INGEST.md` stage 6. Last Train's whole-day board
   is now the app's main RTT cost. Moving it to the timetable store, with LDBWS inside the
   near window, cuts the running cost towards £0 and shrinks the quota anyone can drain.
+  Planned 25 September 2026 (once the `SERVER-AUDIT.md` fixes, all now shipped, were in):
+  - **Decision first: days 3–5.** Darwin's file covers about two days. Recommended:
+    keep RTT for days 3–5, so no feature is lost. The other way is to plan only today
+    and tomorrow, which drops RTT entirely but shortens the day pager.
+  - Make Darwin the main source for Last Train only on dates with proven full coverage.
+  - Compare Darwin and RTT on real routes first: engineering weekends, trains after
+    midnight, the clock change, trains that split or join.
+  - Measure RTT calls, cache hits, fallbacks, 429s and speed, before and after.
+  - Remove the RTT token only when every use of it has a tested replacement.
 - **Last Fast Train**, the unadvertised third mode in `IOS.md` §11. Not built.
 - **London Underground, inside the app — parked 26 September 2026.** No region lock;
   Tube stations tagged and ranked nearer first. The plan and the testing it needs are in
