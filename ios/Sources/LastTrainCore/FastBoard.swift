@@ -62,6 +62,8 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
      ranked or offered: `upcoming` leaves it out.
      */
     public let isCancelled: Bool
+    /// Rail replacement road transport. The row says "bus" where the platform would be.
+    public let isReplacementBus: Bool
 
     public var id: String { serviceId }
 
@@ -102,7 +104,8 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         isDelayed: Bool = false,
         isLive: Bool = false,
         beyondHorizon: Bool = false,
-        isCancelled: Bool = false
+        isCancelled: Bool = false,
+        isReplacementBus: Bool = false
     ) {
         self.serviceId = serviceId
         self.headcode = headcode
@@ -123,6 +126,7 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         self.isLive = isLive
         self.beyondHorizon = beyondHorizon
         self.isCancelled = isCancelled
+        self.isReplacementBus = isReplacementBus
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -130,7 +134,7 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         case departure, departureInstant, arrival, arrivalInstant, platform
         case isScheduled
         case expectedDeparture, expectedDepartureInstant, expectedArrival, expectedArrivalInstant
-        case isDelayed, isLive, beyondHorizon, isCancelled
+        case isDelayed, isLive, beyondHorizon, isCancelled, isReplacementBus
     }
 
     /**
@@ -165,6 +169,8 @@ public struct FastService: Sendable, Equatable, Identifiable, Decodable {
         isLive = try container.decodeIfPresent(Bool.self, forKey: .isLive) ?? false
         beyondHorizon = try container.decodeIfPresent(Bool.self, forKey: .beyondHorizon) ?? false
         isCancelled = try container.decodeIfPresent(Bool.self, forKey: .isCancelled) ?? false
+        // Absent means a train: the server sends it only for a bus.
+        isReplacementBus = try container.decodeIfPresent(Bool.self, forKey: .isReplacementBus) ?? false
 
         let departureInstant = try container.decode(String.self, forKey: .departureInstant)
         let arrivalInstant = try container.decode(String.self, forKey: .arrivalInstant)

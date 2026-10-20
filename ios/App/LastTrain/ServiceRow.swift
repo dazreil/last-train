@@ -122,8 +122,12 @@ struct ServiceRow: View {
         var parts: [String] = []
         // The journey leads when there is one, as it does on the Fast Train row.
         if let minutes = service.journeyMinutes { parts.append("\(minutes) min") }
-        if let platform = service.platform { parts.append("plat \(platform)") }
-        if service.isReplacementBus { parts.append("Replacement bus") }
+        // A bus leaves from outside the station, not a platform: the word takes its place.
+        if service.isReplacementBus {
+            parts.append("bus")
+        } else if let platform = service.platform {
+            parts.append("plat \(platform)")
+        }
         return parts
     }
 

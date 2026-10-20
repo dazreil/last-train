@@ -41,7 +41,15 @@ import {
   type LocationLineUpResponse,
   type ServiceLocation,
 } from '@/lib/rtt';
-import { sortedDepartures, destinationNames, destinationCodes, type Departure } from '@/lib/journeys';
+import {
+  sortedDepartures,
+  describeDestination,
+  destinationNames,
+  destinationCodes,
+  isBusMode,
+  platformOf,
+  type Departure,
+} from '@/lib/journeys';
 import { DarwinError, departureBoard, liveDepartures, normalize } from '@/lib/darwin';
 import { applyLive, needsLive } from '@/lib/liveOverlay';
 import { boardHasExpired, boardMode, selectBoard } from '@/lib/board';
@@ -181,18 +189,6 @@ function inferTier(minute: string | undefined): Diagnostics['tier'] {
   if (limit > 0) return 'free-or-hobbyist';
   return 'unknown';
 }
-
-const describeDestination = (departure: Departure): string => {
-  const names = destinationNames(departure.service);
-  // Portion working: a service can carry two destinations and divide en route, and
-  // boarding the wrong half is a real failure. Both are kept.
-  return names.length ? names.join(' & ') : 'Unknown';
-};
-
-const platformOf = (departure: Departure): string | null =>
-  departure.service.locationMetadata?.platform?.actual ??
-  departure.service.locationMetadata?.platform?.planned ??
-  null;
 
 /**
  * Drop the near-term departures Darwin does not list.
@@ -549,12 +545,9 @@ export async function GET(request: Request) {
       depInstant: new Date(toInstantMillis(item.depInstant)).toISOString(),
       toc: item.service.scheduleMetadata?.operator?.code ?? '??',
       tocName: item.service.scheduleMetadata?.operator?.name ?? 'Unknown operator',
-      destination: describeDestination(item),
-      platform: platformOf(item),
-      isReplacementBus:
-        item.service.scheduleMetadata?.modeType === 'REPLACEMENT_BUS' ||
-        item.service.scheduleMetadata?.modeType === 'SCHEDULED_BUS' ||
-        item.service.scheduleMetadata?.modeType === 'BUS',
+      destination: describeDestination(item.service),
+      platform: platformOf(item.service),
+      isReplacementBus: isBusMode(item.service.scheduleMetadata?.modeType),
       headcode: item.service.scheduleMetadata?.trainReportingIdentity ?? null,
       serviceId: item.id,
       role,
@@ -597,7 +590,7 @@ export async function GET(request: Request) {
     };
     for (const entry of day.classified) {
       const bucket = classify(origin, entry.destination);
-      if (bucket) namesByDirection[bucket].push(describeDestination(entry.departure));
+      if (bucket) namesByDirection[bucket].push(describeDestination(entry.departure.service));
     }
     /**
      * Prefer where the *route* goes over where today's destinations happen to be.

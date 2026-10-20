@@ -53,6 +53,9 @@ struct TrainActivity: ActivityAttributes {
     /// Identifies the selected row when the app is opened again. Optional so an activity
     /// created by a build before Fast Train selection was added still decodes safely.
     let serviceId: String?
+    /// Runs by road: the views say "bus" where the platform goes. Optional so an activity
+    /// from an earlier build still decodes.
+    var isReplacementBus: Bool? = nil
 }
 
 enum TrainActivityStartResult: Sendable {
@@ -124,7 +127,8 @@ enum TrainActivityController {
             stationName: stationName,
             destination: service.destination.withoutLondonPrefix,
             direction: direction,
-            isLastTrain: isLastTrain
+            isLastTrain: isLastTrain,
+            isReplacementBus: service.isReplacementBus
         )
     }
 
@@ -152,7 +156,8 @@ enum TrainActivityController {
             stationName: stationName,
             destination: destinationName,
             direction: direction,
-            isLastTrain: false
+            isLastTrain: false,
+            isReplacementBus: service.isReplacementBus
         )
     }
 
@@ -165,7 +170,8 @@ enum TrainActivityController {
         stationName: String,
         destination: String,
         direction: Compass,
-        isLastTrain: Bool
+        isLastTrain: Bool,
+        isReplacementBus: Bool
     ) async -> TrainActivityStartResult {
         guard isAvailable else { return .activitiesDisabled }
 
@@ -181,7 +187,8 @@ enum TrainActivityController {
             departureText: departureText,
             direction: direction.rawValue,
             isLastTrain: isLastTrain,
-            serviceId: serviceId
+            serviceId: serviceId,
+            isReplacementBus: isReplacementBus ? true : nil
         )
         let state = TrainActivity.ContentState(
             departure: departure,

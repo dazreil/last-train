@@ -144,7 +144,7 @@ struct FastBoardView: View {
             destination: service.destination,
             tocName: service.tocName.isEmpty ? service.toc : service.tocName,
             platform: service.platform,
-            isReplacementBus: false,
+            isReplacementBus: service.isReplacementBus,
             headcode: service.headcode,
             topLabel: followed ? "Following" : nil,
             isRed: isHero
@@ -302,7 +302,12 @@ struct FastRow: View {
     /// as a bug (BUG-005). The live expected arrival, in the board's own clock format.
     private var essentials: [String] {
         var parts = ["Arr \(ServiceDay.formatClock(service.liveArrival).spoken)"]
-        if let platform = service.platform { parts.append("plat \(platform)") }
+        // A bus leaves from outside the station, not a platform: the word takes its place.
+        if service.isReplacementBus {
+            parts.append("bus")
+        } else if let platform = service.platform {
+            parts.append("plat \(platform)")
+        }
         if service.isScheduled { parts.append("scheduled") }
         return parts
     }
@@ -312,6 +317,7 @@ struct FastRow: View {
             + "Departs \(ServiceDay.formatClock(service.liveDeparture).spoken), arrives \(ServiceDay.formatClock(service.liveArrival).spoken), \(service.journeyMinutes) minutes"
             + (service.minutesLate.map { ", \($0) minutes late" } ?? "")
             + (service.isDelayed ? ", delayed" : "")
+            + (service.isReplacementBus ? ", replacement bus" : "")
             // Said out loud too. A caveat only sighted users get is not a caveat.
             + (service.isScheduled ? ", scheduled time" : "")
     }

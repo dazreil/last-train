@@ -58,7 +58,7 @@ interface DarwinService {
   origin?: DarwinLocation[];
   destination?: DarwinLocation[];
   isCancelled?: boolean;
-  /** `train`, `bus`, `ferry`. Only trains reach a Fast Train board. */
+  /** `train`, `bus`, `ferry`. Ferries never reach a board; a bus does, marked. */
   serviceType?: string;
   subsequentCallingPoints?: DarwinCallingPointList[];
 }
@@ -69,6 +69,8 @@ interface DarwinBoard {
   /** RFC3339 with an offset — the anchor the wall-clock times are resolved against. */
   generatedAt?: string;
   trainServices?: DarwinService[];
+  /** Rail replacement buses, listed apart from the trains. */
+  busServices?: DarwinService[];
 }
 
 /**
@@ -112,6 +114,8 @@ export interface NormalizedService {
   destinationName: string;
   platform: string | null;
   isCancelled: boolean;
+  /** Runs by road. A bus is a real way home, so it is kept and marked, never dropped. */
+  isReplacementBus?: boolean;
   stops: NormalizedStop[];
 }
 
@@ -315,11 +319,15 @@ export function normalize(
   const anchor = anchorOf(board.generatedAt);
   const services: NormalizedService[] = [];
 
-  for (const service of board.trainServices ?? []) {
+  // Buses come in their own list. When a line is closed they are the only way along it,
+  // so they are boards' answers too, marked so the row can say "bus".
+  const listed = [...(board.trainServices ?? []), ...(board.busServices ?? [])];
+  for (const service of listed) {
     if (!service.serviceID) continue;
-    // Buses and ferries are not Fast Train's answer, and a cancelled train is not a
-    // journey. Both drop out here rather than in each route.
-    if (service.serviceType && service.serviceType !== 'train') continue;
+    // A ferry is not a train home, and a cancelled train is not a journey. Both drop
+    // out here rather than in each route.
+    const isBus = service.serviceType === 'bus' || (board.busServices ?? []).includes(service);
+    if (service.serviceType && service.serviceType !== 'train' && !isBus) continue;
     if (service.isCancelled && !options.keepCancelled) continue;
 
     const board0 = service.subsequentCallingPoints?.[0]?.callingPoint ?? [];
@@ -384,8 +392,10 @@ export function normalize(
       operatorName: service.operator ?? 'Unknown operator',
       originName: service.origin?.[0]?.locationName ?? board.locationName ?? '',
       destinationName: service.destination?.map((d) => d.locationName).filter(Boolean).join(' & ') || '',
-      platform: service.platform ?? null,
+      // A bus has no platform. Darwin can send "BUS" here, which would read "plat BUS".
+      platform: isBus ? null : (service.platform ?? null),
       isCancelled: Boolean(service.isCancelled),
+      ...(isBus ? { isReplacementBus: true } : {}),
       stops,
     });
   }
@@ -434,6 +444,7 @@ export function toFastService(service: NormalizedService, toCrs: string): FastSe
     arrival: alighting.time,
     arrivalInstant: alighting.timeInstant,
     platform: service.platform,
+    ...(service.isReplacementBus ? { isReplacementBus: true } : {}),
     // The live board's estimates. Fast Train ranks by the expected arrival, so a late
     // fast train is placed where it will really arrive.
     expectedDeparture: boarding.expected ?? null,

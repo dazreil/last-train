@@ -65,3 +65,18 @@ test('cancelled trains are dropped, unless Fast Train asks to keep them, marked'
   const kept = normalize(board([cancelled, running]), { keepCancelled: true });
   assert.deepEqual(kept.map((s) => [s.serviceId, s.isCancelled]), [['s21:47', true], ['s21:52', false]]);
 });
+
+test('a replacement bus is kept and marked, on the board and on Fast Train', () => {
+  const train = service('21:52', 'On time', '22:15', 'On time');
+  const bus = { ...service('22:05', 'On time', '22:50', 'On time'), serviceType: 'bus', platform: 'BUS' };
+  const ferry = { ...service('22:10', 'On time', '22:40', 'On time'), serviceType: 'ferry' };
+  const listed = { ...(board([train, ferry]) as object), busServices: [bus] } as never;
+  const normalized = normalize(listed);
+  assert.deepEqual(normalized.map((s) => [s.serviceId, Boolean(s.isReplacementBus)]), [
+    ['s21:52', false],
+    ['s22:05', true],
+  ]);
+  assert.equal(toFastService(normalized[1], 'UPM')?.isReplacementBus, true);
+  assert.equal(normalized[1].platform, null, 'a bus has no platform, whatever Darwin sends');
+  assert.equal('isReplacementBus' in (toFastService(normalized[0], 'UPM') ?? {}), false);
+});

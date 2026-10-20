@@ -2,20 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  deriveVia,
+  describeDestination,
   destinationCodes,
-  servesScopeAhead,
+  isBusMode,
+  platformOf,
   sortedDepartures,
-  toDepartureService,
-  type RouteMarker,
 } from './journeys.ts';
-import type {
-  CallType,
-  DisplayAs,
-  LocationLineUpObject,
-  LocationLineUpResponse,
-  ServiceLocation,
-} from './rtt.ts';
+import type { CallType, DisplayAs, LocationLineUpObject, LocationLineUpResponse } from './rtt.ts';
+import { formatLondonTime } from './serviceDay.ts';
 
 /**
  * Departure times here use the shape the API actually sends: a London wall-clock
@@ -75,11 +69,6 @@ function stub(options: StubOptions): LocationLineUpObject {
 
 const lineUp = (services: LocationLineUpObject[]): LocationLineUpResponse => ({ services });
 
-const buildOptions = {
-  fromCrs: 'GRY',
-  markers: [] as RouteMarker[],
-};
-
 // ------------------------------------------------------------------ departures
 
 test('a boardable departure is returned with its London time', () => {
@@ -89,10 +78,9 @@ test('a boardable departure is returned with its London time', () => {
 
   assert.equal(departures.length, 1);
 
-  const service = toDepartureService(departures[0], buildOptions);
-  assert.equal(service.dep, '23:52'); // BST
-  assert.equal(service.destination, 'Shoeburyness');
-  assert.equal(service.toc, 'CC');
+  assert.equal(formatLondonTime(departures[0].depInstant), '23:52'); // BST
+  assert.equal(describeDestination(departures[0].service), 'Shoeburyness');
+  assert.equal(departures[0].service.scheduleMetadata?.operator?.code, 'CC');
 });
 
 test('a departure after midnight keeps its own time and belongs to this service day', () => {
@@ -103,8 +91,7 @@ test('a departure after midnight keeps its own time and belongs to this service 
     lineUp([stub({ id: 'late', depart: '2026-07-30T00:22:00' })])
   );
 
-  const service = toDepartureService(departures[0], buildOptions);
-  assert.equal(service.dep, '00:22');
+  assert.equal(formatLondonTime(departures[0].depInstant), '00:22');
 });
 
 test('trains that only pass through are excluded', () => {
@@ -198,7 +185,7 @@ test('operators are merged in one list, never filtered apart', () => {
   );
 
   assert.deepEqual(
-    departures.map((d) => toDepartureService(d, buildOptions).toc),
+    departures.map((d) => d.service.scheduleMetadata?.operator?.code),
     ['XR', 'LE']
   );
 });
@@ -207,7 +194,7 @@ test('a replacement bus is flagged rather than passed off as a train', () => {
   const departures = sortedDepartures(
     lineUp([stub({ id: 'bus', depart: '2026-07-29T10:00:00', mode: 'REPLACEMENT_BUS' })])
   );
-  assert.equal(toDepartureService(departures[0], buildOptions).isReplacementBus, true);
+  assert.equal(isBusMode(departures[0].service.scheduleMetadata?.modeType), true);
 });
 
 test('splitting trains show both destinations', () => {
@@ -218,174 +205,7 @@ test('splitting trains show both destinations', () => {
   ];
 
   const departures = sortedDepartures(lineUp([service]));
-  assert.equal(
-    toDepartureService(departures[0], buildOptions).destination,
-    'Shoeburyness & Grays'
-  );
-});
-
-// ----------------------------------------------------------------------- route
-
-const MARKERS: RouteMarker[] = [
-  { crs: 'TIL', label: 'via Tilbury' },
-  { crs: 'OCK', label: 'via Ockendon' },
-  { crs: 'RNM', label: 'via Rainham' },
-  { crs: 'BSO', label: 'via Basildon' },
-];
-
-const callingAt = (...codes: string[]): ServiceLocation[] =>
-  codes.map((crs) => ({ location: { shortCodes: [crs] } }));
-
-test('with no destination the route runs to the end of the service', () => {
-  // Standing at Fenchurch Street, "east" mixes both routes, and only the via label
-  // distinguishes them.
-  const viaTilbury = callingAt('FST', 'BKG', 'RNM', 'GRY', 'TIL', 'PSE', 'SOC', 'SRY');
-  assert.equal(deriveVia(viaTilbury, 'FST', null, MARKERS), 'via Tilbury');
-
-  const viaBasildon = callingAt('FST', 'BKG', 'UPM', 'LAI', 'BSO', 'PSE', 'SOC', 'SRY');
-  assert.equal(deriveVia(viaBasildon, 'FST', null, MARKERS), 'via Basildon');
-
-  const viaOckendon = callingAt('FST', 'BKG', 'UPM', 'OCK', 'CFH', 'GRY');
-  assert.equal(deriveVia(viaOckendon, 'FST', null, MARKERS), 'via Ockendon');
-});
-
-test('boarding partway along, only the stretch ahead of you counts', () => {
-  // This service passes Rainham before Grays, but from Grays it is Tilbury onward.
-  const eastbound = callingAt('FST', 'BKG', 'RNM', 'GRY', 'TIL', 'PSE', 'SOC');
-  assert.equal(deriveVia(eastbound, 'GRY', null, MARKERS), 'via Tilbury');
-
-  // The same train, but boarding at Tilbury: nothing distinctive remains ahead.
-  assert.equal(deriveVia(eastbound, 'TIL', null, MARKERS), null);
-});
-
-test('westbound from Grays, the two routes back to town are named', () => {
-  const viaOckendon = callingAt('GRY', 'CFH', 'OCK', 'UPM', 'BKG', 'FST');
-  assert.equal(deriveVia(viaOckendon, 'GRY', null, MARKERS), 'via Ockendon');
-
-  const viaRainham = callingAt('GRY', 'PFL', 'RNM', 'DDK', 'BKG', 'FST');
-  assert.equal(deriveVia(viaRainham, 'GRY', null, MARKERS), 'via Rainham');
-});
-
-test('the most distinctive marker wins', () => {
-  // A Tilbury loop service also passes Rainham; "via Tilbury" is the useful label.
-  const locations = callingAt('FST', 'RNM', 'PFL', 'GRY', 'TIL', 'SLH', 'PSE');
-  assert.equal(deriveVia(locations, 'FST', null, MARKERS), 'via Tilbury');
-});
-
-test('an unambiguous route gets no label', () => {
-  const locations = callingAt('LST', 'STF', 'IFD', 'RMF', 'BWD', 'SNF');
-  assert.equal(deriveVia(locations, 'LST', null, MARKERS), null);
-});
-
-test('a fixed destination still bounds the route, ignoring markers beyond it', () => {
-  // The pair form is still used by the tests and remains correct: this train
-  // reaches Tilbury, but not before Grays, where you got off.
-  const locations = callingAt('FST', 'BKG', 'DDK', 'RNM', 'GRY', 'TIL', 'PSE');
-  assert.equal(deriveVia(locations, 'FST', 'GRY', MARKERS), 'via Rainham');
-});
-
-// -------------------------------------------------------------------- corridor
-
-/**
- * The stations the app knows about, for the Liverpool Street corridor. Chelmsford,
- * Colchester, Norwich and Cambridge are deliberately absent -- that is the point.
- */
-const IN_SCOPE = new Set(['LST', 'STF', 'IFD', 'RMF', 'BWD', 'SNF', 'ZLW', 'CUS', 'ABW']);
-const isInScope = (crs: string) => IN_SCOPE.has(crs);
-
-/**
- * A calling pattern as `/gb-nr/service` really returns one, verified against the
- * live API: no `displayAs` on any location, and stations the train runs through
- * without stopping are absent from the list entirely rather than marked as passes.
- */
-const stopsAt = (...codes: string[]): ServiceLocation[] =>
-  codes.map((crs, index) => ({
-    location: { shortCodes: [crs] },
-    temporalData: {
-      scheduledCallType:
-        index === 0
-          ? ('ADVERTISED_PICK_UP' as const)
-          : index === codes.length - 1
-            ? ('ADVERTISED_SET_DOWN' as const)
-            : ('ADVERTISED_OPEN' as const),
-      ...(index > 0 ? { arrival: { scheduleAdvertised: '2026-07-31T09:00:00' } } : {}),
-      ...(index < codes.length - 1
-        ? { departure: { scheduleAdvertised: '2026-07-31T09:01:00' } }
-        : {}),
-    },
-  }));
-
-test('a long-distance train that calls at Shenfield is in the corridor', () => {
-  // The headline case. Greater Anglia no longer serves Ilford or Romford, so its
-  // Shenfield trains are the Norwich and Colchester expresses passing through -- and
-  // the spec is explicit that the last train to Shenfield is often one of them.
-  const norwich = stopsAt('LST', 'SNF', 'CHM', 'COL', 'NRW');
-  assert.equal(servesScopeAhead(norwich, 'LST', isInScope), true);
-});
-
-test('a train that runs through Shenfield without stopping is not', () => {
-  // Running down the same line is not the same as being useful: you cannot get off.
-  // The API expresses this by omitting Shenfield from the pattern altogether.
-  const fastToChelmsford = stopsAt('LST', 'CHM', 'COL');
-  assert.equal(servesScopeAhead(fastToChelmsford, 'LST', isInScope), false);
-});
-
-test('a location carrying no displayAs is still recognised as a call', () => {
-  // The regression this guards against: gating on displayAs, which a service query
-  // never sends, silently rejected every calling point and made every train look
-  // off-corridor.
-  const pattern: ServiceLocation[] = [
-    { location: { shortCodes: ['LST'] }, temporalData: { scheduledCallType: 'ADVERTISED_PICK_UP' } },
-    { location: { shortCodes: ['SNF'] }, temporalData: { scheduledCallType: 'ADVERTISED_OPEN' } },
-  ];
-  assert.equal(pattern[1].temporalData?.displayAs, undefined);
-  assert.equal(servesScopeAhead(pattern, 'LST', isInScope), true);
-});
-
-test('a cancelled call ahead does not count as reachable', () => {
-  const pattern: ServiceLocation[] = [
-    { location: { shortCodes: ['LST'] }, temporalData: { scheduledCallType: 'ADVERTISED_PICK_UP' } },
-    {
-      location: { shortCodes: ['SNF'] },
-      temporalData: {
-        scheduledCallType: 'ADVERTISED_OPEN',
-        arrival: { scheduleAdvertised: '2026-07-31T09:30:00', isCancelled: true },
-      },
-    },
-  ];
-  assert.equal(servesScopeAhead(pattern, 'LST', isInScope), false);
-});
-
-test('trains leaving the corridor entirely are excluded', () => {
-  // Cambridge and Stansted services leave Liverpool Street via Tottenham Hale and
-  // touch nothing in scope.
-  assert.equal(servesScopeAhead(stopsAt('LST', 'TOM', 'BSS', 'CBG'), 'LST', isInScope), false);
-  assert.equal(servesScopeAhead(stopsAt('LST', 'CHH', 'EDR', 'ENF'), 'LST', isInScope), false);
-});
-
-test('Elizabeth line services on both eastbound branches are in the corridor', () => {
-  assert.equal(servesScopeAhead(stopsAt('LST', 'STF', 'IFD', 'SNF'), 'LST', isInScope), true);
-  assert.equal(servesScopeAhead(stopsAt('LST', 'ZLW', 'CUS', 'ABW'), 'LST', isInScope), true);
-});
-
-test('only stations ahead of where you board count', () => {
-  const pattern = stopsAt('LST', 'STF', 'IFD', 'SNF', 'CHM', 'COL');
-
-  // From Shenfield, everything in scope is behind you: the corridor ends here, so
-  // eastbound there is genuinely nothing, which is correct behaviour per §6.
-  assert.equal(servesScopeAhead(pattern, 'SNF', isInScope), false);
-
-  // From Ilford, Shenfield is still ahead.
-  assert.equal(servesScopeAhead(pattern, 'IFD', isInScope), true);
-});
-
-test('corridor checking copes with missing or unusable data', () => {
-  assert.equal(servesScopeAhead(undefined, 'LST', isInScope), false);
-  assert.equal(servesScopeAhead([], 'LST', isInScope), false);
-  // Boarding station absent from the pattern.
-  assert.equal(servesScopeAhead(stopsAt('AAA', 'BBB'), 'LST', isInScope), false);
-  // Boarding at the final stop.
-  assert.equal(servesScopeAhead(stopsAt('LST', 'SNF'), 'SNF', isInScope), false);
+  assert.equal(describeDestination(departures[0].service), 'Shoeburyness & Grays');
 });
 
 test('destination codes are read for both portions of a splitting train', () => {
@@ -399,13 +219,10 @@ test('destination codes are read for both portions of a splitting train', () => 
   assert.deepEqual(destinationCodes({}), []);
 });
 
-test('route derivation copes with missing or unusable data', () => {
-  assert.equal(deriveVia(undefined, 'FST', null, MARKERS), null);
-  assert.equal(deriveVia([], 'FST', null, MARKERS), null);
-  // Boarding point absent from the calling pattern.
-  assert.equal(deriveVia(callingAt('AAA', 'BBB'), 'FST', null, MARKERS), null);
-  // Boarding at the last stop: nothing ahead.
-  assert.equal(deriveVia(callingAt('FST', 'BKG', 'SOC'), 'SOC', null, MARKERS), null);
-  // Adjacent stations, nothing in between.
-  assert.equal(deriveVia(callingAt('FST', 'SOC'), 'FST', 'SOC', MARKERS), null);
+test('the platform is the live one when RTT has it, else the planned one', () => {
+  assert.equal(platformOf(stub({ id: 'p', platform: '2' })), '2');
+  const moved = stub({ id: 'm', platform: '2' });
+  moved.locationMetadata = { platform: { planned: '2', actual: '3' } };
+  assert.equal(platformOf(moved), '3');
+  assert.equal(platformOf(stub({ id: 'n' })), null);
 });

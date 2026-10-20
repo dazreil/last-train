@@ -290,19 +290,26 @@ struct PlatformChip: View {
     let platform: String?
     let colour: Color
     var short = false
+    /// A replacement bus leaves from outside the station: the chip says BUS, not a platform.
+    var isBus = false
 
     var body: some View {
-        if let platform, !platform.isEmpty {
-            Text(short ? "P\(platform)" : "PLAT \(platform)")
-                .font(.caption2.weight(.heavy))
-                .tracking(1)
-                .foregroundStyle(colour)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 1)
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(colour, lineWidth: 1))
-                .lineLimit(1)
-                .fixedSize()
-                .accessibilityLabel("Platform \(platform)")
+        if isBus {
+            chip("BUS").accessibilityLabel("Replacement bus")
+        } else if let platform, !platform.isEmpty {
+            chip(short ? "P\(platform)" : "PLAT \(platform)").accessibilityLabel("Platform \(platform)")
         }
+    }
+
+    private func chip(_ text: String) -> some View {
+        Text(text)
+            .font(.caption2.weight(.heavy))
+            .tracking(1)
+            .foregroundStyle(colour)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .overlay(RoundedRectangle(cornerRadius: 4).stroke(colour, lineWidth: 1))
+            .lineLimit(1)
+            .fixedSize()
     }
 }

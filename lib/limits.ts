@@ -225,3 +225,21 @@ export async function refreshAllowed(counter: Counter | null, headers: Headers):
   if (!address) return true;
   return (await count(counter, `refresh:${address}`, REFRESH_WINDOWS)).allowed;
 }
+
+/**
+ * How many candidates get a calling pattern read, on Fast Train and on the destination
+ * list's RTT fallback.
+ *
+ * Each one is a request, so this is the cost of both. Fifteen is what the app can show:
+ * five pages of three on Fast Train, and anything above that is paid for and thrown away.
+ * A direction usually runs three or four stopping patterns, so fifteen also covers the
+ * routes for the destination list.
+ *
+ * **One number for both, on purpose.** They share the pattern cache, keyed by service id,
+ * so choosing a destination straight after opening the list is largely paid for already.
+ * That only holds while the two agree, which is why it lives here and not in each route.
+ *
+ * Candidates past this are still counted and reported as `truncated`, never dropped
+ * silently.
+ */
+export const PATTERN_BUDGET = 15;

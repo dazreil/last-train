@@ -175,6 +175,8 @@ export interface FastService {
   arrivalInstant: string;
   /** The platform it leaves the origin from, when the line-up knows one. */
   platform: string | null;
+  /** Runs by road. Sent only when true; the row shows "bus" where the platform goes. */
+  isReplacementBus?: boolean;
   /**
    * True when this train comes from the timetable rather than a live board.
    *

@@ -16,13 +16,14 @@
  */
 
 import { fastFallbackTtl } from '@/lib/freshness';
-import { refreshAllowed } from '@/lib/limits';
+import { PATTERN_BUDGET, refreshAllowed } from '@/lib/limits';
 import { NextResponse } from 'next/server';
 
 import { locationLineUp, serviceDetail } from '@/lib/rtt';
 import { DarwinError, departureBoard, normalize, toFastService, toServiceCalls } from '@/lib/darwin';
 import type { NormalizedService } from '@/lib/darwin';
 import { timetableBoard } from '@/lib/timetable';
+import { describeDestination, isBusMode, platformOf } from '@/lib/journeys';
 import {
   currentServiceDate,
   formatLondonTime,
@@ -43,32 +44,9 @@ import {
   ttlSecondsFor,
 } from '@/lib/cache';
 import type { FastBoard, FastService } from '@/lib/nationalContract';
-import type { LocationLineUpObject, ServiceLocation } from '@/lib/rtt';
+import type { ServiceLocation } from '@/lib/rtt';
 
 export const runtime = 'nodejs';
-
-/**
- * How many candidates get a calling pattern.
- *
- * Each one is a request, so this is the cost of the mode and it used to be the free
- * tier's 10/minute that set it. Eight covered the Upminster two-hour window in §14 and
- * kept a cold lookup to nine requests.
- *
- * **Fifteen now, because that is what the app can show.** The client pages three at a
- * time up to five pages and discards the rest, so anything above `perPage × maximumPages`
- * is paid for and thrown away. Eight was also the wrong shape: it does not divide by
- * three, so a full result was 3 + 3 + 2 and the last page arrived short — one train on it
- * whenever a candidate failed to price.
- *
- * The Team tier is what affords it: 40/minute against a worst case of sixteen requests for
- * a cold lookup, and `25000 ÷ 7` sustainable a day against a cost that is only paid when a
- * pair is looked at for the first time that day. Calling patterns are cached by service id
- * rather than by pair, so a second destination from the same station reuses most of them.
- *
- * Candidates past this are still counted and reported as `truncated` rather than silently
- * dropped.
- */
-const PATTERN_BUDGET = 15;
 
 /**
  * How long a board thinned by rate limiting may be cached.
@@ -98,19 +76,6 @@ const DARWIN_TTL = 90;
  * the train it describes.
  */
 const DARWIN_CALLS_TTL = 60 * 60 * 6;
-
-/**
- * Which platform it leaves from.
- *
- * Free here: the filtered line-up already carries it for the origin, so this costs no
- * request on a route where every arrival costs one. A local copy for the same reason
- * `/api/v2/trains` keeps one — the shared helper in `lib/journeys` is private to the
- * module that answers the old web route.
- */
-const platformOf = (service: LocationLineUpObject): string | null =>
-  service.locationMetadata?.platform?.actual ??
-  service.locationMetadata?.platform?.planned ??
-  null;
 
 const answerKey = (from: string, to: string, date: IsoDate) => `fast:${from}:${to}:${date}`;
 
@@ -164,12 +129,6 @@ const ROLL_BUDGET = 6;
 const BEYOND_FILL = 3;
 
 const LATER_TTL = 90;
-
-const describe = (list: { location?: { description?: string } }[] | undefined): string =>
-  (list ?? [])
-    .map((entry) => entry.location?.description)
-    .filter((name): name is string => Boolean(name))
-    .join(' & ');
 
 /**
  * One filtered line-up, then a calling pattern per candidate, priced into `FastService`s.
@@ -236,8 +195,9 @@ async function priceWindow(
       headcode: candidate.scheduleMetadata?.trainReportingIdentity ?? null,
       toc: candidate.scheduleMetadata?.operator?.code ?? '??',
       tocName: candidate.scheduleMetadata?.operator?.name ?? 'Unknown operator',
-      destination: describe(candidate.destination),
+      destination: describeDestination(candidate),
       platform: platformOf(candidate),
+      ...(isBusMode(candidate.scheduleMetadata?.modeType) ? { isReplacementBus: true } : {}),
       ...service,
     });
   }

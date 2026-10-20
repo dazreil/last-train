@@ -133,7 +133,12 @@ struct BoardWidgetView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                     Spacer(minLength: 0)
-                    PlatformChip(platform: glance.departure.platform, colour: blockColour, short: true)
+                    PlatformChip(
+                        platform: glance.departure.platform,
+                        colour: blockColour,
+                        short: true,
+                        isBus: glance.departure.isReplacementBus
+                    )
                 }
 
                 CathodeNumber(text: glance.departure.liveDep, colour: blockColour, scale: .row)

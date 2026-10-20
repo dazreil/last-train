@@ -311,9 +311,13 @@ struct ServiceSheet: View {
 
     private var meta: String {
         var parts = [service.tocName]
-        if let headcode = service.headcode { parts.append(headcode) }
-        if let platform = service.platform { parts.append("plat \(platform)") }
-        if service.isReplacementBus { parts.append("replacement bus") }
+        // A bus's headcode is a placeholder (`0B00`), not a train number worth showing.
+        if let headcode = service.headcode, !service.isReplacementBus { parts.append(headcode) }
+        if service.isReplacementBus {
+            parts.append("replacement bus")
+        } else if let platform = service.platform {
+            parts.append("plat \(platform)")
+        }
         return parts.joined(separator: " · ")
     }
 

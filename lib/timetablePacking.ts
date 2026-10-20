@@ -313,6 +313,7 @@ export function toNormalizedService(
     destinationName: departure.destination,
     platform: departure.platform,
     isCancelled: false,
+    ...(departure.isBus ? { isReplacementBus: true } : {}),
     stops,
   };
 }

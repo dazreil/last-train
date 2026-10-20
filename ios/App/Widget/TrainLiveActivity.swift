@@ -138,10 +138,15 @@ struct TrainLiveActivity: Widget {
         context.attributes.isLastTrain ? Theme.lastTrainRedLit : Theme.serviceBlueLit
     }
 
-    /// `Shoeburyness from Upminster · plat 2`, with the platform only when it is known.
+    /// `Shoeburyness from Upminster · plat 2`, with the platform only when it is known, and
+    /// `bus` in its place for a replacement bus.
     private func caption(_ context: ActivityViewContext<TrainActivity>) -> String {
         var parts = ["\(context.attributes.stationName) to \(context.attributes.destination)"]
-        if let platform = context.state.platform { parts.append("plat \(platform)") }
+        if context.attributes.isReplacementBus == true {
+            parts.append("bus")
+        } else if let platform = context.state.platform {
+            parts.append("plat \(platform)")
+        }
         return parts.joined(separator: " · ")
     }
 
@@ -181,7 +186,11 @@ private enum ActivityCardLayout {
                         .tracking(Theme.tracking)
                         .foregroundStyle(colour)
                     Spacer(minLength: 0)
-                    PlatformChip(platform: context.state.platform, colour: colour)
+                    PlatformChip(
+                        platform: context.state.platform,
+                        colour: colour,
+                        isBus: context.attributes.isReplacementBus == true
+                    )
                 }
                 HStack(alignment: .lastTextBaseline) {
                     CathodeNumber(text: departureText(context), colour: colour, scale: .row)
