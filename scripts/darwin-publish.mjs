@@ -47,7 +47,7 @@ loadEnvLocal();
  * Three days: longer than the gap between publishes, shorter than the point at
  * which a board becomes a lie. It is the backstop under the staleness check in
  * `lib/timetable.ts`, not a replacement for it — that reports an old snapshot
- * within thirty hours, while this eventually removes it.
+ * within 48 hours, while this eventually removes it.
  */
 const TTL_SECONDS = 72 * 60 * 60;
 

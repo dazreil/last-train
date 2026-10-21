@@ -557,8 +557,10 @@ it, which also puts the format under `npm test`.
 one of `ok`, `stale`, `unconfigured`, `missing` or `error`. The fault this whole
 ingest exists to remove was a silent one — a refused request left Fast Train
 short with no message — and returning `[]` for an unconfigured store would
-rebuild that fault behind a new door. Stale means older than thirty hours, which
-is at least one missed publish.
+rebuild that fault behind a new door. Stale means older than 48 hours: past that
+the snapshot no longer covers today, so at least one publish was missed. (It was
+thirty hours until 21 October 2026. GitHub starts the job hours late every day, so
+thirty hours passed each morning before the new file landed.)
 
 ### Stage 3 found three bugs in code that already shipped
 

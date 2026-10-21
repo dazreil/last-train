@@ -37,11 +37,9 @@ Where each answer comes from:
 | Fast Train, 2–4 hours, and the destination lists | Darwin timetable store, published nightly — see `DARWIN-INGEST.md` |
 | Popular destinations | `data/popularity.json`, from the ORR matrix, refreshed each December |
 
-**Next:** `IOS.md` §9 step 7 — submission. The RTT Team plan is paid for, the credits
-are in Settings (Realtime Trains, National Rail Enquiries, ORR), and the open-API
-question is closed by rate limits (see *Exposure*). What remains is RTT's written OK on
-where the credit sits, confirming the information flow end to end, then App Store
-submission.
+**Next:** App Review. Build 3 was submitted and stays in review until the app is
+ready; later fixes are committed but not uploaded. The launch checks are done (see
+*Before submission* under *Next*).
 
 | | |
 |---|---|
@@ -576,15 +574,16 @@ Two rules from `DESIGN.md` are load-bearing and easy to break by accident:
 
 ### Before submission
 
-1. **Confirm an unattended night of the Darwin ingest.** The job has only been proved
-   by hand. Check `/api/timetable-health` the morning after it runs on its own.
-2. **Confirm the information flow end to end** — every screen answers from the source
-   in the table at the top, and a failure in any one of them says so in words.
-3. **Get RTT's written OK on the credit in Settings.** Their API terms (§5.1) ask for
-   "clearly visible credit" with a link and do not say where. Settings is one tap from
-   every screen. §5.2 lets it be settled under the Team licence.
-4. **Submit.** `IOS.md` §9 step 7. The RTT Team plan is paid; the credits are in
-   Settings; the API is rate limited.
+1. **An unattended night of the Darwin ingest — done 21 October 2026.** It ran on its
+   own, twice a night, every night from 11 to 20 October, all successful. GitHub starts
+   it four to seven hours late every day; harmless, because each file covers two days.
+   The stale limit was raised from 30 to 48 hours because of it (`lib/timetable.ts`).
+2. **The information flow end to end — done 21 October 2026.** Every screen answered
+   from the source in the table at the top. Failure wording is in code and tests; no
+   source was unplugged live.
+3. **RTT's written OK on the credit in Settings — not pursued** (decided 21 October
+   2026). The credit stays in Settings, one tap from every screen.
+4. **Submit — done.** Build 3 is with App Review.
 
 ### Worth doing, not blocking
 
@@ -615,9 +614,10 @@ Two rules from `DESIGN.md` are load-bearing and easy to break by accident:
   is now the app's main RTT cost. Moving it to the timetable store, with LDBWS inside the
   near window, cuts the running cost towards £0 and shrinks the quota anyone can drain.
   Planned 25 September 2026 (once the `SERVER-AUDIT.md` fixes, all now shipped, were in):
-  - **Decision first: days 3–5.** Darwin's file covers about two days. Recommended:
-    keep RTT for days 3–5, so no feature is lost. The other way is to plan only today
-    and tomorrow, which drops RTT entirely but shortens the day pager.
+  - **Decided 21 October 2026: keep RTT through launch.** The plan is a flat £29 a month,
+    so using less RTT saves nothing unless the plan is cancelled. Revisit after about a
+    month of real users. Darwin's file covers about two days; the day pager reaches
+    five, so all-Darwin means a shorter pager.
   - Make Darwin the main source for Last Train only on dates with proven full coverage.
   - Compare Darwin and RTT on real routes first: engineering weekends, trains after
     midnight, the clock change, trains that split or join.

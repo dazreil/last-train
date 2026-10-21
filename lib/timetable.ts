@@ -37,13 +37,19 @@ import type { NormalizedService } from './darwin.ts';
 /**
  * When a snapshot stops being trustworthy.
  *
- * Darwin publishes once a day, at about 02:05. Thirty hours therefore means at
- * least one publish was missed, or the delivery stopped — which is the likeliest
- * way this ingest dies, because a new version of the data product silently
- * unlinks the destination and nothing errors. Age is the signal that catches it;
- * a job exiting zero having found nothing new looks exactly like a healthy one.
+ * Darwin generates the file once a day, at about 02:05, and it covers that day and
+ * the next. So a snapshot is good for 48 hours: past that it no longer holds today,
+ * which means at least one publish was missed, or the delivery stopped — the
+ * likeliest way this ingest dies, because a new version of the data product silently
+ * unlinks the destination and nothing errors. Age is the signal that catches it; a job
+ * exiting zero having found nothing new looks exactly like a healthy one.
+ *
+ * **Not thirty, which it was.** GitHub starts the nightly job four to seven hours
+ * late, every day (measured 11–20 October 2026), so the file was always past thirty
+ * hours for a while each morning. Fast Train then told people its times were a day
+ * and a half old, and the health check failed, while the times were perfectly good.
  */
-export const STALE_AFTER_SECONDS = 30 * 60 * 60;
+export const STALE_AFTER_SECONDS = 48 * 60 * 60;
 
 export type TimetableResult =
   /** A board, with how old the snapshot behind it is. */
