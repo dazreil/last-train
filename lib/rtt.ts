@@ -17,6 +17,7 @@ import 'server-only';
 import { sharedRedis } from './cache.ts';
 import { UPSTREAM_WINDOWS, count, createLocalBudget } from './limits.ts';
 import { createTokenBucket } from './pacing.ts';
+import { splitWindowWithinLimit } from './serviceDay.ts';
 
 const BASE_URL = 'https://data.rtt.io';
 
@@ -524,8 +525,53 @@ export interface LineUpQuery {
  * the Elizabeth line in one list, and the last train is often the Greater
  * Anglia one.
  */
-export const locationLineUp = (query: LineUpQuery) =>
-  request<LocationLineUpResponse>('/gb-nr/location', { ...query });
+export async function locationLineUp(query: LineUpQuery): Promise<LocationLineUpResponse | null> {
+  const pieces = splitWindowWithinLimit({ timeFrom: query.timeFrom, timeTo: query.timeTo });
+  if (pieces.length === 1) return request<LocationLineUpResponse>('/gb-nr/location', { ...query });
+
+  // The fall-back night: two requests, one answer. See `splitWindowWithinLimit`.
+  const answers = await Promise.all(
+    pieces.map((piece) => request<LocationLineUpResponse>('/gb-nr/location', { ...query, ...piece }))
+  );
+  return mergeLineUps(answers, query);
+}
+
+/**
+ * Join line-ups from consecutive windows.
+ *
+ * A service departing on the shared boundary can appear in both, so services are
+ * kept once by identity. A copy is made, because `request` shares parsed responses
+ * between callers and none may change what it is given. Null only when every
+ * piece was a 204, keeping "no services" a trustworthy answer.
+ */
+function mergeLineUps(
+  answers: (LocationLineUpResponse | null)[],
+  query: LineUpQuery
+): LocationLineUpResponse | null {
+  const present = answers.filter((a): a is LocationLineUpResponse => a !== null);
+  if (present.length === 0) return null;
+
+  const seen = new Set<string>();
+  const services: LocationLineUpObject[] = [];
+  for (const answer of present) {
+    for (const service of answer.services ?? []) {
+      const id = service.scheduleMetadata?.uniqueIdentity;
+      if (id) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+      }
+      services.push(service);
+    }
+  }
+
+  return {
+    // The worst status of the pieces, so degraded data is never reported as fine.
+    systemStatus: present.find((a) => a.systemStatus?.rttCore !== 'OK' || a.systemStatus?.realtimeNetworkRail !== 'OK')
+      ?.systemStatus ?? present[0].systemStatus,
+    query: { ...present[0].query, timeFrom: query.timeFrom, timeTo: query.timeTo },
+    services,
+  };
+}
 
 /**
  * One service's calling pattern, used to derive the route it takes.

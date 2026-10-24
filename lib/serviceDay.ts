@@ -108,6 +108,36 @@ export function serviceDayWindow(date: IsoDate): ServiceDayWindow {
   };
 }
 
+/** The API's documented maximum query window, in real elapsed minutes. */
+export const MAX_WINDOW_MINUTES = 23 * 60 + 59;
+
+/**
+ * A query window cut into pieces the API will accept.
+ *
+ * The API reads an offset-less time as London wall clock, but measures the window
+ * in elapsed time. On the autumn fall-back night the service day 03:00 -> 02:59 is
+ * 24h59m of real time, and the whole-day line-up comes back HTTP 400 — found on
+ * Saturday 24 October 2026. Such a window is split at local midnight: both halves
+ * are well inside the limit, and both boundaries exist exactly once on that night.
+ *
+ * Every other window is returned as it is, so this costs one extra request one
+ * night a year.
+ */
+export function splitWindowWithinLimit(window: ServiceDayWindow): ServiceDayWindow[] {
+  if (minutesBetween(window.timeFrom, window.timeTo) <= MAX_WINDOW_MINUTES) return [window];
+
+  const midnight = `${addDays(window.timeFrom.slice(0, 10), 1)}T00:00:00`;
+  const parts = [
+    { timeFrom: window.timeFrom, timeTo: midnight },
+    { timeFrom: midnight, timeTo: window.timeTo },
+  ];
+  // A window too long for one midnight split is not one this app ever builds;
+  // pass it on and let the API say so rather than inventing a third piece.
+  return parts.every((p) => minutesBetween(p.timeFrom, p.timeTo) <= MAX_WINDOW_MINUTES)
+    ? parts
+    : [window];
+}
+
 const timeFormatter = new Intl.DateTimeFormat('en-GB', {
   timeZone: LONDON_TZ,
   hour: '2-digit',

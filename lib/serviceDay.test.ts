@@ -9,7 +9,9 @@ import {
   isValidIsoDate,
   londonDateOf,
   minutesBetween,
+  MAX_WINDOW_MINUTES,
   serviceDayWindow,
+  splitWindowWithinLimit,
   toInstantMillis,
 } from './serviceDay.ts';
 
@@ -65,17 +67,27 @@ test('the query window covers 03:00 to 02:59 the next morning', () => {
   assert.equal(window.timeTo, '2026-07-30T02:59:00');
 });
 
-test('the query window never exceeds the documented 23h59m maximum', () => {
-  // Offset-less, so the API reads it as local to the station. Checking the span
-  // in London terms is what matters: on the spring-forward night the local day is
-  // only 23 hours long, and on the autumn night it is 25 -- the latter is the one
-  // that could breach the limit.
-  for (const date of ['2026-03-29', '2026-10-25', '2026-07-29', '2026-01-15']) {
-    const window = serviceDayWindow(date);
-    const from = new Date(`${window.timeFrom}Z`);
-    const to = new Date(`${window.timeTo}Z`);
-    const minutes = (to.getTime() - from.getTime()) / 60_000;
-    assert.equal(minutes, 23 * 60 + 59, `window for ${date} must be exactly 23h59m`);
+test('every window actually sent stays inside the 23h59m maximum, in real time', () => {
+  // Measured as London instants. The old version of this test read the times as UTC,
+  // which always gives 23h59m, and checked 25 October rather than the service day that
+  // contains the change -- so it passed while the 24 October line-up returned HTTP 400.
+  for (const date of ['2026-03-28', '2026-03-29', '2026-10-24', '2026-10-25', '2026-07-29', '2026-01-15']) {
+    for (const piece of splitWindowWithinLimit(serviceDayWindow(date))) {
+      const minutes = minutesBetween(piece.timeFrom, piece.timeTo);
+      assert.ok(minutes <= MAX_WINDOW_MINUTES, `${date}: ${piece.timeFrom} -> ${piece.timeTo} is ${minutes} min`);
+    }
+  }
+});
+
+test('the autumn fall-back service day is split at midnight, and no other day is', () => {
+  assert.equal(minutesBetween(serviceDayWindow('2026-10-24').timeFrom, serviceDayWindow('2026-10-24').timeTo), 1499);
+  assert.deepEqual(splitWindowWithinLimit(serviceDayWindow('2026-10-24')), [
+    { timeFrom: '2026-10-24T03:00:00', timeTo: '2026-10-25T00:00:00' },
+    { timeFrom: '2026-10-25T00:00:00', timeTo: '2026-10-25T02:59:00' },
+  ]);
+  assert.equal(splitWindowWithinLimit(serviceDayWindow('2027-10-30')).length, 2);
+  for (const date of ['2026-10-23', '2026-10-25', '2026-03-28', '2026-07-29']) {
+    assert.equal(splitWindowWithinLimit(serviceDayWindow(date)).length, 1, date);
   }
 });
 
