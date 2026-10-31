@@ -171,7 +171,22 @@ public struct BoardClient: Sendable {
         date: String? = nil,
         /// Set when this day was stepped on to because the previous one is spent.
         advanced: Bool = false,
-        refresh: Bool = false
+        refresh: Bool = false,
+        /**
+         Ignore this device's cached copy, but still accept the server's.
+
+         The route sends `max-age` up to its own time-to-live, an hour for the live
+         service day, so `URLSession` will answer from memory for that long without
+         going near the network. For a board that is correct when it is fetched and
+         wrong later, an hour is far too long to trust: the app can come back from the
+         background to a board that has quietly expired, and a reload that never leaves
+         the device cannot tell it so.
+
+         Distinct from `refresh`, which also makes the *server* discard what it has and
+         spend an upstream request. This one only distrusts the local copy, so a
+         revalidated load is usually free.
+         */
+        revalidate: Bool = false
     ) async throws -> DepartureBoard {
         guard var components = URLComponents(
             url: baseURL.appendingPathComponent("api/v2/trains"),
@@ -195,8 +210,12 @@ public struct BoardClient: Sendable {
         // The server sends `max-age`, and honouring it is what makes a repeat lookup
         // feel instant. But a refresh has to mean refresh: without this, pulling down
         // re-reads URLSession's copy and the board never changes — which also hides a
-        // deploy that changed the response shape behind an hour of stale JSON.
-        request.cachePolicy = refresh ? .reloadIgnoringLocalCacheData : .useProtocolCachePolicy
+        // deploy that changed the response shape behind an hour of stale JSON. A
+        // revalidated load distrusts the same copy for the same reason, without making
+        // the server spend anything.
+        request.cachePolicy = (refresh || revalidate)
+            ? .reloadIgnoringLocalCacheData
+            : .useProtocolCachePolicy
 
         let data: Data
         let response: URLResponse

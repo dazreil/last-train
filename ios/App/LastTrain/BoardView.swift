@@ -16,6 +16,8 @@ import LastTrainCore
 struct BoardView: View {
     @State private var model = BoardModel()
     @State private var fast = FastModel()
+    /// Watched so the board can be re-checked on the way back in, which `.task` cannot do.
+    @Environment(\.scenePhase) private var scenePhase
     /**
      Which question the app is answering.
 
@@ -64,6 +66,13 @@ struct BoardView: View {
         .background(Theme.surface)
         .refreshable { await model.load(refresh: true) }
         .task { await model.load() }
+        // Reopening is the case `.task` cannot see: it runs when the view appears and
+        // never again, so a resident app kept a board that had quietly expired. See
+        // `BoardModel.refreshOnForeground`.
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task { await model.refreshOnForeground() }
+        }
         // Fast Train needs its own lookup, and only once there is somewhere to go.
         .task(id: fastKey) {
             guard mode == .fast, let station = model.station else { return }
@@ -154,10 +163,18 @@ struct BoardView: View {
     private var mastheadTrailing: some View {
         switch mode {
         case .last:
-            if model.dayIndex > 0 && !model.stepWrapsToToday { todayButton }
-            stepLabel(model.dayIndex == 0
-                ? "Today"
-                : ServiceDay.formatWeekday(model.shownDate) ?? "")
+            // `canReturnToToday`, not `dayIndex > 0`: the app also steps on to tomorrow
+            // by itself, and `dayIndex` is deliberately zero in that state. Keying the
+            // way back on it left the one case that needs it most with no way back at
+            // all -- an automatic step taken on a board that turned out to be stale, with
+            // force-quitting the only cure. See `BoardModel.refreshOnForeground`.
+            if model.canReturnToToday && !model.stepWrapsToToday { todayButton }
+            // Names the day on screen rather than the step. Reading this off `dayIndex`
+            // made the masthead say `Today` above tomorrow's first trains, which is the
+            // one thing this row exists to be straight about.
+            stepLabel(model.canReturnToToday
+                ? ServiceDay.formatWeekday(model.shownDate) ?? ""
+                : "Today")
             stepButton(
                 label: model.stepWrapsToToday
                     ? "Today"
@@ -273,14 +290,16 @@ struct BoardView: View {
     /**
      Back to tonight, in the left slot while you are walking forward.
 
-     Drawn only once you have stepped away by hand, and not at all on the furthest day —
+     Drawn once there is a day to come back from, and not at all on the furthest day —
      there the walk rounds to today anyway, so `Today` is already in the right slot and
      naming it twice would be two ways to say one thing.
 
-     Never offered when the board moved itself past a spent service day: today is then
-     the day whose trains have all gone, and offering to return to it would be offering
-     to go back to nothing. `dayIndex` is zero in that state, which is what keeps this
-     absent without a second condition.
+     **It used to key off `dayIndex`, which is zero when the board moved itself**, on the
+     reasoning that after the last train today is the day whose trains have all gone and
+     going back to it would be going back to nothing. Right about the day, wrong about the
+     button: the automatic step also fires on a board that has gone stale, nothing ever
+     un-steps it, and with no way back force-quitting was the only cure. A way back that
+     is occasionally pointless beats a wrong state with no exit.
      */
     private var todayButton: some View {
         Button {

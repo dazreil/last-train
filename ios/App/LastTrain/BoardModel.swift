@@ -62,6 +62,12 @@ final class BoardModel {
     /// Set once per station and direction, so a spent day is stepped over exactly once.
     private var advancedFor: String?
 
+    /// When the board on screen was fetched. Nil until one arrives.
+    private(set) var loadedAt: Date?
+
+    /// The station-and-direction pair the automatic step is remembered against.
+    private var stamp: String { "\(station?.crs ?? "-"):\(direction.rawValue)" }
+
     /**
      True once the date has been stepped by hand rather than by the app.
 
@@ -125,7 +131,7 @@ final class BoardModel {
         board?.towardsLabels ?? [:]
     }
 
-    func load(refresh: Bool = false) async {
+    func load(refresh: Bool = false, revalidate: Bool = false) async {
         guard let station else {
             board = nil
             errorMessage = nil
@@ -148,10 +154,12 @@ final class BoardModel {
                     // arrangement, first-three-then-last, instead of the last trains you
                     // opened it to see.
                     advanced: requestedDate != nil && !isBrowsing,
-                    refresh: refresh
+                    refresh: refresh,
+                    revalidate: revalidate
                 )
                 guard !Task.isCancelled else { return }
                 board = result
+                loadedAt = Date()
             } catch is CancellationError {
                 return
             } catch {
@@ -182,16 +190,61 @@ final class BoardModel {
      than being browsed. It happens once per station and direction, so it cannot loop.
      */
     private func advancePastSpentDay() async {
-        guard let board, let station else { return }
+        guard let board else { return }
         guard board.date == ServiceDay.currentServiceDate() else { return }
 
-        let stamp = "\(station.crs):\(direction.rawValue)"
         guard advancedFor != stamp else { return }
         guard Board.isServiceDaySpent(lastDeparture: board.lastTrain?.depInstant) else { return }
 
         advancedFor = stamp
         requestedDate = ServiceDay.addDays(board.date, 1)
         await load()
+    }
+
+    /**
+     Come back to a board that is still true.
+
+     The app had no answer to being reopened. `.task` runs once when the view appears and
+     not again when the app returns from the background, so a resident process kept
+     whatever it last worked out — for hours, across a service day boundary, with the
+     departures on screen already gone. Worse, `requestedDate` and `advancedFor` are only
+     ever cleared by changing station or direction, so an automatic step on to tomorrow
+     survived indefinitely and kept being re-asked for. Force-quitting was the only way
+     out, which is exactly how it was found.
+
+     Three things happen here, in this order:
+
+     1. **An automatic step the clock has caught up with is dropped.** It is only
+        meaningful while it points at the *next* service day; once it points at today or
+        earlier, asking for it tells the server a settled day is the live one.
+     2. **The local copy is distrusted.** The route's `max-age` lets `URLSession` answer
+        from memory for up to an hour, which is long enough for a correct board to become
+        a wrong one, and a reload that never reaches the network cannot discover that.
+     3. **`advancePastSpentDay` runs again** off the back of the fresh board, so a day
+        that ran out while the app was away is stepped over on the way back in.
+
+     Skipped when nothing can have changed — a board fetched moments ago on the same
+     service day — because the quota is small and reopening is common. Skipped entirely
+     before the first board arrives: `.task` is already fetching it, and starting a load
+     here would cancel that one and replace it with a slower one that ignores the cache,
+     on the surface that has to answer in two seconds.
+     */
+    func refreshOnForeground() async {
+        guard station != nil, board != nil else { return }
+
+        let today = ServiceDay.currentServiceDate()
+
+        // A day the app chose, not one you chose, and no longer the next one.
+        let overtaken = !isBrowsing && (requestedDate.map { $0 <= today } ?? false)
+        if overtaken {
+            requestedDate = nil
+            advancedFor = nil
+        }
+
+        let settled = loadedAt.map { Date().timeIntervalSince($0) < 60 } ?? false
+        guard overtaken || !settled else { return }
+
+        await load(revalidate: true)
     }
 
     /**
@@ -286,6 +339,17 @@ final class BoardModel {
      */
     var dayIndex: Int { isBrowsing ? daysAhead : 0 }
 
+    /**
+     Whether there is a way back to offer.
+
+     True whenever the board is not showing the service day in progress, **however it got
+     there** — which is the difference between this and `dayIndex > 0`. The app steps on
+     to tomorrow by itself when a day runs out, and `dayIndex` is deliberately zero in
+     that state, so keying the way back on it left the one case that needs it most with no
+     exit.
+     */
+    var canReturnToToday: Bool { shownDate != ServiceDay.currentServiceDate() }
+
     /// The service day each step of the walk lands on, today being step zero.
     func date(atStep step: Int) -> String? {
         ServiceDay.addDays(ServiceDay.currentServiceDate(), step)
@@ -319,16 +383,22 @@ final class BoardModel {
         Task { await load() }
     }
 
-    /// Back to wherever the app would put you if you had just opened it.
-    func returnToToday() {
-        resetDay()
-        Task { await load() }
-    }
+    /**
+     Back to wherever the app would put you if you had just opened it.
 
-    private func resetDay() {
+     **The stamp is set rather than cleared**, which is the difference between this
+     working and doing nothing at all. `advancePastSpentDay` fires off the back of the
+     load below, and with the stamp cleared it would find today spent and step straight
+     off it again — a button that visibly did nothing. Keeping the stamp says the step
+     has already been considered for this pair, so asking for today lands on today, spent
+     or not. Changing station or direction clears it, which is the right scope: the new
+     pair's day is a fresh question.
+     */
+    func returnToToday() {
         requestedDate = nil
-        advancedFor = nil
         isBrowsing = false
+        advancedFor = stamp
+        Task { await load() }
     }
 
     /**
